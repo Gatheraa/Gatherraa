@@ -31,7 +31,6 @@ Gathera/
 │   ├── contracts/        # Rust smart contract source
 │   ├── scripts/          # Deployment and utility scripts
 │   └── test/             # Contract test suites
-└── .qoder/               # AI agent configuration
 ```
 
 ## Tech Stack
