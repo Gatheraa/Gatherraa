@@ -8,6 +8,8 @@ import { UsersModule } from './users/users.module';
 import { SessionsModule } from './sessions/sessions.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { EventsModule } from './events/events.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
@@ -29,6 +31,8 @@ import { ScheduleModule } from '@nestjs/schedule';
     SessionsModule,
     AnalyticsModule,
     EventsModule,
+    ReviewsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CqrsModule } from '@nestjs/cqrs';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventsController } from './events.controller';
+import { Event } from './entities/event.entity';
 import { EventWriteModel } from './entities/event-write.entity';
 import { EventReadModel } from './entities/event-read.entity';
 import { EventVersion } from './entities/event-version.entity';
@@ -41,6 +42,7 @@ export const Services = [
   imports: [
     CqrsModule,
     TypeOrmModule.forFeature([
+      Event, // Traditional entity
       EventWriteModel,
       EventReadModel,
       EventVersion,

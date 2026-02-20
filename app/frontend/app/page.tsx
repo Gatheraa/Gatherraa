@@ -24,6 +24,12 @@ export default function Home() {
         <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
           <Link
             className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[200px]"
+            href="/events"
+          >
+            Browse Events
+          </Link>
+          <Link
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-foreground px-5 text-foreground transition-colors hover:bg-[#f5f5f5] dark:hover:bg-[#1a1a1a] md:w-[200px]"
             href="/dashboard"
           >
             View Dashboard
