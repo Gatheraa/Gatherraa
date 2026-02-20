@@ -6,6 +6,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SessionsModule } from './sessions/sessions.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -20,9 +22,11 @@ import { SessionsModule } from './sessions/sessions.module';
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV !== 'production',
     }),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     SessionsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
