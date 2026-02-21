@@ -14,6 +14,8 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SearchModule } from './search/search.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { HelpCenterModule } from './help-center/help-center.module';
+import { CategoriesModule } from './categories/categories.module';
+import { TagsModule } from './tags/tags.module';
 
 @Module({
   imports: [
@@ -39,6 +41,8 @@ import { HelpCenterModule } from './help-center/help-center.module';
     SearchModule,
     RateLimitModule,
     HelpCenterModule,
+    CategoriesModule,
+    TagsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
