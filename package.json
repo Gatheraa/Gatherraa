@@ -1,1 +1,6 @@
-{}
+{
+  "dependencies": {
+    "@nestjs/cli": "^11.0.16",
+    "@nestjs/mapped-types": "*"
+  }
+}
