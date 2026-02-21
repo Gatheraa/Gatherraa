@@ -19,6 +19,31 @@
 # Hardhat coverage reports
 /coverage
 
+# Rust build artifacts
+**/target/
+
+# Rust test snapshots
+**/test_snapshots/
+
+# Database files
+*.sqlite
+*.db
+
+# WASM files
+*.wasm
+
+# Lock files (except Cargo.lock which is for reproducible builds)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
 .DS_Store
 .env
 .env.local

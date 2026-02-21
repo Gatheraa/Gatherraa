@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
     "@nestjs/cqrs": "^11.0.3",
     "@nestjs/elasticsearch": "^11.1.0",
@@ -44,6 +45,7 @@
     "cloudinary": "^2.9.0",
     "csv-writer": "^1.6.0",
     "date-fns": "^4.1.0",
+    "diff": "^8.0.3",
     "exceljs": "^4.4.0",
     "ioredis": "^5.9.3",
     "mathjs": "^15.1.1",

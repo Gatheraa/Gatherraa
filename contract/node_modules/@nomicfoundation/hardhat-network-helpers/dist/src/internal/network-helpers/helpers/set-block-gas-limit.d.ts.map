@@ -1,1 +1,0 @@
-{"version":3,"file":"set-block-gas-limit.d.ts","sourceRoot":"","sources":["../../../../../src/internal/network-helpers/helpers/set-block-gas-limit.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,UAAU,EAAE,MAAM,mBAAmB,CAAC;AACpD,OAAO,KAAK,EAAE,gBAAgB,EAAE,MAAM,yBAAyB,CAAC;AAIhE,wBAAsB,gBAAgB,CACpC,QAAQ,EAAE,gBAAgB,EAC1B,aAAa,EAAE,UAAU,GACxB,OAAO,CAAC,IAAI,CAAC,CAOf"}

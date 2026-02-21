@@ -1,1 +1,0 @@
-{"version":3,"file":"validate-key.js","sourceRoot":"","sources":["../../../../src/internal/utils/validate-key.ts"],"names":[],"mappings":"AAAA,MAAM,CAAC,KAAK,UAAU,WAAW,CAAC,GAAW;IAC3C,MAAM,SAAS,GAAG,2BAA2B,CAAC;IAE9C,IAAI,SAAS,CAAC,IAAI,CAAC,GAAG,CAAC,EAAE,CAAC;QACxB,OAAO,IAAI,CAAC;IACd,CAAC;IAED,OAAO,KAAK,CAAC;AACf,CAAC"}

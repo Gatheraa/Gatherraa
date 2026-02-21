@@ -1,1 +1,0 @@
-{"version":3,"file":"type-extensions.d.ts","sourceRoot":"","sources":["../../src/type-extensions.ts"],"names":[],"mappings":"AAAA,OAAO,uBAAuB,CAAC;AAC/B,OAAO,KAAK,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAEjD,OAAO,QAAQ,uBAAuB,CAAC;IACrC,UAAU,iBAAiB,CACzB,UAAU,SAAS,SAAS,GAAG,MAAM,GAAG,gBAAgB;QAExD,cAAc,EAAE,cAAc,CAAC,UAAU,CAAC,CAAC;KAC5C;CACF"}
