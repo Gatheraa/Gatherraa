@@ -1,11 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Calendar, Star, Users } from 'lucide-react';
-import { PublicLayout } from '@/components/layout';
-import { Badge, Button, Card, Spinner } from '@/components/ui';
-import { Event, eventsApi } from '../../lib/api/events';
+import { Calendar, MapPin, Users, Star, ArrowRight } from 'lucide-react';
+import { eventsApi, Event } from '../../lib/api/events';
 
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -18,7 +16,6 @@ export default function EventsPage() {
 
   useEffect(() => {
     loadEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const loadEvents = async () => {
@@ -63,10 +60,15 @@ export default function EventsPage() {
     const endDate = end ? new Date(end) : null;
 
     if (endDate && startDate.toDateString() === endDate.toDateString()) {
+      // Same day
       return `${formatDate(start)} ${formatTime(start)} - ${formatTime(end!)}`;
+    } else if (endDate) {
+      // Multi-day
+      return `${formatDate(start)} - ${formatDate(end!)}`;
+    } else {
+      // Single day, no end time
+      return formatDate(start);
     }
-    if (endDate) return `${formatDate(start)} - ${formatDate(end!)}`;
-    return formatDate(start);
   };
 
   const getEventStatus = (startTime: string, endTime: string | null) => {
@@ -74,104 +76,146 @@ export default function EventsPage() {
     const start = new Date(startTime);
     const end = endTime ? new Date(endTime) : null;
 
-    if (end && now > end) return { label: 'Ended', variant: 'warning' as const };
-    if (now >= start && (!end || now <= end)) return { label: 'Live', variant: 'success' as const };
-    if (start.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000) {
-      return { label: 'Upcoming', variant: 'neutral' as const };
+    if (end && now > end) {
+      return { label: 'Ended', color: 'bg-gray-500' };
+    } else if (now >= start && (!end || now <= end)) {
+      return { label: 'Live', color: 'bg-green-500' };
+    } else if (start.getTime() - now.getTime() < 7 * 24 * 60 * 60 * 1000) {
+      return { label: 'Upcoming', color: 'bg-blue-500' };
+    } else {
+      return { label: 'Scheduled', color: 'bg-gray-400' };
     }
-    return { label: 'Scheduled', variant: 'neutral' as const };
   };
 
   if (loading && events.length === 0) {
     return (
-      <PublicLayout title="Events" subtitle="Discover upcoming blockchain events, conferences, and workshops.">
-        <div className="flex h-72 items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      </PublicLayout>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-600 dark:text-gray-400">Loading events...</div>
+      </div>
     );
   }
 
   if (error && events.length === 0) {
     return (
-      <PublicLayout title="Events" subtitle="Discover upcoming blockchain events, conferences, and workshops.">
-        <Card className="text-center">
-          <p className="mb-4 text-danger">{error}</p>
-          <Button onClick={loadEvents}>Retry</Button>
-        </Card>
-      </PublicLayout>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 dark:text-red-400 mb-4">{error}</div>
+          <button
+            onClick={loadEvents}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <PublicLayout title="Events" subtitle="Discover upcoming blockchain events, conferences, and workshops.">
-      {total > 0 ? (
-        <p className="mb-6 text-sm text-muted">
-          Showing {events.length} of {total} events
-        </p>
-      ) : null}
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Events</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Discover upcoming blockchain events, conferences, and workshops
+          </p>
+        </div>
 
-      {events.length === 0 ? (
-        <Card className="text-center">
-          <p className="text-muted">No events found</p>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {events.map((event) => {
-            const status = getEventStatus(event.startTime, event.endTime);
-            return (
-              <Link key={event.id} href={`/events/${event.id}`} className="group">
-                <Card className="h-full transition-shadow hover:shadow-md">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <Badge variant={status.variant}>{status.label}</Badge>
-                    {event.ratingSummary && event.ratingSummary.totalReviews > 0 ? (
-                      <div className="flex items-center gap-1 text-sm text-muted">
-                        <Star className="h-4 w-4 fill-warning text-warning" />
-                        <span className="font-medium text-foreground">
-                          {event.ratingSummary.averageRating.toFixed(1)}
-                        </span>
-                        <span className="text-xs">({event.ratingSummary.totalReviews})</span>
-                      </div>
-                    ) : null}
-                  </div>
+        {/* Events Count */}
+        {total > 0 && (
+          <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+            Showing {events.length} of {total} events
+          </div>
+        )}
 
-                  <h2 className="mb-2 text-xl font-semibold group-hover:text-primary">{event.name}</h2>
-
-                  {event.description ? (
-                    <p className="mb-4 line-clamp-2 text-sm text-muted">{event.description}</p>
-                  ) : null}
-
-                  <div className="mb-4 space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-muted">
-                      <Calendar className="h-4 w-4" />
-                      <span>{formatDateRange(event.startTime, event.endTime)}</span>
+        {/* Events Grid */}
+        {events.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow">
+            <div className="text-gray-600 dark:text-gray-400">No events found</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map((event) => {
+              const status = getEventStatus(event.startTime, event.endTime);
+              return (
+                <Link
+                  key={event.id}
+                  href={`/events/${event.id}`}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden group"
+                >
+                  <div className="p-6">
+                    {/* Status Badge */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full text-white ${status.color}`}
+                      >
+                        {status.label}
+                      </span>
+                      {event.ratingSummary && event.ratingSummary.totalReviews > 0 && (
+                        <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                          <span className="font-medium">
+                            {event.ratingSummary.averageRating.toFixed(1)}
+                          </span>
+                          <span className="text-xs">
+                            ({event.ratingSummary.totalReviews})
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    {event.ratingSummary && event.ratingSummary.totalReviews > 0 ? (
-                      <div className="flex items-center gap-2 text-sm text-muted">
-                        <Users className="h-4 w-4" />
-                        <span>{event.ratingSummary.totalReviews} reviews</span>
+
+                    {/* Event Title */}
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {event.name}
+                    </h2>
+
+                    {/* Description */}
+                    {event.description && (
+                      <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">
+                        {event.description}
+                      </p>
+                    )}
+
+                    {/* Event Details */}
+                    <div className="space-y-2 mb-4">
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <Calendar className="w-4 h-4" />
+                        <span>{formatDateRange(event.startTime, event.endTime)}</span>
                       </div>
-                    ) : null}
-                  </div>
+                      {event.ratingSummary && event.ratingSummary.totalReviews > 0 && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <Users className="w-4 h-4" />
+                          <span>{event.ratingSummary.totalReviews} reviews</span>
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="flex items-center gap-2 text-sm font-medium text-primary group-hover:gap-3">
-                    <span>View Details</span>
-                    <ArrowRight className="h-4 w-4" />
+                    {/* View Details Link */}
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-medium group-hover:gap-3 transition-all">
+                      <span>View Details</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
                   </div>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+                </Link>
+              );
+            })}
+          </div>
+        )}
 
-      {hasMore ? (
-        <div className="mt-8 text-center">
-          <Button onClick={() => setPage((prev) => prev + 1)} disabled={loading}>
-            {loading ? 'Loading...' : 'Load More'}
-          </Button>
-        </div>
-      ) : null}
-    </PublicLayout>
+        {/* Load More */}
+        {hasMore && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={() => setPage((prev) => prev + 1)}
+              disabled={loading}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Loading...' : 'Load More'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

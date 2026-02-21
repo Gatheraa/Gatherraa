@@ -2,7 +2,6 @@
 
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from 'recharts';
 import { Star } from 'lucide-react';
-import { Card } from '@/components/ui';
 
 interface RatingDistribution {
   [key: number]: number;
@@ -28,40 +27,7 @@ export default function RatingDisplay({
         : 0,
   }));
 
-  const COLORS = ['var(--color-warning)', 'var(--color-warning)', 'var(--color-warning)', 'var(--color-warning)', 'var(--color-warning)'];
-
-  const progressWidthClass = (percentage: number) => {
-    if (percentage >= 90) return 'w-[90%]';
-    if (percentage >= 80) return 'w-[80%]';
-    if (percentage >= 70) return 'w-[70%]';
-    if (percentage >= 60) return 'w-[60%]';
-    if (percentage >= 50) return 'w-1/2';
-    if (percentage >= 40) return 'w-[40%]';
-    if (percentage >= 30) return 'w-[30%]';
-    if (percentage >= 20) return 'w-1/5';
-    if (percentage >= 10) return 'w-[10%]';
-    if (percentage > 0) return 'w-[5%]';
-    return 'w-0';
-  };
-
-  function RatingTooltip({
-    active,
-    payload,
-    label,
-  }: {
-    active?: boolean;
-    payload?: Array<{ value?: number }>;
-    label?: string;
-  }) {
-    if (!active || !payload || !payload.length) return null;
-
-    return (
-      <Card className="p-3 shadow-md">
-        <p className="text-sm font-medium">{label} stars</p>
-        <p className="text-sm text-muted">{payload[0]?.value} reviews</p>
-      </Card>
-    );
-  }
+  const COLORS = ['#fbbf24', '#fbbf24', '#fbbf24', '#fbbf24', '#fbbf24'];
 
   const renderStars = (rating: number) => {
     return (
@@ -111,7 +77,16 @@ export default function RatingDisplay({
                 tick={{ fill: '#6b7280' }}
                 tickFormatter={(value) => `${value} star${value !== 1 ? 's' : ''}`}
               />
-              <Tooltip content={<RatingTooltip />} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#1f2937',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: '#f3f4f6',
+                }}
+                labelStyle={{ color: '#f3f4f6' }}
+                formatter={(value: number) => [`${value} reviews`, 'Count']}
+              />
               <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index]} />
@@ -130,7 +105,10 @@ export default function RatingDisplay({
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div className={`h-2 rounded-full bg-warning ${progressWidthClass(item.percentage)}`} />
+                      <div
+                        className="bg-yellow-400 h-2 rounded-full"
+                        style={{ width: `${item.percentage}%` }}
+                      />
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-400 w-16 text-right">
                       {item.count} ({item.percentage}%)

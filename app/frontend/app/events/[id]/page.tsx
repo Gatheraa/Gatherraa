@@ -1,15 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { PublicLayout } from '@/components/layout';
-import { Button, Card, Modal, Spinner } from '@/components/ui';
+import { eventsApi, Event } from '../../../lib/api/events';
 import RatingDisplay from '../../../components/reviews/rating-display';
-import ReviewForm from '../../../components/reviews/review-form';
 import ReviewList from '../../../components/reviews/review-list';
-import { Event, eventsApi } from '../../../lib/api/events';
+import ReviewForm from '../../../components/reviews/review-form';
 
 export default function EventDetailPage() {
   const params = useParams();
@@ -36,16 +34,45 @@ export default function EventDetailPage() {
       }
     };
 
-    if (eventId) loadEvent();
+    if (eventId) {
+      loadEvent();
+    }
   }, [eventId]);
 
   const handleReviewSubmit = () => {
     setShowReviewForm(false);
     setRefreshKey((prev) => prev + 1);
+    // Reload event to get updated rating
     if (eventId) {
       eventsApi.getEvent(eventId).then(setEvent).catch(console.error);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-gray-600 dark:text-gray-400">Loading event...</div>
+      </div>
+    );
+  }
+
+  if (error || !event) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 dark:text-red-400 mb-4">
+            {error || 'Event not found'}
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -58,77 +85,78 @@ export default function EventDetailPage() {
     });
   };
 
-  if (loading) {
-    return (
-      <PublicLayout title="Event Details">
-        <div className="flex h-72 items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      </PublicLayout>
-    );
-  }
-
-  if (error || !event) {
-    return (
-      <PublicLayout title="Event Details">
-        <Card className="text-center">
-          <p className="mb-4 text-danger">{error || 'Event not found'}</p>
-          <Button onClick={() => window.location.reload()}>Retry</Button>
-        </Card>
-      </PublicLayout>
-    );
-  }
-
   return (
-    <PublicLayout title={event.name} subtitle={event.description || 'Event details and community reviews.'}>
-      <Link href="/events" className="mb-6 inline-flex items-center gap-2 text-sm text-muted hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" />
-        Back to Events
-      </Link>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back Link */}
+        <Link
+          href="/events"
+          className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Events</span>
+        </Link>
 
-      <Card className="mb-6">
-        <div className="flex flex-wrap gap-4 text-sm text-muted">
-          <div>
-            <span className="font-medium text-foreground">Start:</span> {formatDate(event.startTime)}
-          </div>
-          {event.endTime ? (
+        {/* Event Header */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            {event.name}
+          </h1>
+          {event.description && (
+            <p className="text-gray-700 dark:text-gray-300 mb-4">{event.description}</p>
+          )}
+          <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
             <div>
-              <span className="font-medium text-foreground">End:</span> {formatDate(event.endTime)}
+              <span className="font-medium">Start:</span> {formatDate(event.startTime)}
             </div>
-          ) : null}
-          <div>
-            <span className="font-medium text-foreground">Contract:</span>{' '}
-            <span className="font-mono text-xs">{event.contractAddress}</span>
+            {event.endTime && (
+              <div>
+                <span className="font-medium">End:</span> {formatDate(event.endTime)}
+              </div>
+            )}
+            <div>
+              <span className="font-medium">Contract:</span>{' '}
+              <span className="font-mono text-xs">{event.contractAddress}</span>
+            </div>
           </div>
         </div>
-      </Card>
 
-      {event.ratingSummary ? (
+        {/* Rating Display */}
+        {event.ratingSummary && (
+          <div className="mb-6">
+            <RatingDisplay
+              averageRating={event.ratingSummary.averageRating}
+              totalReviews={event.ratingSummary.totalReviews}
+              ratingDistribution={event.ratingSummary.ratingDistribution}
+            />
+          </div>
+        )}
+
+        {/* Review Form Toggle */}
         <div className="mb-6">
-          <RatingDisplay
-            averageRating={event.ratingSummary.averageRating}
-            totalReviews={event.ratingSummary.totalReviews}
-            ratingDistribution={event.ratingSummary.ratingDistribution}
-          />
+          {!showReviewForm ? (
+            <button
+              onClick={() => setShowReviewForm(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Write a Review
+            </button>
+          ) : (
+            <div>
+              <ReviewForm
+                eventId={eventId}
+                onSubmit={handleReviewSubmit}
+                onCancel={() => setShowReviewForm(false)}
+              />
+            </div>
+          )}
         </div>
-      ) : null}
 
-      <div className="mb-6">
-        <Button onClick={() => setShowReviewForm(true)}>Write a Review</Button>
+        {/* Reviews List */}
+        <div key={refreshKey}>
+          <ReviewList eventId={eventId} />
+        </div>
       </div>
-
-      <Modal
-        open={showReviewForm}
-        onClose={() => setShowReviewForm(false)}
-        title={`Review ${event.name}`}
-        description="Share your experience with this event."
-      >
-        <ReviewForm eventId={eventId} onSubmit={handleReviewSubmit} onCancel={() => setShowReviewForm(false)} />
-      </Modal>
-
-      <div key={refreshKey}>
-        <ReviewList eventId={eventId} />
-      </div>
-    </PublicLayout>
+    </div>
   );
 }
