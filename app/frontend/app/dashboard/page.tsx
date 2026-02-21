@@ -90,7 +90,10 @@ export default function ContributorDashboard() {
         <div className="flex items-center gap-2">
           <WalletAddress />
           <WalletButton />
-          <Button onClick={() => setShowWithdrawModal(true)}>
+          <Button
+            onClick={() => setShowWithdrawModal(true)}
+            aria-label="Open withdraw confirmation"
+          >
             <ArrowDownToLine className="h-4 w-4" />
             Withdraw
           </Button>
