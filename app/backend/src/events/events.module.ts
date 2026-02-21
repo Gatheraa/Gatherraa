@@ -38,6 +38,18 @@ export const Services = [
   MaterializedViewService,
 ];
 
+@Controller('events')
+export class EventsController {
+  constructor(
+    private readonly eventsService: EventsService,
+    private readonly eventRecommendationService: EventRecommendationService,
+  ) {}
+  @Get('recommendations')
+  async getRecommendations(@Query('userId') userId?: string, @Query('limit', new DefaultValuePipe(10)) limit: number) {
+    const events = await this.eventRecommendationService.getRecommendedEvents(userId, limit);
+    return { data: plainToInstance(EventResponseDto, events) };
+  }
+}
 @Module({
   imports: [
     CqrsModule,

@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
-    "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
     "@nestjs/cqrs": "^11.0.3",
     "@nestjs/elasticsearch": "^11.1.0",
@@ -52,11 +51,7 @@
     "passport-twitter": "^1.0.4",
     "redis": "^5.11.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "siwe": "^3.0.0",
-    "sqlite3": "^5.1.7",
-    "typeorm": "^0.3.28",
-    "uuid": "^13.0.0"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -64,7 +59,6 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
-    "@types/exceljs": "^0.5.3",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",

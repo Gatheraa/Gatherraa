@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DollarSign, TrendingUp, Clock, ArrowDownToLine } from 'lucide-react';
+import { WalletButton } from '@/components/wallet/WalletButton';
+import { WalletAddress } from '@/components/wallet/WalletAddress';
+import { WrongNetworkAlert } from '@/components/wallet/WrongNetworkAlert';
 
 // Mock data
 const earningsData = [
@@ -43,7 +46,23 @@ export default function ContributorDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Top Navigation */}
+      <header className="bg-white dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Gatherraa</h1>
+          <div className="flex items-center gap-3">
+            <WalletAddress />
+            <WalletButton />
+          </div>
+        </div>
+      </header>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Wrong Network Alert */}
+        <div className="mb-6">
+          <WrongNetworkAlert />
+        </div>
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Contributor Dashboard</h1>

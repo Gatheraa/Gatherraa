@@ -148,6 +148,8 @@ export class BulkCreateEventsDto {
   events: CreateEventDto[];
 }
 
+// ...existing code...
+
 export class EventQueryDto {
   @IsOptional()
   @IsString()
@@ -178,6 +180,47 @@ export class EventQueryDto {
   @IsDate()
   @Type(() => Date)
   endDate?: Date;
+
+  // New filters for discovery
+  @IsOptional()
+  @IsNumber()
+  minPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxPrice?: number;
+
+  @IsOptional()
+  @IsNumber()
+  minCapacity?: number;
+
+  @IsOptional()
+  @IsNumber()
+  maxCapacity?: number;
+
+  @IsOptional()
+  @IsString()
+  location?: string; // For text-based location search
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number; // For geolocation
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  radiusKm?: number = 50; // Default radius for geolocation search
+
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @IsOptional()
+  @IsString()
+  searchQuery?: string; // For general search
 
   @IsOptional()
   @IsNumber()
