@@ -16,6 +16,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { HelpCenterModule } from './help-center/help-center.module';
 import { CategoriesModule } from './categories/categories.module';
 import { TagsModule } from './tags/tags.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { TagsModule } from './tags/tags.module';
     EventsModule,
     ReviewsModule,
     NotificationsModule,
+    PaymentsModule,
     SearchModule,
     RateLimitModule,
     HelpCenterModule,
