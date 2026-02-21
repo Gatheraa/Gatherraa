@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String, Symbol};
+use soroban_sdk::{contracttype, Address, Bytes, String, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -9,6 +9,17 @@ pub enum DataKey {
     Tier(Symbol),
     Ticket(u32),
     PricingConfig,
+    // VRF and Allocation keys
+    VRFConfig,
+    VRFState,
+    AllocationStrategy(Symbol),
+    AllocationState(Symbol),
+    LotteryEntry(Symbol, u32),
+    LotteryEntryCount(Symbol),
+    WhitelistEntry(Symbol, Address),
+    CommitmentHash(Address),
+    LotteryResults(Symbol),
+    AntiSnipingConfig(Symbol),
 }
 
 #[contracttype]
@@ -65,4 +76,45 @@ pub struct Ticket {
     pub purchase_time: u64,
     pub price_paid: i128,
     pub is_valid: bool,
+}
+/// VRF-specific structures for ticket allocation
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum AllocationStrategyType {
+    FCFS,
+    Lottery,
+    Whitelist,
+    HybridWhitelistLottery,
+    TimeWeighted,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AllocationConfig {
+    pub strategy: AllocationStrategyType,
+    pub total_allocations: u32,
+    pub allocated_count: u32,
+    pub allocation_complete: bool,
+    pub finalization_ledger: u32,
+    pub reveal_start_ledger: u32,
+    pub reveal_end_ledger: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AntiSnipingConfig {
+    pub minimum_lock_period: u32,
+    pub max_entries_per_address: u32,
+    pub rate_limit_window: u64,
+    pub randomization_delay_ledgers: u32,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VRFState {
+    pub randomness_generated: bool,
+    pub randomness_hash: Bytes,
+    pub batch_nonce: u32,
+    pub finalization_ledger: u32,
 }

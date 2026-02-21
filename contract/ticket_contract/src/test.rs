@@ -341,3 +341,302 @@ fn test_oracle_fallback_neutral_when_unconfigured() {
     // No oracle configured → price should equal base price
     assert_eq!(client.get_ticket_price(&tier_sym), 200);
 }
+// ============================================================================
+// VRF & LOTTERY TESTS
+// ============================================================================
+
+#[test]
+fn test_vrf_randomness_generation() {
+    let e = Env::default();
+    let input = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+
+    let (output, proof) = vrf::VRFEngine::generate_vrf_randomness(&e, input.clone(), 0);
+
+    // Verify output is 32 bytes
+    assert_eq!(output.len(), 32);
+
+    // Verify proof contains valid data
+    assert!(!proof.proof.is_empty());
+    assert_eq!(proof.output.len(), 32);
+}
+
+#[test]
+fn test_vrf_batch_randomness() {
+    let e = Env::default();
+    let seed = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+    let batch_size = 10u32;
+
+    let randomness = vrf::VRFEngine::generate_batch_randomness(&e, batch_size, seed);
+
+    // Verify batch size
+    assert_eq!(randomness.len() as u32, batch_size);
+}
+
+#[test]
+fn test_vrf_proof_verification() {
+    let e = Env::default();
+    let input = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+    let (_, proof) = vrf::VRFEngine::generate_vrf_randomness(&e, input.clone(), 0);
+
+    let expected_ledger = proof.ledger_sequence;
+    let is_valid = vrf::VRFEngine::verify_vrf_proof(&e, &proof, input, expected_ledger);
+
+    assert!(is_valid);
+}
+
+#[test]
+fn test_vrf_selection_index_computation() {
+    // Test basic selection
+    let index = vrf::VRFEngine::compute_selection_index(42, 100);
+    assert!(index < 100);
+
+    // Test with single element pool
+    let single = vrf::VRFEngine::compute_selection_index(999999, 1);
+    assert_eq!(single, 0);
+}
+
+#[test]
+fn test_commitment_creation() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let committer = Address::generate(&e);
+    let seed = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+    let nonce = 42u32;
+
+    let (hash, commitment) = commitment::CommitmentScheme::commit(&e, seed.clone(), nonce, committer.clone());
+
+    assert_eq!(hash.len(), 32);
+    assert!(!commitment.revealed);
+    assert_eq!(commitment.committer, committer);
+}
+
+#[test]
+fn test_commitment_reveal_verification() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let committer = Address::generate(&e);
+    let seed = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+    let nonce = 42u32;
+
+    let (hash, _commitment) = commitment::CommitmentScheme::commit(&e, seed.clone(), nonce, committer);
+
+    let reveal = commitment::Reveal {
+        seed: seed.clone(),
+        nonce,
+        revealed_at: e.ledger().timestamp(),
+    };
+
+    let is_valid = commitment::CommitmentScheme::verify_reveal(&e, &hash, &reveal);
+    assert!(is_valid);
+}
+
+#[test]
+fn test_entropy_generation() {
+    let e = Env::default();
+    let entropy = entropy::EntropyManager::generate_ledger_entropy(&e);
+
+    assert!(entropy::EntropyManager::validate_entropy(&entropy));
+    assert_eq!(entropy.len(), 32);
+}
+
+#[test]
+fn test_entropy_with_timestamp() {
+    let e = Env::default();
+    let entropy = entropy::EntropyManager::generate_entropy_with_timestamp(&e);
+
+    assert!(entropy::EntropyManager::validate_entropy(&entropy));
+}
+
+#[test]
+fn test_multi_source_entropy() {
+    let e = Env::default();
+    let entropy = entropy::EntropyManager::generate_multi_source_entropy(&e, 0);
+
+    assert!(entropy::EntropyManager::validate_entropy(&entropy));
+}
+
+#[test]
+fn test_entropy_state_update() {
+    let e = Env::default();
+    let mut state = entropy::EntropyManager::initialize_entropy(&e);
+    let initial_counter = state.entropy_counter;
+
+    entropy::EntropyManager::update_entropy_state(&e, &mut state);
+
+    assert!(state.entropy_counter > initial_counter);
+}
+
+#[test]
+fn test_fcfs_allocation() {
+    let e = Env::default();
+
+    let mut entries = soroban_sdk::Vec::new(&e);
+    for i in 0..5u32 {
+        entries
+            .push_back(allocation::LotteryEntry {
+                participant: Address::generate(&e),
+                entry_time: e.ledger().timestamp(),
+                nonce: i,
+                commitment_hash: None,
+            })
+            .unwrap();
+    }
+
+    let results = allocation::AllocationEngine::allocate_fcfs(&e, &entries, 3);
+
+    assert_eq!(results.len() as u32, 3);
+    // First 3 should be allocated in order
+    for i in 0..3 {
+        let result = results.get(i as usize).unwrap();
+        assert_eq!(result.allocation_index, i);
+    }
+}
+
+#[test]
+fn test_lottery_allocation() {
+    let e = Env::default();
+
+    let mut entries = soroban_sdk::Vec::new(&e);
+    for i in 0..10u32 {
+        entries
+            .push_back(allocation::LotteryEntry {
+                participant: Address::generate(&e),
+                entry_time: e.ledger().timestamp(),
+                nonce: i,
+                commitment_hash: None,
+            })
+            .unwrap();
+    }
+
+    let mut randomness = soroban_sdk::Vec::new(&e);
+    for i in 0..5u32 {
+        randomness
+            .push_back((i as u128 * 12345u128) % 1000000u128)
+            .unwrap();
+    }
+
+    let results = allocation::AllocationEngine::allocate_lottery(&e, &entries, &randomness, 5);
+
+    assert_eq!(results.len() as u32, 5);
+}
+
+#[test]
+fn test_anti_sniping_check() {
+    let e = Env::default();
+    let participant = Address::generate(&e);
+
+    let config = allocation::AntiSnipingConfig {
+        minimum_lock_period: 10,
+        max_entries_per_address: 2,
+        rate_limit_window: 3600,
+        randomization_delay_ledgers: 3,
+    };
+
+    let mut recent = soroban_sdk::Vec::new(&e);
+    for _ in 0..2 {
+        recent
+            .push_back(allocation::LotteryEntry {
+                participant: participant.clone(),
+                entry_time: e.ledger().timestamp(),
+                nonce: 0,
+                commitment_hash: None,
+            })
+            .unwrap();
+    }
+
+    // Should fail: already at max entries
+    let result = allocation::AllocationEngine::check_anti_sniping(&e, &participant, &config, &recent);
+    assert!(!result);
+}
+
+#[test]
+fn test_fairness_score_computation() {
+    let e = Env::default();
+    let mut results = soroban_sdk::Vec::new(&e);
+
+    for i in 0..10u32 {
+        results
+            .push_back(allocation::AllocationResult {
+                winner: Address::generate(&e),
+                allocation_index: i,
+                randomness_value: 42,
+                weight_applied: 1,
+            })
+            .unwrap();
+    }
+
+    let score = allocation::AllocationEngine::compute_fairness_score(&e, &results, 100);
+
+    // Should be high score for roughly fair distribution
+    assert!(score >= 50);
+}
+
+#[test]
+fn test_full_lottery_cycle() {
+    let e = Env::default();
+
+    // 1. Create entries
+    let mut entries = soroban_sdk::Vec::new(&e);
+    for i in 0..20u32 {
+        entries
+            .push_back(allocation::LotteryEntry {
+                participant: Address::generate(&e),
+                entry_time: e.ledger().timestamp(),
+                nonce: i,
+                commitment_hash: None,
+            })
+            .unwrap();
+    }
+
+    // 2. Generate randomness
+    let seed = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+    let randomness = vrf::VRFEngine::generate_batch_randomness(&e, 10, seed);
+
+    // 3. Extract values
+    let mut values = soroban_sdk::Vec::new(&e);
+    for r in &randomness {
+        values.push_back(r.value).unwrap();
+    }
+
+    // 4. Execute allocation
+    let results = allocation::AllocationEngine::allocate_lottery(&e, &entries, &values, 10);
+
+    // 5. Verify results
+    assert_eq!(results.len() as u32, 10);
+
+    for result in &results {
+        // Each result should have valid indices
+        assert!(result.allocation_index < 10);
+    }
+}
+
+#[test]
+fn test_commit_reveal_lottery_cycle() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let committer = Address::generate(&e);
+
+    // Phase 1: Commit
+    let seed = e.crypto().sha256(&soroban_sdk::Bytes::new(&e));
+    let (commitment_hash, _) = commitment::CommitmentScheme::commit(&e, seed.clone(), 42, committer.clone());
+
+    // Phase 2: Reveal
+    let reveal = commitment::Reveal {
+        seed: seed.clone(),
+        nonce: 42,
+        revealed_at: e.ledger().timestamp(),
+    };
+
+    // Phase 3: Verify
+    let is_valid = commitment::CommitmentScheme::verify_reveal(&e, &commitment_hash, &reveal);
+    assert!(is_valid);
+
+    // Phase 4: Generate randomness from revealed seed
+    let (vrf_output, proof) = vrf::VRFEngine::generate_vrf_randomness(&e, seed.clone(), 42);
+    assert_eq!(vrf_output.len(), 32);
+
+    // Phase 5: Verify proof
+    let proof_valid =
+        vrf::VRFEngine::verify_vrf_proof(&e, &proof, seed, proof.ledger_sequence);
+    assert!(proof_valid);
+}

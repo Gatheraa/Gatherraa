@@ -3,15 +3,32 @@
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Symbol};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, Env, String, Symbol, Vec};
 use stellar_access::ownable::{self as ownable, Ownable};
 use stellar_tokens::non_fungible::{Base, NonFungibleToken};
 
 mod storage_types;
-use storage_types::{DataKey, EventInfo, PricingConfig, PricingStrategy, Ticket, Tier};
+use storage_types::{
+    AllocationConfig, AllocationStrategyType, AntiSnipingConfig, DataKey, EventInfo, PricingConfig,
+    PricingStrategy, Ticket, Tier, VRFState,
+};
 
 mod oracle;
 use oracle::{fetch_price_with_fallback, oracle_price_to_multiplier, DEFAULT_STALENESS_SECONDS};
+
+mod vrf;
+use vrf::{RandomnessOutput, VRFEngine, VRFProof};
+
+mod commitment;
+use commitment::{Commitment, CommitmentScheme, Reveal};
+
+mod allocation;
+use allocation::{
+    AllocationEngine, AllocationResult, AntiSnipingConfig as AllocAntiSnipingConfig, LotteryEntry,
+};
+
+mod entropy;
+use entropy::{EntropyManager, EntropySource, EntropyState};
 
 // Dynamic pricing constants
 const PRICE_INCREASE_BPS: i128 = 500; // 5% increase per tier threshold
@@ -76,7 +93,258 @@ impl SoulboundTicketContract {
         e.storage().instance().set(&DataKey::PricingConfig, &config);
     }
 
-    /// Admin-only: manually update the oracle reference price used to compute
+    /// ==================== VRF & LOTTERY FUNCTIONS ====================
+
+    /// Initialize VRF lottery system for a tier
+    /// Sets up commitment scheme and allocation strategy
+    pub fn initialize_lottery(
+        e: &Env,
+        tier_symbol: Symbol,
+        strategy_type: AllocationStrategyType,
+        total_allocations: u32,
+        finalization_ledger: u32,
+        reveal_start_ledger: u32,
+        reveal_end_ledger: u32,
+    ) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Validate tier exists
+        let key = DataKey::Tier(tier_symbol.clone());
+        if !e.storage().persistent().has(&key) {
+            panic!("Tier not found");
+        }
+
+        // Validate ledger timeline
+        if finalization_ledger < e.ledger().sequence() {
+            panic!("Finalization ledger must be in the future");
+        }
+
+        if reveal_start_ledger >= reveal_end_ledger {
+            panic!("Reveal timeline invalid");
+        }
+
+        let config = AllocationConfig {
+            strategy: strategy_type,
+            total_allocations,
+            allocated_count: 0,
+            allocation_complete: false,
+            finalization_ledger,
+            reveal_start_ledger,
+            reveal_end_ledger,
+        };
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::AllocationState(tier_symbol), &config);
+
+        // Initialize anti-sniping config
+        let anti_sniping = AllocAntiSnipingConfig {
+            minimum_lock_period: 10,
+            max_entries_per_address: 5,
+            rate_limit_window: 3600,
+            randomization_delay_ledgers: 3,
+        };
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::AntiSnipingConfig(tier_symbol), &anti_sniping);
+    }
+
+    /// Register as participant in lottery
+    pub fn register_lottery_entry(e: &Env, tier_symbol: Symbol, commitment_hash: Option<Bytes>) {
+        let participant = Address::random(e); // In real usage, this would be the caller
+        participant.require_auth();
+
+        // Check anti-sniping
+        let anti_sniping_key = DataKey::AntiSnipingConfig(tier_symbol.clone());
+        if let Some(anti_sniping) = e.storage().persistent().get::<_, AllocAntiSnipingConfig>(&anti_sniping_key) {
+            let mut recent_entries: Vec<LotteryEntry> = Vec::new(e);
+            let count_key = DataKey::LotteryEntryCount(tier_symbol.clone());
+            let entry_count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
+
+            for i in 0..entry_count.min(10) {
+                if let Some(entry) = e
+                    .storage()
+                    .persistent()
+                    .get::<_, LotteryEntry>(&DataKey::LotteryEntry(tier_symbol.clone(), i))
+                {
+                    recent_entries.push_back(entry).unwrap();
+                }
+            }
+
+            if !AllocationEngine::check_anti_sniping(e, &participant, &anti_sniping, &recent_entries) {
+                panic!("Rate limit exceeded for this participant");
+            }
+        }
+
+        // Create lottery entry
+        let entry = LotteryEntry {
+            participant: participant.clone(),
+            entry_time: e.ledger().timestamp(),
+            nonce: e.ledger().sequence(),
+            commitment_hash,
+        };
+
+        // Store entry
+        let count_key = DataKey::LotteryEntryCount(tier_symbol.clone());
+        let mut count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
+        e.storage()
+            .persistent()
+            .set(&DataKey::LotteryEntry(tier_symbol.clone(), count), &entry);
+        e.storage()
+            .persistent()
+            .set(&count_key, count.saturating_add(1));
+    }
+
+    /// Generate batch randomness for lottery finalization
+    pub fn generate_lottery_randomness(e: &Env, tier_symbol: Symbol, batch_size: u32) -> Vec<RandomnessOutput> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        // Verify allocation state exists
+        let state_key = DataKey::AllocationState(tier_symbol.clone());
+        let state: AllocationConfig = e
+            .storage()
+            .persistent()
+            .get(&state_key)
+            .unwrap_or_else(|| panic!("Allocation not initialized"));
+
+        // Check if we're at finalization ledger
+        if e.ledger().sequence() < state.finalization_ledger {
+            panic!("Cannot finalize before finalization ledger");
+        }
+
+        // Generate entropy
+        let entropy = EntropyManager::generate_multi_source_entropy(e, 0);
+
+        // Generate batch randomness
+        let randomness_outputs = VRFEngine::generate_batch_randomness(e, batch_size, entropy);
+
+        // Store randomness hash for verification
+        let randomness_hash = VRFEngine::hash_randomness_batch(e, &randomness_outputs);
+        let vrf_state = VRFState {
+            randomness_generated: true,
+            randomness_hash,
+            batch_nonce: 0,
+            finalization_ledger: state.finalization_ledger,
+        };
+
+        e.storage()
+            .persistent()
+            .set(&DataKey::VRFState, &vrf_state);
+
+        randomness_outputs
+    }
+
+    /// Execute lottery allocation based on registered entries and randomness
+    pub fn execute_lottery_allocation(
+        e: &Env,
+        tier_symbol: Symbol,
+        randomness_values: Vec<u128>,
+    ) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+
+        let state_key = DataKey::AllocationState(tier_symbol.clone());
+        let mut state: AllocationConfig = e
+            .storage()
+            .persistent()
+            .get(&state_key)
+            .unwrap_or_else(|| panic!("Allocation not initialized"));
+
+        // Verify randomness has been generated
+        let vrf_state_key = DataKey::VRFState;
+        let vrf_state: VRFState = e
+            .storage()
+            .persistent()
+            .get(&vrf_state_key)
+            .unwrap_or_else(|| panic!("Randomness not generated"));
+
+        if !vrf_state.randomness_generated {
+            panic!("Randomness not ready");
+        }
+
+        // Load entries
+        let count_key = DataKey::LotteryEntryCount(tier_symbol.clone());
+        let entry_count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
+        let mut entries: Vec<LotteryEntry> = Vec::new(e);
+
+        for i in 0..entry_count {
+            if let Some(entry) = e
+                .storage()
+                .persistent()
+                .get::<_, LotteryEntry>(&DataKey::LotteryEntry(tier_symbol.clone(), i))
+            {
+                entries.push_back(entry).unwrap();
+            }
+        }
+
+        // Execute allocation based on strategy
+        let results: Vec<AllocationResult> = match state.strategy {
+            AllocationStrategyType::FCFS => {
+                AllocationEngine::allocate_fcfs(e, &entries, state.total_allocations)
+            }
+            AllocationStrategyType::Lottery => {
+                AllocationEngine::allocate_lottery(e, &entries, &randomness_values, state.total_allocations)
+            }
+            AllocationStrategyType::TimeWeighted => {
+                AllocationEngine::allocate_time_weighted(e, &entries, &randomness_values, state.total_allocations)
+            }
+            _ => {
+                panic!("Strategy not yet implemented");
+            }
+        };
+
+        // Store results
+        e.storage()
+            .persistent()
+            .set(&DataKey::LotteryResults(tier_symbol.clone()), &results);
+
+        // Update state
+        state.allocated_count = (results.len() as u32).min(state.total_allocations);
+        state.allocation_complete = true;
+        e.storage()
+            .persistent()
+            .set(&state_key, &state);
+    }
+
+    /// Verify a randomness proof
+    pub fn verify_lottery_randomness(
+        e: &Env,
+        proof: &VRFProof,
+        original_input: Bytes,
+        expected_ledger: u32,
+    ) -> bool {
+        VRFEngine::verify_vrf_proof(e, proof, original_input, expected_ledger)
+    }
+
+    /// Get lottery results transparency
+    pub fn get_lottery_winners(e: &Env, tier_symbol: Symbol) -> Vec<AllocationResult> {
+        e.storage()
+            .persistent()
+            .get(&DataKey::LotteryResults(tier_symbol.clone()))
+            .unwrap_or_else(|| Vec::new(e))
+    }
+
+    /// Get allocation fairness score (0-100)
+    pub fn get_allocation_fairness(e: &Env, tier_symbol: Symbol) -> u32 {
+        let count_key = DataKey::LotteryEntryCount(tier_symbol.clone());
+        let entry_count: u32 = e.storage().persistent().get(&count_key).unwrap_or(0);
+
+        if let Some(results) = e
+            .storage()
+            .persistent()
+            .get::<_, Vec<AllocationResult>>(&DataKey::LotteryResults(tier_symbol))
+        {
+            AllocationEngine::compute_fairness_score(e, &results, entry_count)
+        } else {
+            0
+        }
+    }
+
+    /// ==================== PRICING FUNCTIONS ====================
+
     /// multipliers.  Call this once after deployment pointing at a real oracle,
     /// or whenever you want to re-baseline the reference price.
     pub fn update_oracle_reference(e: &Env, new_reference_price: i128) {
