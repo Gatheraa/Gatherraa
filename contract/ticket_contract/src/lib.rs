@@ -3,15 +3,32 @@
 #[cfg(test)]
 mod test;
 
-use soroban_sdk::{contract, contractimpl, token, Address, Env, String, Symbol};
+use soroban_sdk::{contract, contractimpl, token, Address, Bytes, Env, String, Symbol, Vec};
 use stellar_access::ownable::{self as ownable, Ownable};
 use stellar_tokens::non_fungible::{Base, NonFungibleToken};
 
 mod storage_types;
-use storage_types::{DataKey, EventInfo, PricingConfig, PricingStrategy, Ticket, Tier};
+use storage_types::{
+    AllocationConfig, AllocationStrategyType, AntiSnipingConfig, DataKey, EventInfo, PricingConfig,
+    PricingStrategy, Ticket, Tier, VRFState,
+};
 
 mod oracle;
 use oracle::{fetch_price_with_fallback, oracle_price_to_multiplier, DEFAULT_STALENESS_SECONDS};
+
+mod vrf;
+use vrf::{RandomnessOutput, VRFEngine, VRFProof};
+
+mod commitment;
+use commitment::{Commitment, CommitmentScheme, Reveal};
+
+mod allocation;
+use allocation::{
+    AllocationEngine, AllocationResult, AntiSnipingConfig as AllocAntiSnipingConfig, LotteryEntry,
+};
+
+mod entropy;
+use entropy::{EntropyManager, EntropySource, EntropyState};
 
 // Dynamic pricing constants
 const PRICE_INCREASE_BPS: i128 = 500; // 5% increase per tier threshold
