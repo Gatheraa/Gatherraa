@@ -68,9 +68,9 @@ export class AuthService {
       // Get or create user
       let user = await this.usersService.findOneByWallet(siweMessage.address);
       if (!user) {
-        user = await this.usersService.create(siweMessage.address);
+        user = await this.usersService.createFromWallet(siweMessage.address);
       }
-      
+
       return user;
     } catch (error) {
       if (error instanceof UnauthorizedException || error instanceof BadRequestException) {

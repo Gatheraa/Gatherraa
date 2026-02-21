@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
-import { FaqController } from './faq/faq.controller';
-import { FaqService } from './faq/faq.service';
+import { FaqController } from './faq.controller';
+import { FaqService } from './providers/faq.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Faq } from './entities/faq.entity';
 import { FaqCategory } from './entities/faq-category.entity';

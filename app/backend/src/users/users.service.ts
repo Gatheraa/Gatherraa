@@ -1,164 +1,263 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User, UserRole, OAuthProvider } from './entities/user.entity';
+import { Repository, ILike } from 'typeorm';
+import { User, ProfileVisibility } from './entities/user.entity';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { UpdateSocialLinksDto } from './dto/update-social-links.dto';
 import { randomBytes } from 'crypto';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
-    private usersRepository: Repository<User>,
+    private readonly usersRepository: Repository<User>,
   ) {}
 
-  async create(walletAddress: string): Promise<User> {
-    // Check if user already exists
-    const existingUser = await this.usersRepository.findOne({
-      where: { walletAddress },
-    });
+  /* ======================================================
+      CREATE
+  ====================================================== */
 
-    if (existingUser) {
-      throw new ConflictException('User with this wallet address already exists');
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    const user = this.usersRepository.create(createUserDto);
+    user.profileCompletion = this.calculateCompletion(user);
+    return this.usersRepository.save(user);
+  }
+
+  /* ======================================================
+      FIND PRIVATE (Owner)
+  ====================================================== */
+
+  async findById(id: string): Promise<User> {
+    const user = await this.usersRepository.findOne({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    const user = this.usersRepository.create({
-      walletAddress,
-      roles: [UserRole.ATTENDEE],
-      linkedWallets: [],
-      oauthProviders: [],
-    });
+    return user;
+  }
+
+  // Alias for findById for backward compatibility
+  async findOneById(id: string): Promise<User> {
+    return this.findById(id);
+  }
+
+  /* ======================================================
+      FIND PUBLIC (Privacy Enforced)
+  ====================================================== */
+
+  async findPublicProfile(id: string): Promise<Partial<User>> {
+    const user = await this.findById(id);
+
+    if (user.profileVisibility === ProfileVisibility.PRIVATE) {
+      throw new ForbiddenException('Profile is private');
+    }
+
+    const { email, preferences, ...publicProfile } = user;
+    return publicProfile;
+  }
+
+  /* ======================================================
+      UPDATE
+  ====================================================== */
+
+  async update(id: string, dto: UpdateUserDto): Promise<User> {
+    const user = await this.findById(id);
+
+    Object.assign(user, dto);
+
+    user.profileCompletion = this.calculateCompletion(user);
 
     return this.usersRepository.save(user);
   }
 
-  async findOneById(id: string): Promise<User> {
-    const user = await this.usersRepository.findOne({ where: { id } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    return user;
+  /* ======================================================
+      DELETE
+  ====================================================== */
+
+  async remove(id: string): Promise<void> {
+    const user = await this.findById(id);
+    await this.usersRepository.remove(user);
   }
 
-  async findOneByWallet(walletAddress: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { walletAddress } });
+  /* ======================================================
+      UPDATE PREFERENCES
+  ====================================================== */
+
+  async updatePreferences(
+    id: string,
+    dto: UpdatePreferencesDto,
+  ): Promise<User> {
+    const user = await this.findById(id);
+
+    user.preferences = {
+      ...user.preferences,
+      ...dto.preferences,
+    };
+
+    return this.usersRepository.save(user);
   }
+
+  /* ======================================================
+      UPDATE SOCIAL LINKS
+  ====================================================== */
+
+  async updateSocialLinks(
+    id: string,
+    dto: UpdateSocialLinksDto,
+  ): Promise<User> {
+    const user = await this.findById(id);
+
+    user.socialLinks = {
+      ...user.socialLinks,
+      ...dto,
+    };
+
+    user.profileCompletion = this.calculateCompletion(user);
+
+    return this.usersRepository.save(user);
+  }
+
+  /* ======================================================
+      UPDATE AVATAR
+  ====================================================== */
+
+  async updateAvatar(id: string, avatarUrl: string): Promise<User> {
+    const user = await this.findById(id);
+
+    user.avatarUrl = avatarUrl;
+    user.profileCompletion = this.calculateCompletion(user);
+
+    return this.usersRepository.save(user);
+  }
+
+  /* ======================================================
+      SEARCH (Performant)
+  ====================================================== */
+
+  async search(query: string): Promise<User[]> {
+    return this.usersRepository.find({
+      where: [
+        { firstName: ILike(`%${query}%`) },
+        { lastName: ILike(`%${query}%`) },
+        { email: ILike(`%${query}%`) },
+      ],
+      take: 20,
+    });
+  }
+
+  /* ======================================================
+      GDPR EXPORT
+  ====================================================== */
+
+  async exportProfile(id: string): Promise<Record<string, any>> {
+    const user = await this.findById(id);
+
+    return {
+      id: user.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      bio: user.bio,
+      avatarUrl: user.avatarUrl,
+      profileVisibility: user.profileVisibility,
+      preferences: user.preferences,
+      socialLinks: user.socialLinks,
+      profileCompletion: user.profileCompletion,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+  }
+
+  /* ======================================================
+      PROFILE COMPLETION LOGIC
+  ====================================================== */
+
+  private calculateCompletion(user: Partial<User>): number {
+    const fields = [
+      user.firstName,
+      user.lastName,
+      user.bio,
+      user.avatarUrl,
+      user.socialLinks && Object.keys(user.socialLinks).length > 0,
+      user.preferences && Object.keys(user.preferences).length > 0,
+    ];
+
+    const completed = fields.filter(Boolean).length;
+    return Math.round((completed / fields.length) * 100);
+  }
+
+  /* ======================================================
+      WALLET AUTH METHODS
+  ====================================================== */
 
   async generateNonce(walletAddress: string): Promise<string> {
     const nonce = randomBytes(16).toString('hex');
-    
-    const user = await this.findOneByWallet(walletAddress);
+    const user = await this.usersRepository.findOne({
+      where: { walletAddress },
+    });
+
     if (user) {
       user.nonce = nonce;
       await this.usersRepository.save(user);
-    } else {
-      // Create user with nonce if doesn't exist
-      await this.create(walletAddress);
-      const newUser = await this.findOneByWallet(walletAddress);
-      if (newUser) {
-        newUser.nonce = nonce;
-        await this.usersRepository.save(newUser);
-      }
     }
-    
+
     return nonce;
   }
 
   async validateNonce(walletAddress: string, nonce: string): Promise<boolean> {
-    const user = await this.findOneByWallet(walletAddress);
-    if (!user || !user.nonce) {
+    const user = await this.usersRepository.findOne({
+      where: { walletAddress },
+    });
+
+    if (!user || user.nonce !== nonce) {
       return false;
     }
-    
-    const isValid = user.nonce === nonce;
-    if (isValid) {
-      // Clear nonce after successful validation
-      user.nonce = null;
-      user.lastLoginAt = new Date();
-      await this.usersRepository.save(user);
-    }
-    
-    return isValid;
+
+    // Clear nonce after validation
+    user.nonce = null;
+    await this.usersRepository.save(user);
+
+    return true;
+  }
+
+  async findOneByWallet(walletAddress: string): Promise<User | null> {
+    return this.usersRepository.findOne({
+      where: { walletAddress },
+    });
   }
 
   async linkWallet(userId: string, walletAddress: string): Promise<User> {
-    const user = await this.findOneById(userId);
-    
-    // Check if wallet is already linked to another user
-    const existingUser = await this.findOneByWallet(walletAddress);
-    if (existingUser && existingUser.id !== userId) {
-      throw new ConflictException('Wallet address already linked to another user');
+    const user = await this.findById(userId);
+
+    if (!user.linkedWallets) {
+      user.linkedWallets = [];
     }
-    
-    // Add to linked wallets if not already present
+
     if (!user.linkedWallets.includes(walletAddress)) {
       user.linkedWallets.push(walletAddress);
-      return this.usersRepository.save(user);
     }
-    
-    return user;
-  }
 
-  async addOAuthProvider(
-    userId: string,
-    providerData: OAuthProvider,
-  ): Promise<User> {
-    const user = await this.findOneById(userId);
-    
-    if (!user.oauthProviders) {
-      user.oauthProviders = [];
-    }
-    
-    // Check if provider already exists
-    const existingProviderIndex = user.oauthProviders.findIndex(
-      p => p.provider === providerData.provider,
-    );
-    
-    if (existingProviderIndex >= 0) {
-      user.oauthProviders[existingProviderIndex] = providerData;
-    } else {
-      user.oauthProviders.push(providerData);
-    }
-    
     return this.usersRepository.save(user);
   }
 
-  async updateProfile(
-    userId: string,
-    updateData: Partial<Pick<User, 'username' | 'email' | 'avatar'>>,
-  ): Promise<User> {
-    const user = await this.findOneById(userId);
-    Object.assign(user, updateData);
+  async createFromWallet(walletAddress: string): Promise<User> {
+    // Create a new user with just a wallet address
+    const user = this.usersRepository.create({
+      walletAddress,
+      firstName: 'User',
+      lastName: walletAddress.substring(0, 6),
+      email: `${walletAddress}@wallet.local`,
+      profileVisibility: ProfileVisibility.PUBLIC,
+    });
+
+    user.profileCompletion = this.calculateCompletion(user);
     return this.usersRepository.save(user);
-  }
-
-  async assignRole(userId: string, role: UserRole): Promise<User> {
-    const user = await this.findOneById(userId);
-    
-    if (!user.roles.includes(role)) {
-      user.roles.push(role);
-      return this.usersRepository.save(user);
-    }
-    
-    return user;
-  }
-
-  async removeRole(userId: string, role: UserRole): Promise<User> {
-    const user = await this.findOneById(userId);
-    
-    const roleIndex = user.roles.indexOf(role);
-    if (roleIndex >= 0) {
-      user.roles.splice(roleIndex, 1);
-      return this.usersRepository.save(user);
-    }
-    
-    return user;
-  }
-
-  async findAll(): Promise<User[]> {
-    return this.usersRepository.find();
-  }
-
-  async remove(id: string): Promise<void> {
-    await this.usersRepository.delete(id);
   }
 }

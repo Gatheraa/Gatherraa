@@ -54,31 +54,6 @@ export class EventsController {
     return plainToInstance(EventResponseDto, event);
   }
 
-  @Get('cqrs')
-  @UseGuards(JwtAuthGuard)
-  async getEvents(@Query() query: EventQueryDto) {
-    const result = await this.queryBus.execute(new GetEventsQuery(query, query.limit, query.offset));
-    return {
-      data: plainToInstance(EventResponseDto, result.events),
-      total: result.total,
-      page: Math.floor(query.offset / query.limit) + 1,
-      limit: query.limit,
-    };
-  }
-  
-  @Get('suggestions')
-  async getSearchSuggestions(@Query('q') query: string, @Query('limit', new DefaultValuePipe(10)) limit: number) {
-    if (!query) return { suggestions: [] };
-    const suggestions = await this.eventReadModelRepository
-      .createQueryBuilder('event')
-      .select('DISTINCT event.title')
-      .where('event.title LIKE :query', { query: `${query}%` })
-      .andWhere('event.isDeleted = false')
-      .limit(limit)
-      .getRawMany();
-    return { suggestions: suggestions.map(s => s.event_title) };
-  }
-
   @Patch(':id')
   @UseGuards(JwtAuthGuard)
   async update(
@@ -126,12 +101,6 @@ export class EventsController {
   @UseGuards(JwtAuthGuard)
   async getEventById(@Param('id') id: string) {
     return await this.eventsService.getEventById(id);
-  }
-
-  @Get('cqrs')
-  @UseGuards(JwtAuthGuard)
-  async getEvents(@Query() query: EventQueryDto) {
-    return await this.eventsService.getEvents(query);
   }
 
   @Get('organizer/:organizerId')

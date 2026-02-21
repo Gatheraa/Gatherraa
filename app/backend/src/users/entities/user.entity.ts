@@ -1,9 +1,21 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  Index,
+} from 'typeorm';
 
 export enum UserRole {
   ATTENDEE = 'attendee',
   ORGANIZER = 'organizer',
   ADMIN = 'admin',
+}
+
+export enum ProfileVisibility {
+  PUBLIC = 'public',
+  PRIVATE = 'private',
 }
 
 export interface OAuthProvider {
@@ -19,6 +31,18 @@ export interface OAuthProvider {
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column()
+  @Index()
+  firstName: string;
+
+  @Column()
+  @Index()
+  lastName: string;
+
+  @Column({ unique: true })
+  @Index()
+  email: string;
 
   @Index({ unique: true })
   @Column({ type: 'varchar', length: 42, unique: true })
@@ -36,14 +60,38 @@ export class User {
   @Column({ type: 'simple-json', nullable: true })
   oauthProviders: OAuthProvider[];
 
-  @Column({ type: 'varchar', nullable: true })
-  email: string;
+  @Column({
+    type: 'enum',
+    enum: ProfileVisibility,
+    default: ProfileVisibility.PUBLIC,
+  })
+  profileVisibility: ProfileVisibility;
+
+  @Column({ type: 'jsonb', nullable: true })
+  preferences?: Record<string, any>;
+
+  @Column({ type: 'jsonb', nullable: true })
+  socialLinks?: {
+    twitter?: string;
+    linkedin?: string;
+    github?: string;
+    website?: string;
+  };
 
   @Column({ type: 'varchar', nullable: true })
   username: string;
 
   @Column({ type: 'varchar', nullable: true })
   avatar: string;
+
+   @Column({ nullable: true })
+  bio?: string;
+
+  @Column({ default: 0 })
+  profileCompletion: number;
+
+  @Column({ nullable: true })
+  avatarUrl?: string;
 
   @CreateDateColumn()
   createdAt: Date;

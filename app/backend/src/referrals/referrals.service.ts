@@ -42,7 +42,7 @@ export class ReferralsService {
     userId: string,
     opts?: { maxUses?: number; prefix?: string },
   ) {
-    const owner = await this.usersService.findOneById(userId);
+    const owner = await this.usersService.findById(userId);
     const maxAttempts = 5;
     for (let i = 0; i < maxAttempts; i++) {
       const candidate = (opts?.prefix || '') + nanoid(this.ID_LENGTH);
@@ -77,7 +77,7 @@ export class ReferralsService {
     codeStr: string,
     opts?: { ip?: string; idempotencyKey?: string; metadata?: any },
   ) {
-    const referee = await this.usersService.findOneById(refereeId);
+    const referee = await this.usersService.findById(refereeId);
     const code = await this.codesRepo.findOne({
       where: { code: codeStr },
       relations: ['owner'],
@@ -153,7 +153,7 @@ export class ReferralsService {
       });
     }
 
-    const createdRewards = [];
+    const createdRewards: ReferralReward[] = [];
     for (const r of rewardsToCreate) {
       // idempotency: if idempotencyKey provided, ensure unique per beneficiary+key
       if (opts?.idempotencyKey) {
@@ -180,7 +180,7 @@ export class ReferralsService {
     }
 
     // Immediately distribute rewards (synchronous; in prod, you might push to job queue)
-    const distributed = [];
+    const distributed: ReferralReward[] = [];
     for (const rr of createdRewards) {
       const d = await this.distributeReward(rr.id);
       distributed.push(d);
@@ -232,7 +232,7 @@ export class ReferralsService {
 
   // Get referral history for a user (both as referrer and referee)
   async getHistory (userId: string) {
-    const user = await this.usersService.findOneById(userId);
+    const user = await this.usersService.findById(userId);
     const asReferrer = await this.referralsRepo.find({
       where: { referrer: user },
       relations: ['referee', 'code'],
@@ -262,9 +262,9 @@ export class ReferralsService {
       .limit(10)
       .getRawMany();
 
-    const top = [];
+    const top: { user: { id: string; username: string }; referrals: number }[] = [];
     for (const row of raw) {
-      const user = await this.usersService.findOneById(row.referrerId);
+      const user = await this.usersService.findById(row.referrerId);
       top.push({
         user: { id: user.id, username: user.username },
         referrals: Number(row.count),

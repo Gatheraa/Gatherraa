@@ -1,51 +1,111 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Delete,
+  Param,
+  Body,
+  Query,
+  UseInterceptors,
+  UploadedFile,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
-import { UserRole } from './entities/user.entity';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdatePreferencesDto } from './dto/update-preferences.dto';
+import { UpdateSocialLinksDto } from './dto/update-social-links.dto';
+import { avatarUploadOptions } from './avatar-upload.config';
+import { S3Service } from '../storage/s3.service';
 
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly s3Service: S3Service,
+  ) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
+  /* ================= CREATE ================= */
+
+  @Post()
+  create(@Body() dto: CreateUserDto) {
+    return this.usersService.create(dto);
+  }
+
+  /* ================= PRIVATE PROFILE ================= */
+
+  @Get('me')
+  getProfile(@Req() req: any) {
+    return this.usersService.findById(req.user.id);
+  }
+
+  /* ================= PUBLIC PROFILE ================= */
+
+  @Get(':id/public')
+  getPublic(@Param('id') id: string) {
+    return this.usersService.findPublicProfile(id);
+  }
+
+  /* ================= UPDATE ================= */
+
+  @Patch('me')
+  update(@Req() req: any, @Body() dto: UpdateUserDto) {
+    return this.usersService.update(req.user.id, dto);
+  }
+
+  /* ================= DELETE ================= */
+
+  @Delete('me')
+  remove(@Req() req: any) {
+    return this.usersService.remove(req.user.id);
+  }
+
+  /* ================= AVATAR UPLOAD ================= */
+
+  @Patch('me/avatar')
+  @UseInterceptors(FileInterceptor('file', avatarUploadOptions))
+  async uploadAvatar(
+    @Req() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const avatarUrl = await this.s3Service.uploadFile(file);
+    return this.usersService.updateAvatar(req.user.id, avatarUrl);
+  }
+
+  /* ================= PREFERENCES ================= */
+
+  @Patch('me/preferences')
+  updatePreferences(
+    @Req() req: any,
+    @Body() dto: UpdatePreferencesDto,
+  ) {
+    return this.usersService.updatePreferences(req.user.id, dto);
+  }
+
+  /* ================= SOCIAL LINKS ================= */
+
+  @Patch('me/social-links')
+  updateSocial(
+    @Req() req: any,
+    @Body() dto: UpdateSocialLinksDto,
+  ) {
+    return this.usersService.updateSocialLinks(req.user.id, dto);
+  }
+
+  /* ================= SEARCH ================= */
+
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  search(@Query('q') query: string) {
+    return this.usersService.search(query);
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Get('profile')
-  getProfile(@Request() req) {
-    return req.user;
-  }
+  /* ================= GDPR EXPORT ================= */
 
-  @UseGuards(JwtAuthGuard)
-  @Patch('profile')
-  updateProfile(@Request() req, @Body() updateData: any) {
-    return this.usersService.updateProfile(req.user.id, updateData);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Patch(':id/role/:role')
-  assignRole(@Param('id') id: string, @Param('role') role: UserRole) {
-    return this.usersService.assignRole(id, role as UserRole);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Delete(':id/role/:role')
-  removeRole(@Param('id') id: string, @Param('role') role: UserRole) {
-    return this.usersService.removeRole(id, role as UserRole);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  @Get('me/export')
+  export(@Req() req: any) {
+    return this.usersService.exportProfile(req.user.id);
   }
 }
