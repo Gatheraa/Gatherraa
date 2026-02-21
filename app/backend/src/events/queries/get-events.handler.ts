@@ -23,7 +23,6 @@ export class GetEventsHandler implements IQueryHandler<GetEventsQuery> {
     
     const queryBuilder = this.eventReadModelRepository.createQueryBuilder('event');
     
-    // Apply filters
     queryBuilder.where('event.isDeleted = :isDeleted', { isDeleted: false });
     
     if (filters.organizerId) {
@@ -52,6 +51,44 @@ export class GetEventsHandler implements IQueryHandler<GetEventsQuery> {
     
     if (filters.endDate) {
       queryBuilder.andWhere('event.endDate <= :endDate', { endDate: filters.endDate });
+    }
+    
+    // New filters
+    if (filters.minPrice !== undefined) {
+      queryBuilder.andWhere('event.price >= :minPrice', { minPrice: filters.minPrice });
+    }
+    
+    if (filters.maxPrice !== undefined) {
+      queryBuilder.andWhere('event.price <= :maxPrice', { maxPrice: filters.maxPrice });
+    }
+    
+    if (filters.minCapacity !== undefined) {
+      queryBuilder.andWhere('event.capacity >= :minCapacity', { minCapacity: filters.minCapacity });
+    }
+    
+    if (filters.maxCapacity !== undefined) {
+      queryBuilder.andWhere('event.capacity > event.registeredCount + :minCapacity', { minCapacity: filters.minCapacity });
+    }
+    
+    if (filters.location) {
+      queryBuilder.andWhere('event.location LIKE :location', { location: `%${filters.location}%` });
+    }
+    
+    if (filters.isFeatured !== undefined) {
+      queryBuilder.andWhere('event.isFeatured = :isFeatured', { isFeatured: filters.isFeatured });
+    }
+    
+    if (filters.searchQuery) {
+      queryBuilder.andWhere('(event.title LIKE :query OR event.description LIKE :query)', { query: `%${filters.searchQuery}%` });
+    }
+    
+    // Geolocation filter using Haversine formula (approximate distance)
+    if (filters.latitude && filters.longitude && filters.radiusKm) {
+      const { latitude, longitude, radiusKm } = filters;
+      queryBuilder.andWhere(
+        `(6371 * acos(cos(radians(:lat)) * cos(radians(event.latitude)) * cos(radians(event.longitude) - radians(:lng)) + sin(radians(:lat)) * sin(radians(event.latitude)))) <= :radius`,
+        { lat: latitude, lng: longitude, radius: radiusKm }
+      );
     }
     
     // Apply pagination

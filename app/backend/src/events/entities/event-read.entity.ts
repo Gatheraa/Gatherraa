@@ -70,6 +70,11 @@ export class EventReadModel {
   @IsNumber()
   capacity: number;
 
+  @Column({ default: false })
+  @Index()
+  isFeatured: boolean;
+
+
   @Column({ type: 'int', default: 0 })
   @Index()
   @IsNumber()
