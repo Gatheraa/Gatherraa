@@ -20,10 +20,7 @@ export interface ScheduledTaskJobData {
 export class ScheduledTaskProcessor {
   private readonly logger = new Logger(ScheduledTaskProcessor.name);
 
-  private taskHandlers: Map<
-    string,
-    (payload: any) => Promise<any>
-  > = new Map();
+  private taskHandlers: Map<string, (payload: any) => Promise<any>> = new Map();
 
   constructor() {
     this.registerTaskHandlers();
@@ -38,7 +35,10 @@ export class ScheduledTaskProcessor {
     this.registerTask('generate-daily-reports', this.generateDailyReports);
     this.registerTask('sync-blockchain-state', this.syncBlockchainState);
     this.registerTask('archive-old-logs', this.archiveOldLogs);
-    this.registerTask('send-reminder-notifications', this.sendReminderNotifications);
+    this.registerTask(
+      'send-reminder-notifications',
+      this.sendReminderNotifications,
+    );
     this.registerTask('refresh-cache', this.refreshCache);
     this.registerTask('generate-analytics', this.generateAnalytics);
   }
@@ -62,9 +62,7 @@ export class ScheduledTaskProcessor {
     const { taskName, payload } = job.data;
 
     try {
-      this.logger.log(
-        `Processing scheduled task ${jobId}: ${taskName}`,
-      );
+      this.logger.log(`Processing scheduled task ${jobId}: ${taskName}`);
 
       await job.updateProgress(10);
 
