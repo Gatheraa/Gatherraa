@@ -1,0 +1,84 @@
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+positions:
+  filename: /tmp/positions.yaml
+
+scrape_configs:
+  # Kubernetes logs
+  - job_name: kubernetes-pods
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_node_name]
+        target_label: node_name
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      - source_labels: [__meta_kubernetes_pod_container_name]
+        target_label: container
+    pipeline_stages:
+      - docker: {}
+      - json:
+          expressions:
+            timestamp: timestamp
+            message: message
+            level: level
+
+  # Docker logs (if running in Docker)
+  - job_name: docker
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: docker
+          __path__: /var/lib/docker/containers/*/*-json.log
+    pipeline_stages:
+      - json:
+          expressions:
+            output: log
+            stream: stream
+            time: time
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+      - output:
+          source: output
+
+  # Backend application logs
+  - job_name: backend
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: backend
+          __path__: /var/log/backend/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            timestamp: timestamp
+            message: message
+            level: level
+            service: service
+      - timestamp:
+          source: timestamp
+          format: UnixMs
+      - labels:
+          level:
+          service:
+
+  # System logs
+  - job_name: syslog
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: syslog
+          __path__: /var/log/syslog
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>[\w]{3}\s+[\d]{1,2}\s[\d]{1,2}:[\d]{2}:[\d]{2}) (?P<host>[\w\-\.]+) (?P<service>\w+)\[.*?\]: (?P<message>.*)'
+      - timestamp:
+          source: timestamp
+          format: Jan 2 15:04:05
