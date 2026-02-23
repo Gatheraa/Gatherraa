@@ -1,0 +1,57 @@
+version: '3.8'
+services:
+  kong-database:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong
+    volumes:
+      - kong-data:/var/lib/postgresql/data
+
+  kong-init:
+    image: kong:3.6
+    depends_on:
+      - kong-database
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      kong migrations bootstrap --vv
+    environment:
+      KONG_DATABASE: "postgres"
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PG_DATABASE: kong
+
+  kong:
+    image: kong:3.6
+    depends_on:
+      - kong-database
+      - kong-init
+    environment:
+      KONG_DATABASE: "postgres"
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong
+      KONG_PG_DATABASE: kong
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+    ports:
+      - "8000:8000"    # Proxy (HTTP)
+      - "8443:8443"    # Proxy (HTTPS)
+      - "8001:8001"    # Admin API
+    volumes:
+      - ./kong.yml:/etc/kong/kong.yml:ro
+    command: "kong docker-start"
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      API_URL: /swagger.yaml
+    volumes:
+      - ../../docs/openapi/gateway-swagger.yaml:/usr/share/nginx/html/swagger.yaml:ro
+
+volumes:
+  kong-data:

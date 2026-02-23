@@ -1,0 +1,46 @@
+_format_version: "2.1"
+_transform: true
+
+services:
+  - name: backend
+    url: http://host.docker.internal:3000
+    routes:
+      - name: backend-route
+        paths:
+          - /api/v1
+        strip_path: false
+
+consumers:
+  - username: internal-client
+
+key_auth_credentials:
+  - consumer:
+      username: internal-client
+    key: "demo-key-123"
+
+plugins:
+  - name: key-auth
+    config:
+      key_names:
+        - apikey
+      hide_credentials: false
+
+  - name: request-transformer
+    service: { name: backend }
+    config:
+      add:
+        headers:
+          - "X-From-Gateway: Kong"
+
+  - name: proxy-cache
+    service: { name: backend }
+    config:
+      strategy: memory
+      content_type:
+        - application/json
+      cache_ttl: 60
+
+  - name: file-log
+    service: { name: backend }
+    config:
+      path: /tmp/kong_access.log
