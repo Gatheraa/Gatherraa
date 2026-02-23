@@ -19,6 +19,7 @@ import { TagsModule } from './tags/tags.module';
 import { PaymentsModule } from './payments/payments.module';
 import { TaskQueueModule } from './task-queue/task-queue.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { MigrationsModule } from './migrations/migrations.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { CouponsModule } from './coupons/coupons.module';
     TagsModule,
     TaskQueueModule,
     CouponsModule,
+    MigrationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

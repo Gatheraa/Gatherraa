@@ -17,9 +17,17 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migration:run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts run",
+    "migration:revert": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts revert",
+    "migration:dry-run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts dry-run",
+    "seed:run": "ts-node -r tsconfig-paths/register ./src/seed/runner.ts",
+    "anonymize:run": "ts-node -r tsconfig-paths/register ./src/anonymizer/runner.ts"
   },
   "dependencies": {
+    "@faker-js/faker": "^8.0.2",
+    "dotenv": "^16.3.1",
+    "typeorm": "^0.3.17",
     "@aws-sdk/client-s3": "^3.995.0",
     "@aws-sdk/s3-request-presigner": "^3.995.0",
     "@aws-sdk/client-ses": "^3.995.0",
