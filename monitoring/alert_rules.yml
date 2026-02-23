@@ -1,0 +1,252 @@
+groups:
+  - name: Backend Application Alerts
+    interval: 30s
+    rules:
+      # Service availability alerts
+      - alert: ServiceDown
+        expr: up{job="backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Backend service is down"
+          description: "Backend service at {{ $labels.instance }} is down for more than 2 minutes"
+
+      - alert: ServiceUnhealthy
+        expr: backend_health_status == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "Backend service health check failed"
+          description: "Backend service at {{ $labels.instance }} failed health check"
+
+      # HTTP request alerts
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (job)
+            /
+            sum(rate(http_requests_total[5m])) by (job)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High HTTP error rate"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.job }}"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High HTTP request latency"
+          description: "95th percentile latency is {{ $value }} seconds for {{ $labels.job }}"
+
+      # Database alerts
+      - alert: HighDatabaseConnections
+        expr: database_connections_used / database_connections_limit > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection pool is {{ $value | humanizePercentage }} full"
+
+      - alert: SlowDatabaseQueries
+        expr: database_query_duration_seconds{quantile="0.95"} > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: database
+        annotations:
+          summary: "Slow database queries detected"
+          description: "95th percentile query time is {{ $value }} seconds"
+
+      # Cache alerts
+      - alert: CacheHitRateLow
+        expr: cache_hit_ratio < 0.7
+        for: 10m
+        labels:
+          severity: info
+          service: cache
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}"
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }} of limit"
+
+      # Task queue alerts
+      - alert: TaskQueueHighBacklog
+        expr: task_queue_pending_count > 1000
+        for: 10m
+        labels:
+          severity: warning
+          service: task-queue
+        annotations:
+          summary: "High task queue backlog"
+          description: "Task queue has {{ $value }} pending tasks"
+
+      - alert: TaskProcessingFailureRate
+        expr: |
+          (
+            sum(rate(task_completed{status="failed"}[5m])) by (queue)
+            /
+            sum(rate(task_completed[5m])) by (queue)
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: task-queue
+        annotations:
+          summary: "High task processing failure rate"
+          description: "Task failure rate is {{ $value | humanizePercentage }}"
+
+      # Notification alerts
+      - alert: FailedNotificationDelivery
+        expr: notifications_failed_count > 100
+        for: 5m
+        labels:
+          severity: warning
+          service: notifications
+        annotations:
+          summary: "High number of failed notification deliveries"
+          description: "{{ $value }} notifications failed to deliver"
+
+      # Payment alerts
+      - alert: FailedPaymentProcessing
+        expr: |
+          (
+            sum(rate(payment_processed{status="failed"}[1h])) by (method)
+            /
+            sum(rate(payment_processed[1h])) by (method)
+          ) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+          service: payments
+        annotations:
+          summary: "High payment processing failure rate"
+          description: "Payment failure rate is {{ $value | humanizePercentage }}"
+
+      - alert: PaymentGatewayLatency
+        expr: payment_gateway_response_time_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: payments
+        annotations:
+          summary: "Payment gateway high latency"
+          description: "Payment gateway response time is {{ $value }} seconds"
+
+      # Authentication alerts
+      - alert: HighFailedLoginAttempts
+        expr: rate(auth_failed_login_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: auth
+        annotations:
+          summary: "High failed login attempts detected"
+          description: "Failed login rate is {{ $value }}/sec - possible brute force attack"
+
+  - name: Infrastructure Alerts
+    interval: 30s
+    rules:
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus monitoring system is unreachable"
+
+      - alert: JaegerDown
+        expr: up{job="jaeger"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: tracing
+        annotations:
+          summary: "Jaeger tracing service is down"
+          description: "Jaeger service is unreachable for {{ $value }} minutes"
+
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: logging
+        annotations:
+          summary: "Loki logging service is down"
+          description: "Loki service is unreachable"
+
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: dashboards
+        annotations:
+          summary: "Grafana dashboard service is down"
+          description: "Grafana UI is unreachable"
+
+      - alert: AlertManagerDown
+        expr: up{job="alertmanager"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: alerting
+        annotations:
+          summary: "AlertManager is down"
+          description: "AlertManager alerting system is unreachable"
+
+  - name: SLO Alerts
+    interval: 1m
+    rules:
+      - alert: SLOViolation_Availability
+        expr: availability_slo < 0.99
+        for: 5m
+        labels:
+          severity: warning
+          slo_name: availability
+        annotations:
+          summary: "SLO violation: Service availability below 99%"
+          description: "Current availability is {{ $value | humanizePercentage }}"
+
+      - alert: SLOViolation_Latency
+        expr: latency_p99 > 500  # milliseconds
+        for: 10m
+        labels:
+          severity: warning
+          slo_name: latency
+        annotations:
+          summary: "SLO violation: P99 latency above 500ms"
+          description: "Current P99 latency is {{ $value }}ms"
+
+      - alert: SLOViolation_ErrorRate
+        expr: error_rate > 0.01  # 1%
+        for: 5m
+        labels:
+          severity: warning
+          slo_name: error_rate
+        annotations:
+          summary: "SLO violation: Error rate above 1%"
+          description: "Current error rate is {{ $value | humanizePercentage }}"

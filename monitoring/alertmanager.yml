@@ -1,0 +1,80 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: 'YOUR_SLACK_WEBHOOK_URL'
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+templates:
+  - '/etc/alertmanager/email-template.txt'
+
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  routes:
+    # Critical alerts - go to pagerduty and slack
+    - match:
+        severity: critical
+      receiver: 'pagerduty-critical'
+      group_wait: 1s
+      repeat_interval: 1h
+    
+    # Warning alerts - go to slack
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+      group_wait: 5s
+      repeat_interval: 4h
+    
+    # Info alerts - go to default
+    - match:
+        severity: info
+      receiver: 'default'
+      repeat_interval: 24h
+
+receivers:
+  - name: 'default'
+    slack_configs:
+      - channel: '#alerts'
+        title: 'Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+    email_configs:
+      - to: 'alerts@gatheraa.com'
+        from: 'alertmanager@gatheraa.com'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: 'YOUR_EMAIL'
+        auth_password: 'YOUR_PASSWORD'
+        require_tls: true
+
+  - name: 'slack-warnings'
+    slack_configs:
+      - channel: '#warnings'
+        title: 'Warning: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+
+  - name: 'pagerduty-critical'
+    pagerduty_configs:
+      - service_key: 'YOUR_PAGERDUTY_SERVICE_KEY'
+        description: '{{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#critical-alerts'
+        title: 'CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        color: 'danger'
+
+inhibit_rules:
+  # Inhibit info alerts if warning alert exists
+  - source_match:
+      severity: 'warning'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'cluster', 'service']
+  
+  # Inhibit warning alerts if critical alert exists
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
