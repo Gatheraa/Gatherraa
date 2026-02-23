@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { User } from './entities/user.entity';
+import { GraphQLModule } from '@nestjs/graphql';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User])],
+  imports: [GraphQLModule.forRoot([User])],
   controllers: [UsersController],
-  providers: [UsersService],
+  providers: [UsersService,],
   exports: [UsersService],
 })
 export class UsersModule {}
