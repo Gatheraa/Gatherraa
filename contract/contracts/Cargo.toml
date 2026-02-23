@@ -1,17 +1,28 @@
+[workspace]
+members = [
+    "escrow_contract",
+    "cross_contract_contract", 
+    "multisig_wallet_contract",
+    "dutch_auction_contract",
+    "zk_ticket_contract",
+    "event_factory_contract",
+    "governance_contract",
+    "identity_contract",
+    "subscription_contract",
+    "ticket_contract",
+    "whitelist_contract",
+]
+
 [package]
-name = "staking-contract"
+name = "gathera-contracts"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-name = "staking_contract"
-
 [dependencies]
-soroban-sdk = "23.4.1"
+soroban-sdk = "23.5.2"
 
 [dev-dependencies]
-soroban-sdk = { version = "23.4.1", features = ["testutils"] }
+soroban-sdk = { version = "23.5.2", features = ["testutils"] }
 
 [profile.release]
 opt-level = "z"
