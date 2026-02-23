@@ -1,0 +1,31 @@
+openapi: 3.0.3
+info:
+  title: Gatheraa API Gateway (example)
+  version: '1.0.0'
+  description: Aggregated OpenAPI for the Kong gateway example. Mount this in Swagger UI (see app/backend/kong/docker-compose.kong.yml).
+servers:
+  - url: http://localhost:8000
+
+paths:
+  /api/v1/users:
+    get:
+      summary: List users (proxied)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+    post:
+      summary: Create user (proxied)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Created
