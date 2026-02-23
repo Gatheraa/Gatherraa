@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  image-service:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - USE_S3=false
+    volumes:
+      - ./uploads:/usr/src/app/uploads
