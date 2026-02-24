@@ -5,6 +5,7 @@ import { db, OfflineEvent, SyncStatus } from './db';
 import { processAllPending, getPendingSyncItems } from './syncQueue';
 import { getUnresolvedConflicts, ConflictRecord } from './conflictResolver';
 import { useLiveQuery } from 'dexie-react-hooks';
+import type { SyncState as SyncStateType } from './OfflineContext';
 
 // Network status type
 export type NetworkStatus = 'online' | 'offline' | 'unknown';
@@ -101,7 +102,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   const refreshSyncState = useCallback(async () => {
     try {
       const pendingItems = await getPendingSyncItems();
-      setSyncState(prev => ({
+      setSyncState((prev: SyncStateType) => ({
         ...prev,
         pendingCount: pendingItems.length,
       }));
@@ -114,7 +115,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
   const triggerSync = useCallback(async () => {
     if (!isOnline || syncState.status === 'syncing') return;
 
-    setSyncState(prev => ({ ...prev, status: 'syncing', error: null }));
+    setSyncState((prev: SyncStateType) => ({ ...prev, status: 'syncing', error: null }));
 
     try {
       await processAllPending();
@@ -125,7 +126,7 @@ export function OfflineProvider({ children }: { children: ReactNode }) {
         error: null,
       });
     } catch (error) {
-      setSyncState(prev => ({
+      setSyncState((prev: SyncStateType) => ({
         ...prev,
         status: 'error',
         error: error instanceof Error ? error.message : 'Sync failed',

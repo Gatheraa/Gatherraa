@@ -1,3 +1,4 @@
+export { ConflictRecord } from './db';
 import { db, ConflictRecord, OfflineEvent } from './db';
 import { eventsApi, UpdateEventDto } from '../api/events';
 import { enqueueSync } from './syncQueue';
