@@ -1,0 +1,21 @@
+{
+  "ignoreMatches": [
+    "@types/node",
+    "@types/react",
+    "@types/react-dom",
+    "eslint",
+    "eslint-config-next",
+    "typescript",
+    "tailwindcss",
+    "@tailwindcss/postcss",
+    "@storybook/*",
+    "storybook"
+  ],
+  "ignorePatterns": [
+    ".next",
+    "node_modules",
+    "*.config.*",
+    "*.spec.ts",
+    "*.test.ts"
+  ]
+}
