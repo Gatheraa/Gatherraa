@@ -89,10 +89,11 @@ async function processCreate(item: SyncQueueItem): Promise<void> {
   const createdEvent = await eventsApi.createEvent(data);
   
   // Update local record with server ID
+  const { id, ...eventData } = createdEvent;
   await db.events.update(item.localId, {
-    id: createdEvent.id,
-    localId: createdEvent.id,
-    ...createdEvent,
+    id,
+    localId: id,
+    ...eventData,
     syncStatus: 'synced',
   });
 }
@@ -198,7 +199,7 @@ export async function getPendingSyncItems(): Promise<SyncQueueItem[]> {
   return db.syncQueue
     .where('retryCount')
     .below(RETRY_CONFIG.maxRetries)
-    .and(item => !item.nextRetryAt || item.nextRetryAt <= Date.now())
+    .and((item: SyncQueueItem) => !item.nextRetryAt || item.nextRetryAt <= Date.now())
     .sortBy('timestamp');
 }
 
