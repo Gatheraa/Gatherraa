@@ -18,6 +18,9 @@ import { CategoriesModule } from './categories/categories.module';
 import { TagsModule } from './tags/tags.module';
 import { PaymentsModule } from './payments/payments.module';
 import { TaskQueueModule } from './task-queue/task-queue.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { ApiModule } from './api/api.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -47,6 +50,9 @@ import { TaskQueueModule } from './task-queue/task-queue.module';
     CategoriesModule,
     TagsModule,
     TaskQueueModule,
+    MonitoringModule,
+    ApiModule,
+    RealtimeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
