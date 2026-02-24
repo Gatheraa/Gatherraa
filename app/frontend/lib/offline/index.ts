@@ -1,5 +1,6 @@
 // Export database and types
-export { db, SyncStatus, OperationType, SyncedEntity, OfflineEvent, SyncQueueItem, ConflictRecord } from './db';
+export { db } from './db';
+export type { SyncStatus, OperationType, SyncedEntity, OfflineEvent, SyncQueueItem, ConflictRecord } from './db';
 export { generateLocalId, toOfflineEvent, createPendingEvent } from './db';
 
 // Export sync queue
@@ -14,9 +15,8 @@ export {
 } from './syncQueue';
 
 // Export conflict resolver
+export type { ConflictStrategy, ConflictResolution } from './conflictResolver';
 export {
-  ConflictStrategy,
-  ConflictResolution,
   getUnresolvedConflicts,
   getConflict,
   resolveWithLocal,
@@ -27,14 +27,8 @@ export {
 } from './conflictResolver';
 
 // Export offline context
-export {
-  OfflineProvider,
-  useOffline,
-  useEntitySyncStatus,
-  NetworkStatus,
-  SyncState,
-  OfflineContextValue,
-} from './OfflineContext';
+export { OfflineProvider, useOffline, useEntitySyncStatus } from './OfflineContext';
+export type { NetworkStatus, SyncState, OfflineContextValue } from './OfflineContext';
 
 // Export offline events API
 export {

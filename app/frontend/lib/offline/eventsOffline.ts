@@ -57,7 +57,7 @@ export async function getEventOffline(id: string): Promise<OfflineEvent | null> 
 // Create event (offline-first)
 export async function createEventOffline(data: CreateEventDto): Promise<OfflineEvent> {
   // Create pending event locally
-  const pendingEvent = createPendingEvent(data);
+  const pendingEvent = createPendingEvent(data as Omit<Event, 'id' | 'createdAt' | 'updatedAt'>);
   await db.events.add(pendingEvent);
   
   // Add to sync queue
@@ -153,11 +153,11 @@ export async function getSyncStats(): Promise<{
   
   return {
     total: allEvents.length,
-    synced: allEvents.filter(e => e.syncStatus === 'synced').length,
-    pending: allEvents.filter(e => e.syncStatus === 'pending').length,
-    syncing: allEvents.filter(e => e.syncStatus === 'syncing').length,
-    failed: allEvents.filter(e => e.syncStatus === 'failed').length,
-    conflict: allEvents.filter(e => e.syncStatus === 'conflict').length,
+    synced: allEvents.filter((e: OfflineEvent) => e.syncStatus === 'synced').length,
+    pending: allEvents.filter((e: OfflineEvent) => e.syncStatus === 'pending').length,
+    syncing: allEvents.filter((e: OfflineEvent) => e.syncStatus === 'syncing').length,
+    failed: allEvents.filter((e: OfflineEvent) => e.syncStatus === 'failed').length,
+    conflict: allEvents.filter((e: OfflineEvent) => e.syncStatus === 'conflict').length,
   };
 }
 
