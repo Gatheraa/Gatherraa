@@ -1,3 +1,5 @@
+import withBundleAnalyzer from '@next/bundle-analyzer';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Image optimization
@@ -21,14 +23,9 @@ const nextConfig = {
   compress: true,
 };
 
-// Bundle analyzer (enabled via ANALYZE env var)
-if (process.env.ANALYZE === 'true') {
-  const withBundleAnalyzer = (await import('@next/bundle-analyzer')).default;
-  const analyzer = withBundleAnalyzer({
-    enabled: true,
-    openAnalyzer: true,
-  });
-  export default analyzer(nextConfig);
-} else {
-  export default nextConfig;
-}
+const bundleAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: true,
+});
+
+export default bundleAnalyzer(nextConfig);
