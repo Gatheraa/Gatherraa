@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { useState, Suspense, lazy } from 'react';
 import { DollarSign, TrendingUp, Clock, ArrowDownToLine, ChevronRight, Star } from 'lucide-react';
 import { TopNavbar } from '@/components/navigation/TopNavbar';
 import { BottomNavbar } from '@/components/navigation/BottomNavbar';
 import { WrongNetworkAlert } from '@/components/wallet/WrongNetworkAlert';
+
+// Lazy load heavy chart component
+const EarningsChart = lazy(() => import('@/components/dashboard/EarningsChart'));
 
 // Mock data
 const earningsData = [
