@@ -183,11 +183,11 @@ export async function getConflictStats(): Promise<{
   byStrategy: Record<string, number>;
 }> {
   const allConflicts = await db.conflicts.toArray();
-  const unresolved = allConflicts.filter(c => !c.resolvedAt);
-  const resolved = allConflicts.filter(c => c.resolvedAt);
+  const unresolved = allConflicts.filter((c: ConflictRecord) => !c.resolvedAt);
+  const resolved = allConflicts.filter((c: ConflictRecord) => c.resolvedAt);
 
   const byStrategy: Record<string, number> = {};
-  resolved.forEach(c => {
+  resolved.forEach((c: ConflictRecord) => {
     const strategy = c.resolution || 'unknown';
     byStrategy[strategy] = (byStrategy[strategy] || 0) + 1;
   });
