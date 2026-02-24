@@ -23,11 +23,12 @@ const nextConfig = {
 
 // Bundle analyzer (enabled via ANALYZE env var)
 if (process.env.ANALYZE === 'true') {
-  const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  const withBundleAnalyzer = (await import('@next/bundle-analyzer')).default;
+  const analyzer = withBundleAnalyzer({
     enabled: true,
     openAnalyzer: true,
   });
-  module.exports = withBundleAnalyzer(nextConfig);
+  export default analyzer(nextConfig);
 } else {
-  module.exports = nextConfig;
+  export default nextConfig;
 }
