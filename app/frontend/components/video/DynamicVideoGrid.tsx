@@ -9,6 +9,8 @@ export interface DynamicVideoGridProps {
   gridConfig?: VideoGridConfig;
   className?: string;
   emptyMessage?: string;
+  onEndReached?: () => void;
+  endReachedThreshold?: number;
 }
 
 const defaultGridConfig: Required<VideoGridConfig> = {
@@ -33,6 +35,8 @@ export function DynamicVideoGrid({
   gridConfig,
   className = '',
   emptyMessage = 'No videos to display.',
+  onEndReached,
+  endReachedThreshold = 200,
 }: DynamicVideoGridProps) {
   const config = useMemo(
     () => ({ ...defaultGridConfig, ...gridConfig }),
@@ -143,7 +147,14 @@ export function DynamicVideoGrid({
       ref={containerRef}
       className={`relative overflow-auto rounded-xl border border-[var(--border-default)] bg-[var(--surface)] p-4 ${className}`.trim()}
       style={{ height: getCssSize(config.containerHeight) }}
-      onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+      onScroll={(event) => {
+        const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+        setScrollTop(scrollTop);
+        
+        if (onEndReached && scrollHeight - scrollTop - clientHeight < endReachedThreshold) {
+          onEndReached();
+        }
+      }}
       role="list"
       aria-label="Video grid"
     >
