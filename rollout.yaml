@@ -1,0 +1,40 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: gatheraa-backend
+  namespace: gatheraa
+spec:
+  replicas: 3
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: gatheraa-backend
+  strategy:
+    canary:
+      steps:
+      - setWeight: 20
+      - pause: {duration: 2m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+          startingStep: 2
+      - setWeight: 50
+      - pause: {duration: 2m}
+      - setWeight: 100
+  template:
+    metadata:
+      labels:
+        app: gatheraa-backend
+    spec:
+      containers:
+      - name: gatheraa-backend
+        image: gatheraa/backend:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
