@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gatheraa-backend-svc
+  namespace: gatheraa
+spec:
+  selector:
+    app: gatheraa-backend
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
