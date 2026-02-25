@@ -43,6 +43,7 @@ k6 run --out influxdb=http://localhost:8086/k6 scenarios/payment-flow.js
 
 - **Payment Flow** (`scenarios/payment-flow.js`): Simulates high-volume ticket purchases via Stripe and Crypto.
 - **Notification Flow** (`scenarios/notification-flow.js`): Tests WebSocket connection stability and message delivery latency.
+- **Chaos Test** (`scenarios/chaos-test.js`): Simulates traffic spikes to test system resilience and recovery.
 
 ## Thresholds & Baselines
 
