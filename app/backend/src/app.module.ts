@@ -23,7 +23,7 @@ import { ApiModule } from './api/api.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { MigrationsModule } from './migrations/migrations.module';
-import { IntegrationModule } from './integration/integration.module';
+
 
 @Module({
   imports: [
@@ -58,7 +58,7 @@ import { IntegrationModule } from './integration/integration.module';
     RealtimeModule,
     CouponsModule,
     MigrationsModule,
-    IntegrationModule,
+
   ],
   controllers: [AppController],
   providers: [AppService],

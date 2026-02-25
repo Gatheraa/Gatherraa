@@ -1,0 +1,15 @@
+export enum ChallengeType {
+  INDIVIDUAL = 'individual',
+  TEAM = 'team',
+  GUILD = 'guild',
+  COMMUNITY = 'community',
+  COMPETITIVE = 'competitive',
+  COLLABORATIVE = 'collaborative',
+  LEARNING = 'learning',
+  CREATIVE = 'creative',
+  PROBLEM_SOLVING = 'problem_solving',
+  EXPLORATION = 'exploration',
+  SOCIAL = 'social',
+  MENTORSHIP = 'mentorship',
+  INNOVATION = 'innovation',
+}
