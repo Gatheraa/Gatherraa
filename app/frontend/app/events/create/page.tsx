@@ -1,9 +1,7 @@
-import CreateEventForm from '@/components/forms/CreateEventForm';
-
-export default function CreateEventPage() {
+export default function Page() {
   return (
-    <main>
+    <RouteGuard requiredRole="organizer" skeleton="event">
       <CreateEventForm />
-    </main>
+    </RouteGuard>
   );
 }
