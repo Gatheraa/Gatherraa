@@ -10,3 +10,5 @@ export { Spinner } from './Spinner';
 export type { SpinnerProps } from './Spinner';
 export { Text } from './Text';
 export type { TextProps } from './Text';
+export { InteractiveReaction } from './InteractiveReaction';
+export type { InteractiveReactionProps, ReactionType } from './InteractiveReaction';
