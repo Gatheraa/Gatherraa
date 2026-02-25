@@ -1,10 +1,26 @@
 'use client';
 
 import { useState, Suspense, lazy } from 'react';
-import { DollarSign, TrendingUp, Clock, ArrowDownToLine, ChevronRight, Star } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  DollarSign,
+  TrendingUp,
+  Clock,
+  ArrowDownToLine,
+  ChevronRight,
+  Star,
+  UserPlus,
+  FileText,
+  PlusCircle,
+  History,
+} from 'lucide-react';
 import { TopNavbar } from '@/components/navigation/TopNavbar';
 import { BottomNavbar } from '@/components/navigation/BottomNavbar';
 import { WrongNetworkAlert } from '@/components/wallet/WrongNetworkAlert';
+import {
+  QuickActionCards,
+  type QuickActionItem,
+} from '@/components/dashboard/QuickActionCards';
 
 // Lazy load heavy chart component
 const EarningsChart = lazy(() => import('@/components/dashboard/EarningsChart'));
@@ -40,11 +56,38 @@ const completedMissions = [
 ];
 
 export default function ContributorDashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<'overview' | 'missions' | 'history'>('overview');
 
   const totalEarnings = 12100;
   const availableBalance = 2800;
   const pendingRewards = 550;
+  const quickActions: QuickActionItem[] = [
+    {
+      id: 'add-user',
+      label: 'Add User',
+      icon: <UserPlus className="h-4 w-4" />,
+      onAction: () => router.push('/dao'),
+    },
+    {
+      id: 'create-report',
+      label: 'Create Report',
+      icon: <FileText className="h-4 w-4" />,
+      onAction: () => setActiveTab('history'),
+    },
+    {
+      id: 'create-event',
+      label: 'Create Event',
+      icon: <PlusCircle className="h-4 w-4" />,
+      onAction: () => router.push('/events/create'),
+    },
+    {
+      id: 'view-history',
+      label: 'View History',
+      icon: <History className="h-4 w-4" />,
+      onAction: () => setActiveTab('history'),
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
@@ -94,6 +137,8 @@ export default function ContributorDashboard() {
             trend="3 missions in review"
           />
         </div>
+
+        <QuickActionCards actions={quickActions} className="mb-8" />
 
         {/* Content Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
