@@ -1,0 +1,10 @@
+apiVersion: velero.io/v1
+kind: Restore
+metadata:
+  name: gatheraa-recovery-smoke-test
+  namespace: velero
+spec:
+  backupName: gatheraa-backup-manual
+  includedNamespaces:
+    - gatheraa-recovery
+  existingResourcePolicy: update

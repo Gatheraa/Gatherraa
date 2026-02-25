@@ -18,9 +18,11 @@ import { CategoriesModule } from './categories/categories.module';
 import { TagsModule } from './tags/tags.module';
 import { PaymentsModule } from './payments/payments.module';
 import { TaskQueueModule } from './task-queue/task-queue.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { ApiModule } from './api/api.module';
+import { RealtimeModule } from './realtime/realtime.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { MigrationsModule } from './migrations/migrations.module';
-import { GamificationModule } from './gamification/gamification.module';
 
 @Module({
   imports: [
@@ -50,9 +52,12 @@ import { GamificationModule } from './gamification/gamification.module';
     CategoriesModule,
     TagsModule,
     TaskQueueModule,
+    MonitoringModule,
+    ApiModule,
+    RealtimeModule,
     CouponsModule,
     MigrationsModule,
-    GamificationModule,
+
   ],
   controllers: [AppController],
   providers: [AppService],

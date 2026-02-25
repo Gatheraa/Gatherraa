@@ -1,0 +1,16 @@
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: gatheraa-backup-schedule
+  namespace: velero
+spec:
+  schedule: "0 */6 * * *"
+  template:
+    includedNamespaces:
+      - default
+      - gatheraa
+    snapshotVolumes: true
+    ttl: 720h
+    storageLocation: default
+    volumeSnapshotLocations:
+      - default

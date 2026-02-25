@@ -51,3 +51,9 @@ scrape_configs:
     static_configs:
       - targets: ['alertmanager:9093']
     scrape_interval: 10s
+
+  # Pushgateway metrics for batch jobs (backup/recovery tests)
+  - job_name: 'pushgateway'
+    static_configs:
+      - targets: ['pushgateway:9091']
+    scrape_interval: 15s
