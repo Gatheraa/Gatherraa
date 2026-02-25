@@ -3,10 +3,12 @@
     "@hookform/resolvers": "^5.2.2",
     "@nestjs/cli": "^11.0.16",
     "@nestjs/mapped-types": "*",
+    "ioredis": "^5.9.3",
     "react-hook-form": "^7.71.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@lhci/cli": "^0.15.1"
+    "@lhci/cli": "^0.15.1",
+    "@types/ioredis": "^4.28.10"
   }
 }
