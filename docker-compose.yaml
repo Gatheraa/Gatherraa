@@ -23,6 +23,13 @@ services:
     networks:
       - k6-net
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - k6-net
+
 networks:
   k6-net:
     driver: bridge
