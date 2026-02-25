@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { VideoGridConfig, VideoItem } from './types';
+import { AdaptiveThumbnail } from './AdaptiveThumbnail';
 
 export interface DynamicVideoGridProps {
   videos: VideoItem[];
@@ -198,22 +199,13 @@ export function DynamicVideoGrid({
                 aria-label={`Open video: ${video.title}`}
               >
                 <div className="relative h-0 w-full overflow-hidden bg-[var(--border-muted)] pt-[56.25%]">
-                  {video.thumbnailUrl ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={video.thumbnailUrl}
-                      alt={video.title}
-                      loading="lazy"
-                      decoding="async"
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-sm text-[var(--text-muted)]">
-                      No thumbnail
-                    </div>
-                  )}
+                  <AdaptiveThumbnail
+                    thumbnailUrl={video.thumbnailUrl}
+                    altText={video.title}
+                    className="absolute inset-0 h-full w-full"
+                  />
                   {video.durationLabel && (
-                    <span className="absolute bottom-2 right-2 rounded bg-black/75 px-2 py-0.5 text-xs font-medium text-white">
+                    <span className="absolute bottom-2 right-2 z-10 rounded bg-black/75 px-2 py-0.5 text-xs font-medium text-white">
                       {video.durationLabel}
                     </span>
                   )}
