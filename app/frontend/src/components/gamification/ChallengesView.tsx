@@ -16,6 +16,7 @@ import {
   Calendar,
   Zap
 } from 'lucide-react';
+import ActivityFeed from '../activity/ActivityFeed';
 
 interface Challenge {
   id: string;
@@ -447,6 +448,26 @@ export const ChallengesView: React.FC = () => {
           </p>
         </div>
       )}
+
+      {/* Example usage of ActivityFeed */}
+      <ActivityFeed items={exampleActivities} />
     </div>
   );
 };
+
+const exampleActivities = [
+  {
+    id: '1',
+    avatarUrl: '',
+    avatarFallback: 'JD',
+    timestamp: '2026-02-26 10:00 AM',
+    action: 'John Doe completed a challenge.',
+  },
+  {
+    id: '2',
+    avatarUrl: '',
+    avatarFallback: 'AS',
+    timestamp: '2026-02-26 09:30 AM',
+    action: 'Alice Smith enrolled in a new challenge.',
+  },
+];
