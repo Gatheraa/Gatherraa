@@ -8,6 +8,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/react": "^19.2.14"
     "@lhci/cli": "^0.15.1",
     "@types/ioredis": "^4.28.10"
   }
