@@ -27,31 +27,36 @@ export function FormField({
   const id = `field-${name}`;
   const errorId = error ? `${id}-error` : undefined;
   const hintId = hint ? `${id}-hint` : undefined;
+  const hasCustomField = !!children;
+  const ariaDescribedBy = [errorId, hintId].filter(Boolean).join(' ') || undefined;
+  const resolvedRequired = required ?? inputProps?.required;
 
   return (
-    <div className="space-y-1">
-      <Text
-        as="label"
-        variant="label"
-        color="primary"
-        htmlFor={children ? undefined : id}
-        id={`${id}-label`}
-        className="block"
-      >
-        {label}
-        {required && (
-          <span className="text-[var(--color-error)] ml-0.5" aria-hidden>
-            *
-          </span>
-        )}
-      </Text>
-      {children ? (
+    <div className="space-y-1.5">
+      {hasCustomField && (
+        <Text
+          as="label"
+          variant="label"
+          color="primary"
+          htmlFor={id}
+          id={`${id}-label`}
+          className="block"
+        >
+          {label}
+          {resolvedRequired && (
+            <span className="text-[var(--color-error)] ml-0.5" aria-hidden>
+              *
+            </span>
+          )}
+        </Text>
+      )}
+      {hasCustomField ? (
         (() => {
           if (React.isValidElement(children) && typeof children.type !== 'string') {
             const child = children as React.ReactElement<{ id?: string; 'aria-describedby'?: string; 'aria-invalid'?: boolean }>;
             return React.cloneElement(child, {
               id: child.props.id ?? id,
-              'aria-describedby': [errorId, hintId].filter(Boolean).join(' ') || undefined,
+              'aria-describedby': ariaDescribedBy,
               'aria-invalid': !!error,
             });
           }
@@ -61,11 +66,13 @@ export function FormField({
         <Input
           id={id}
           name={name}
-          aria-describedby={[errorId, hintId].filter(Boolean).join(' ') || undefined}
+          aria-describedby={ariaDescribedBy}
           aria-invalid={!!error}
           error={!!error}
           fullWidth
           {...inputProps}
+          label={label}
+          required={resolvedRequired}
         />
       )}
       {error && (

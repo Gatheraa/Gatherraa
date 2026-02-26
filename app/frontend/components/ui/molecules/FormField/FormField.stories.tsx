@@ -46,7 +46,7 @@ export const WithError: Story = {
     error: 'Password must be at least 8 characters',
     inputProps: {
       type: 'password',
-      placeholder: '••••••••',
+      placeholder: 'Enter password',
     },
   },
 };

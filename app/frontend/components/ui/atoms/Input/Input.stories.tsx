@@ -8,6 +8,7 @@ const meta: Meta<typeof Input> = {
   argTypes: {
     error: { control: 'boolean' },
     fullWidth: { control: 'boolean' },
+    label: { control: 'text' },
     disabled: { control: 'boolean' },
     placeholder: { control: 'text' },
   },
@@ -19,20 +20,23 @@ type Story = StoryObj<typeof Input>;
 
 export const Default: Story = {
   args: {
-    placeholder: 'Enter value...',
+    label: 'Email',
+    placeholder: 'you@example.com',
   },
 };
 
 export const WithValue: Story = {
   args: {
-    placeholder: 'Search...',
+    label: 'Project name',
+    placeholder: 'Name your project',
     defaultValue: 'Gatherraa',
   },
 };
 
 export const Error: Story = {
   args: {
-    placeholder: 'Invalid input',
+    label: 'Password',
+    placeholder: 'At least 8 characters',
     error: true,
     defaultValue: 'invalid',
   },
@@ -40,14 +44,16 @@ export const Error: Story = {
 
 export const Disabled: Story = {
   args: {
-    placeholder: 'Disabled',
+    label: 'Disabled',
+    placeholder: 'Unavailable right now',
     disabled: true,
   },
 };
 
 export const FullWidth: Story = {
   args: {
-    placeholder: 'Full width input',
+    label: 'Search',
+    placeholder: 'Find a mission',
     fullWidth: true,
   },
 };
