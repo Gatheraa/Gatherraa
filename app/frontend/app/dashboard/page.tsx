@@ -21,6 +21,7 @@ import {
   QuickActionCards,
   type QuickActionItem,
 } from '@/components/dashboard/QuickActionCards';
+import NotificationPanel from '../../components/NotificationPanel';
 
 // Lazy load heavy chart component
 const EarningsChart = lazy(() => import('@/components/dashboard/EarningsChart'));
@@ -92,7 +93,7 @@ export default function ContributorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
       <TopNavbar />
-
+      <NotificationPanel />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 transition-all">
         {/* Wrong Network Alert */}
         <div className="mb-6">
