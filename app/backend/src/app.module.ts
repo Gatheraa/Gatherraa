@@ -23,6 +23,7 @@ import { ApiModule } from './api/api.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { MigrationsModule } from './migrations/migrations.module';
+import { BookingModule } from './booking/booking.module';
 
 @Module({
   imports: [
@@ -57,9 +58,9 @@ import { MigrationsModule } from './migrations/migrations.module';
     RealtimeModule,
     CouponsModule,
     MigrationsModule,
-
+    BookingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
