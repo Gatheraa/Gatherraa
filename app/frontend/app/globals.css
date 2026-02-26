@@ -191,6 +191,62 @@ body {
   }
 }
 
+@keyframes video-detail-overlay-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes video-detail-overlay-exit {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes video-detail-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes video-detail-modal-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+
+.animate-video-detail-overlay-enter {
+  animation: video-detail-overlay-enter 220ms ease-out both;
+}
+
+.animate-video-detail-overlay-exit {
+  animation: video-detail-overlay-exit 180ms ease-in both;
+}
+
+.animate-video-detail-modal-enter {
+  animation: video-detail-modal-enter 280ms cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.animate-video-detail-modal-exit {
+  animation: video-detail-modal-exit 180ms ease-in both;
+}
+
 @keyframes recommendation-enter {
   from {
     opacity: 0;
@@ -222,6 +278,10 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .animate-video-detail-overlay-enter,
+  .animate-video-detail-overlay-exit,
+  .animate-video-detail-modal-enter,
+  .animate-video-detail-modal-exit,
   .animate-recommendation-enter,
   .animate-recommendation-exit {
     animation: none !important;
