@@ -59,6 +59,7 @@ import { FeatureFlagsModule } from './feature-flags/feature-flags.module';
     CouponsModule,
     MigrationsModule,
     FeatureFlagsModule,
+
   ],
   controllers: [AppController],
   providers: [AppService],

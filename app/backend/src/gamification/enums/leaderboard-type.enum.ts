@@ -1,0 +1,16 @@
+export enum LeaderboardType {
+  POINTS = 'points',
+  TOKENS = 'tokens',
+  ACHIEVEMENTS = 'achievements',
+  STREAK = 'streak',
+  EVENTS_ATTENDED = 'events_attended',
+  CONTRIBUTION = 'contribution',
+  SOCIAL_ENGAGEMENT = 'social_engagement',
+  LEARNING_TIME = 'learning_time',
+  CHALLENGE_COMPLETION = 'challenge_completion',
+  GUILD_POINTS = 'guild_points',
+  REPUTATION = 'reputation',
+  INFLUENCE = 'influence',
+  MENTORING = 'mentoring',
+  INNOVATION = 'innovation',
+}

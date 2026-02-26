@@ -1,0 +1,15 @@
+export enum StreakType {
+  DAILY_LOGIN = 'daily_login',
+  WEEKLY_LEARNING = 'weekly_learning',
+  EVENT_ATTENDANCE = 'event_attendance',
+  SOCIAL_ENGAGEMENT = 'social_engagement',
+  CHALLENGE_COMPLETION = 'challenge_completion',
+  CONTRIBUTION = 'contribution',
+  MENTORING = 'mentoring',
+  EXERCISE = 'exercise',
+  READING = 'reading',
+  CODING = 'coding',
+  REVIEWING = 'reviewing',
+  COLLABORATION = 'collaboration',
+  CUSTOM = 'custom',
+}

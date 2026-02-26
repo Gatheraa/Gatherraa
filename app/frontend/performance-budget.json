@@ -1,0 +1,43 @@
+{
+  "budgets": [
+    {
+      "type": "bundle",
+      "name": "main",
+      "maximumWarning": "200kb",
+      "maximumError": "300kb"
+    },
+    {
+      "type": "bundle",
+      "name": "vendor",
+      "maximumWarning": "400kb",
+      "maximumError": "500kb"
+    },
+    {
+      "type": "initial",
+      "maximumWarning": "500kb",
+      "maximumError": "700kb"
+    },
+    {
+      "type": "anyScript",
+      "maximumWarning": "150kb",
+      "maximumError": "200kb"
+    },
+    {
+      "type": "any",
+      "maximumWarning": "300kb",
+      "maximumError": "500kb"
+    }
+  ],
+  "lighthouse": {
+    "performance": 80,
+    "accessibility": 90,
+    "best-practices": 85,
+    "seo": 80,
+    "first-contentful-paint": 2000,
+    "largest-contentful-paint": 3000,
+    "total-blocking-time": 300,
+    "cumulative-layout-shift": 0.1,
+    "speed-index": 3000,
+    "time-to-interactive": 4000
+  }
+}
