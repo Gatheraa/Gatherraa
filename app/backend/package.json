@@ -35,7 +35,6 @@
     "@nestjs/bullmq": "^11.0.4",
     "@aws-sdk/client-ses": "^3.995.0",
     "@sendgrid/mail": "^8.1.0",
-    "@nestjs/bullmq": "^7.1.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
