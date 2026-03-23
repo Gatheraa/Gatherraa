@@ -20,9 +20,9 @@ pub struct SubscriptionContract;
 #[contractimpl]
 impl SubscriptionContract {
     /// Initialize the contract with admin and token address
-    pub fn initialize(env: Env, admin: Address, token_address: Address, grace_period_days: u32) {
+    pub fn initialize(env: Env, admin: Address, token_address: Address, grace_period_days: u32) -> Result<(), SubscriptionError> {
         if env.storage().instance().has(&DataKey::Admin) {
-            panic!("Already initialized");
+            return Err(SubscriptionError::AlreadyInitialized);
         }
 
         admin.require_auth();
@@ -32,6 +32,7 @@ impl SubscriptionContract {
         env.storage().instance().set(&DataKey::GracePeriod, &grace_period_days);
         env.storage().instance().set(&DataKey::NextPlanId, &1u32);
         env.storage().instance().set(&DataKey::NextSubscriptionId, &1u64);
+        Ok(())
     }
 
     /// Create a new subscription plan
@@ -42,11 +43,11 @@ impl SubscriptionContract {
         duration_days: u32,
         category_ids: Vec<u32>,
         max_family_members: u32,
-    ) -> u32 {
-        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+    ) -> Result<u32, SubscriptionError> {
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).ok_or(SubscriptionError::NotInitialized)?;
         admin.require_auth();
 
-        let plan_id: u32 = env.storage().instance().get(&DataKey::NextPlanId).unwrap();
+        let plan_id: u32 = env.storage().instance().get(&DataKey::NextPlanId).unwrap_or(1);
         
         let plan = SubscriptionPlan {
             plan_id,
@@ -61,7 +62,7 @@ impl SubscriptionContract {
         env.storage().persistent().set(&DataKey::SubscriptionPlan(plan_id), &plan);
         env.storage().instance().set(&DataKey::NextPlanId, &(plan_id + 1));
 
-        plan_id
+        Ok(plan_id)
     }
 
     /// Update an existing subscription plan
@@ -89,17 +90,17 @@ impl SubscriptionContract {
     }
 
     /// Subscribe to a plan
-    pub fn subscribe(env: Env, user: Address, plan_id: u32) -> u64 {
+    pub fn subscribe(env: Env, user: Address, plan_id: u32) -> Result<u64, SubscriptionError> {
         user.require_auth();
 
         let plan: SubscriptionPlan = env
             .storage()
             .persistent()
             .get(&DataKey::SubscriptionPlan(plan_id))
-            .expect("Plan not found");
+            .ok_or(SubscriptionError::PlanNotFound)?;
 
         if !plan.is_active {
-            panic!("Plan is not active");
+            return Err(SubscriptionError::PlanNotActive);
         }
 
         // Check if user already has an active subscription
@@ -109,7 +110,7 @@ impl SubscriptionContract {
             .get::<DataKey, UserSubscription>(&DataKey::UserSubscription(user.clone()))
         {
             if existing_sub.status == SubscriptionStatus::Active {
-                panic!("User already has an active subscription");
+                return Err(SubscriptionError::SubscriptionAlreadyActive);
             }
         }
 
@@ -145,7 +146,7 @@ impl SubscriptionContract {
             },
         );
 
-        subscription_id
+        Ok(subscription_id)
     }
 
     /// Renew subscription (can be called manually or automatically)
@@ -372,37 +373,38 @@ impl SubscriptionContract {
     }
 
     /// Add family member to subscription
-    pub fn add_family_member(env: Env, owner: Address, member: Address) {
+    pub fn add_family_member(env: Env, owner: Address, member: Address) -> Result<(), SubscriptionError> {
         owner.require_auth();
 
         let mut subscription: UserSubscription = env
             .storage()
             .persistent()
             .get(&DataKey::UserSubscription(owner.clone()))
-            .expect("Subscription not found");
+            .ok_or(SubscriptionError::SubscriptionNotFound)?;
 
         if subscription.status != SubscriptionStatus::Active {
-            panic!("Subscription must be active");
+            return Err(SubscriptionError::SubscriptionNotFound);
         }
 
         let plan: SubscriptionPlan = env
             .storage()
             .persistent()
             .get(&DataKey::SubscriptionPlan(subscription.plan_id))
-            .expect("Plan not found");
+            .ok_or(SubscriptionError::PlanNotFound)?;
 
         if subscription.family_members.len() >= plan.max_family_members {
-            panic!("Maximum family members reached");
+            return Err(SubscriptionError::MaxFamilyMembersReached);
         }
 
         if subscription.family_members.contains(&member) {
-            panic!("Member already added");
+            return Err(SubscriptionError::MemberAlreadyAdded);
         }
 
         subscription.family_members.push_back(member.clone());
         subscription.is_family_plan = true;
 
         env.storage().persistent().set(&DataKey::UserSubscription(owner.clone()), &subscription);
+        env.storage().persistent().set(&DataKey::MemberToOwner(member.clone()), &owner);
 
         events::emit_family_member_added(
             &env,
@@ -412,23 +414,24 @@ impl SubscriptionContract {
                 member,
             },
         );
+        Ok(())
     }
 
     /// Remove family member from subscription
-    pub fn remove_family_member(env: Env, owner: Address, member: Address) {
+    pub fn remove_family_member(env: Env, owner: Address, member: Address) -> Result<(), SubscriptionError> {
         owner.require_auth();
 
         let mut subscription: UserSubscription = env
             .storage()
             .persistent()
             .get(&DataKey::UserSubscription(owner.clone()))
-            .expect("Subscription not found");
+            .ok_or(SubscriptionError::SubscriptionNotFound)?;
 
         let member_index = subscription
             .family_members
             .iter()
             .position(|m| m == member)
-            .expect("Member not found");
+            .ok_or(SubscriptionError::MemberNotFound)?;
 
         subscription.family_members.remove(member_index as u32);
 
@@ -437,6 +440,8 @@ impl SubscriptionContract {
         }
 
         env.storage().persistent().set(&DataKey::UserSubscription(owner), &subscription);
+        env.storage().persistent().remove(&DataKey::MemberToOwner(member));
+        Ok(())
     }
 
     /// Gift a subscription to another user
@@ -605,32 +610,41 @@ impl SubscriptionContract {
 
     /// Check if user has access to a category
     pub fn has_category_access(env: Env, user: Address, category_id: u32) -> bool {
+        // Direct access
         if let Some(subscription) = env
             .storage()
             .persistent()
             .get::<DataKey, UserSubscription>(&DataKey::UserSubscription(user.clone()))
         {
-            if subscription.status != SubscriptionStatus::Active {
-                return false;
-            }
-
-            if let Some(plan) = env
-                .storage()
-                .persistent()
-                .get::<DataKey, SubscriptionPlan>(&DataKey::SubscriptionPlan(subscription.plan_id))
-            {
-                return plan.category_ids.contains(&category_id);
+            if subscription.status == SubscriptionStatus::Active {
+                if let Some(plan) = env
+                    .storage()
+                    .persistent()
+                    .get::<DataKey, SubscriptionPlan>(&DataKey::SubscriptionPlan(subscription.plan_id))
+                {
+                    if plan.category_ids.contains(&category_id) {
+                        return true;
+                    }
+                }
             }
         }
 
-        // Check if user is a family member
+        // Family access
+        if let Some(owner) = env.storage().persistent().get::<_, Address>(&DataKey::MemberToOwner(user.clone())) {
+            if let Some(owner_sub) = env.storage().persistent().get::<_, UserSubscription>(&DataKey::UserSubscription(owner)) {
+                if owner_sub.status == SubscriptionStatus::Active {
+                    if let Some(plan) = env.storage().persistent().get::<_, SubscriptionPlan>(&DataKey::SubscriptionPlan(owner_sub.plan_id)) {
+                        return plan.category_ids.contains(&category_id);
+                    }
+                }
+            }
+        }
+
         false
     }
 
     /// Check if family member has access
     pub fn check_family_access(env: Env, member: Address, category_id: u32) -> bool {
-        // This would need to iterate through all subscriptions to find if member is in any family plan
-        // For efficiency, consider maintaining a reverse index in production
-        false
+        Self::has_category_access(env, member, category_id)
     }
 }

@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, contracterror, Address, String, Vec};
 
 #[derive(Clone)]
 #[contracttype]
@@ -8,6 +8,7 @@ pub enum DataKey {
     SubscriptionPlan(u32),
     UserSubscription(Address),
     FamilyPlan(Address),
+    MemberToOwner(Address), // Member -> Owner mapping
     GracePeriod,
     NextPlanId,
     NextSubscriptionId,
@@ -75,4 +76,29 @@ pub struct GiftSubscription {
     pub plan_id: u32,
     pub claimed: bool,
     pub created_at: u64,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum SubscriptionError {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    PlanNotFound = 4,
+    PlanNotActive = 5,
+    SubscriptionNotFound = 6,
+    SubscriptionAlreadyActive = 7,
+    SubscriptionNotPaused = 8,
+    CannotRenewCancelled = 9,
+    MaxFamilyMembersReached = 10,
+    MemberAlreadyAdded = 11,
+    MemberNotFound = 12,
+    GiftNotFound = 13,
+    GiftNotForUser = 14,
+    GiftAlreadyClaimed = 15,
+    InsufficientBalance = 16,
+    TransferFailed = 17,
+    InvalidAmount = 18,
+    ContractPaused = 19,
 }

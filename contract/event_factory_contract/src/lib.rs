@@ -4,7 +4,7 @@
 mod test;
 
 mod storage_types;
-use storage_types::DataKey;
+use storage_types::{DataKey, EventFactoryError};
 
 use soroban_sdk::{
     contract, contractimpl, symbol_short, vec, Address, BytesN, Env, IntoVal, String, Symbol, Vec,
@@ -15,9 +15,9 @@ pub struct EventFactoryContract;
 
 #[contractimpl]
 impl EventFactoryContract {
-    pub fn initialize(e: Env, admin: Address, event_wasm_hash: BytesN<32>) {
+    pub fn initialize(e: Env, admin: Address, event_wasm_hash: BytesN<32>) -> Result<(), EventFactoryError> {
         if e.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(EventFactoryError::AlreadyInitialized);
         }
 
         e.storage().instance().set(&DataKey::Admin, &admin);
@@ -26,18 +26,21 @@ impl EventFactoryContract {
             .set(&DataKey::EventWasmHash, &event_wasm_hash);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::Version, &1u32);
+        Ok(())
     }
 
-    pub fn pause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn pause(e: Env) -> Result<(), EventFactoryError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
         e.storage().instance().set(&DataKey::Paused, &true);
+        Ok(())
     }
 
-    pub fn unpause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn unpause(e: Env) -> Result<(), EventFactoryError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
         e.storage().instance().set(&DataKey::Paused, &false);
+        Ok(())
     }
 
     pub fn update_wasm_hash(e: Env, new_wasm_hash: BytesN<32>) {
@@ -56,15 +59,15 @@ impl EventFactoryContract {
         uri: String,
         start_time: u64,
         refund_cutoff_time: u64,
-    ) -> Address {
+    ) -> Result<Address, EventFactoryError> {
         organizer.require_auth();
 
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("factory is paused");
+            return Err(EventFactoryError::Paused);
         }
 
-        let wasm_hash: BytesN<32> = e.storage().instance().get(&DataKey::EventWasmHash).unwrap();
+        let wasm_hash: BytesN<32> = e.storage().instance().get(&DataKey::EventWasmHash).ok_or(EventFactoryError::NotInitialized)?;
 
         let counter: u32 = e
             .storage()
@@ -119,7 +122,7 @@ impl EventFactoryContract {
             event_contract_id.clone(),
         );
 
-        event_contract_id
+        Ok(event_contract_id)
     }
 
     pub fn get_events_by_organizer(e: Env, organizer: Address) -> Vec<Address> {
@@ -127,31 +130,19 @@ impl EventFactoryContract {
         e.storage().persistent().get(&key).unwrap_or(Vec::new(&e))
     }
 
-    pub fn transfer_event_ownership(e: Env, event: Address, from: Address, to: Address) {
+    pub fn transfer_event_ownership(e: Env, event: Address, from: Address, to: Address) -> Result<(), EventFactoryError> {
         from.require_auth();
 
         let from_key = DataKey::OrganizerEvents(from.clone());
-        let from_events: Vec<Address> = e
+        let mut from_events: Vec<Address> = e
             .storage()
             .persistent()
             .get(&from_key)
-            .unwrap_or(Vec::new(&e));
+            .ok_or(EventFactoryError::EventNotFound)?;
 
-        let mut new_from_events = Vec::new(&e);
-        let mut found = false;
-        for existing_event in from_events.clone().into_iter() {
-            if existing_event != event {
-                new_from_events.push_back(existing_event);
-            } else {
-                found = true;
-            }
-        }
-
-        if !found {
-            panic!("event not owned by 'from' address");
-        }
-
-        e.storage().persistent().set(&from_key, &new_from_events);
+        let index = from_events.iter().position(|x| x == event).ok_or(EventFactoryError::EventNotFound)?;
+        from_events.remove(index as u32);
+        e.storage().persistent().set(&from_key, &from_events);
 
         let to_key = DataKey::OrganizerEvents(to.clone());
         let mut to_events: Vec<Address> = e
@@ -165,16 +156,16 @@ impl EventFactoryContract {
         #[allow(deprecated)]
         e.events()
             .publish((symbol_short!("transfer"), event), (from, to));
+        Ok(())
     }
 
-    // --- UPGRADEABILITY MECHANISMS ---
     // Schedule an upgrade with a timelock (e.g., 24 hours).
-    pub fn schedule_upgrade(e: Env, new_wasm_hash: BytesN<32>, unlock_time: u64) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn schedule_upgrade(e: Env, new_wasm_hash: BytesN<32>, unlock_time: u64) -> Result<(), EventFactoryError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
 
         if e.ledger().timestamp() >= unlock_time {
-            panic!("unlock_time must be in the future");
+            return Err(EventFactoryError::InvalidUnlockTime);
         }
 
         e.storage().instance().set(
@@ -186,34 +177,36 @@ impl EventFactoryContract {
             (Symbol::new(&e, "UpgradeScheduled"),),
             (new_wasm_hash, unlock_time),
         );
+        Ok(())
     }
 
     // Cancel a scheduled upgrade. (Rollback mechanism before execution)
-    pub fn cancel_upgrade(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn cancel_upgrade(e: Env) -> Result<(), EventFactoryError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
 
         e.storage().instance().remove(&DataKey::UpgradeTimelock);
         e.events()
             .publish((Symbol::new(&e, "UpgradeCancelled"),), ());
+        Ok(())
     }
 
     // Execute the scheduled upgrade.
-    pub fn execute_upgrade(e: Env, new_wasm_hash: BytesN<32>) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn execute_upgrade(e: Env, new_wasm_hash: BytesN<32>) -> Result<(), EventFactoryError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
 
         let (scheduled_hash, unlock_time): (BytesN<32>, u64) = e
             .storage()
             .instance()
             .get(&DataKey::UpgradeTimelock)
-            .unwrap_or_else(|| panic!("no upgrade scheduled"));
+            .ok_or(EventFactoryError::UpgradeTimelockNotSet)?;
 
         if scheduled_hash != new_wasm_hash {
-            panic!("wasm hash does not match scheduled");
+            return Err(EventFactoryError::UpgradeHashMismatch);
         }
         if e.ledger().timestamp() < unlock_time {
-            panic!("timelock not expired");
+            return Err(EventFactoryError::UpgradeTimelockNotExpired);
         }
 
         // Clear the timelock so it can't be reused
@@ -225,6 +218,7 @@ impl EventFactoryContract {
 
         e.events()
             .publish((Symbol::new(&e, "Upgraded"),), new_wasm_hash);
+        Ok(())
     }
 
     // Execute a state migration after an upgrade.

@@ -1,5 +1,6 @@
-use soroban_sdk::{Address, BytesN, Env, Symbol, Vec, Map, U256};
+use soroban_sdk::{contracttype, contracterror, Address, BytesN, Env, Symbol, Vec, Map, U256};
 
+#[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
     Admin,
@@ -14,6 +15,7 @@ pub enum DataKey {
     Milestone(BytesN<32>),
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct Escrow {
     pub id: BytesN<32>,
@@ -31,7 +33,8 @@ pub struct Escrow {
     pub dispute_active: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[contracttype]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EscrowStatus {
     Pending,
     Locked,
@@ -41,6 +44,7 @@ pub enum EscrowStatus {
     Cancelled,
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct RevenueSplit {
     pub organizer_percentage: u32,
@@ -49,6 +53,7 @@ pub struct RevenueSplit {
     pub precision: u32,
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct Milestone {
     pub id: u32,
@@ -57,6 +62,7 @@ pub struct Milestone {
     pub released: bool,
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct Dispute {
     pub escrow_id: BytesN<32>,
@@ -68,6 +74,7 @@ pub struct Dispute {
     pub resolution: Option<DisputeResolution>,
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct DisputeResolution {
     pub winner: Address,
@@ -75,6 +82,7 @@ pub struct DisputeResolution {
     pub penalty_amount: i128,
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct ReferralTracker {
     pub referrer: Address,
@@ -83,6 +91,7 @@ pub struct ReferralTracker {
     pub last_referral: u64,
 }
 
+#[contracttype]
 #[derive(Clone)]
 pub struct RevenueSplitConfig {
     pub default_organizer_percentage: u32,
@@ -97,29 +106,31 @@ pub struct RevenueSplitConfig {
 }
 
 // Custom errors
-#[derive(Debug, Clone, PartialEq)]
+#[contracterror]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[repr(u32)]
 pub enum EscrowError {
-    AlreadyInitialized,
-    NotInitialized,
-    Unauthorized,
-    InsufficientBalance,
-    InvalidAmount,
-    InvalidToken,
-    EscrowNotFound,
-    InvalidStatus,
-    DisputeActive,
-    NoDispute,
-    DisputeTimeout,
-    InvalidPercentage,
-    InvalidMilestone,
-    MilestoneAlreadyReleased,
-    InvalidTime,
-    ContractPaused,
-    TransferFailed,
-    InvalidAddress,
-    AmountTooLow,
-    AmountTooHigh,
-    ReferralNotFound,
-    DuplicateReferral,
-    EmergencyWithdrawalNotAvailable,
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    InsufficientBalance = 4,
+    InvalidAmount = 5,
+    InvalidToken = 6,
+    EscrowNotFound = 7,
+    InvalidStatus = 8,
+    DisputeActive = 9,
+    NoDispute = 10,
+    DisputeTimeout = 11,
+    InvalidPercentage = 12,
+    InvalidMilestone = 13,
+    MilestoneAlreadyReleased = 14,
+    InvalidTime = 15,
+    ContractPaused = 16,
+    TransferFailed = 17,
+    InvalidAddress = 18,
+    AmountTooLow = 19,
+    AmountTooHigh = 20,
+    ReferralNotFound = 21,
+    DuplicateReferral = 22,
+    EmergencyWithdrawalNotAvailable = 23,
 }

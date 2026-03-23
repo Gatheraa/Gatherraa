@@ -18,26 +18,27 @@ pub struct ZKTicketContract;
 #[contractimpl]
 impl ZKTicketContract {
     // Initialize the contract
-    pub fn initialize(e: Env, admin: Address, circuit_params: CircuitParameters) {
+    pub fn initialize(e: Env, admin: Address, circuit_params: CircuitParameters) -> Result<(), ZKTicketError> {
         if e.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(ZKTicketError::AlreadyInitialized);
         }
 
         // Validate circuit parameters
-        Self::validate_circuit_params(&circuit_params);
+        Self::validate_circuit_params(&circuit_params)?;
 
         e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage().instance().set(&DataKey::CircuitParams, &circuit_params);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::Version, &1u32);
         
-        // Initialize revocation list
+        // Initialize revocation list metadata
         let revocation_list = RevocationList {
             revoked_commitments: Vec::new(&e),
             revoked_nullifiers: Vec::new(&e),
             last_updated: e.ledger().timestamp(),
         };
         e.storage().instance().set(&DataKey::RevocationList, &revocation_list);
+        Ok(())
     }
 
     // Create ticket commitment (off-chain preparation)
@@ -47,10 +48,10 @@ impl ZKTicketContract {
         ticket_hash: BytesN<32>,
         attributes: Vec<ZKAttribute>,
         nullifier: BytesN<32>,
-    ) -> BytesN<32> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<BytesN<32>, ZKTicketError> {
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(ZKTicketError::ContractPaused);
         }
 
         // Validate attributes
@@ -81,7 +82,7 @@ impl ZKTicketContract {
                 total_tickets: 0,
                 active_tickets: 0,
                 created_at: e.ledger().timestamp(),
-                circuit_params: Self::get_circuit_params(e.clone()),
+                circuit_params: Self::get_circuit_params(e.clone())?,
             });
 
         event_commits.commitments.push_back(commitment.clone());
@@ -104,7 +105,7 @@ impl ZKTicketContract {
             (event_id, ticket_hash),
         );
 
-        commitment
+        Ok(commitment)
     }
 
     // Submit and verify ZK proof
@@ -118,41 +119,40 @@ impl ZKTicketContract {
         attributes: Vec<ZKAttribute>,
         proof_data: Vec<u8>,
         expires_at: u64,
-    ) -> bool {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<bool, ZKTicketError> {
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(ZKTicketError::ContractPaused);
         }
 
         // Validate commitment exists and is active
         let commitment: TicketCommitment = e.storage().instance().get(&DataKey::TicketCommitment(ticket_commitment.clone()))
-            .unwrap_or_else(|| panic!("commitment not found"));
+            .ok_or(ZKTicketError::InvalidCommitment)?;
 
         if !commitment.active {
-            panic!("commitment inactive");
+            return Err(ZKTicketError::InvalidCommitment);
         }
 
         if commitment.event_id != event_id {
-            panic!("event mismatch");
+            return Err(ZKTicketError::InvalidEventId);
         }
 
         // Check nullifier not used
         let nullifier_info: NullifierInfo = e.storage().instance().get(&DataKey::Nullifier(nullifier.clone()))
-            .unwrap_or_else(|| panic!("nullifier not found"));
+            .ok_or(ZKTicketError::InvalidNullifier)?;
 
         if nullifier_info.used {
-            panic!("nullifier already used");
+            return Err(ZKTicketError::NullifierAlreadyUsed);
         }
 
         // Validate proof expiration
         if e.ledger().timestamp() > expires_at {
-            panic!("proof expired");
+            return Err(ZKTicketError::ProofExpired);
         }
 
-        // Check revocation list
-        let revocation_list: RevocationList = e.storage().instance().get(&DataKey::RevocationList).unwrap();
-        if revocation_list.revoked_commitments.contains(&ticket_commitment) {
-            panic!("ticket revoked");
+        // Check revocation list (O(1) check)
+        if e.storage().instance().has(&DataKey::RevokedCommitment(ticket_commitment.clone())) {
+            return Err(ZKTicketError::TicketRevoked);
         }
 
         // Verify ZK proof
@@ -200,14 +200,14 @@ impl ZKTicketContract {
             (event_id, owner),
         );
 
-        true
+        Ok(true)
     }
 
     // Batch verification for event entry
-    pub fn batch_verify(e: Env, proof_ids: Vec<BytesN<32>) -> BytesN<32> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    pub fn batch_verify(e: Env, proof_ids: Vec<BytesN<32>>) -> Result<BytesN<32>, ZKTicketError> {
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(ZKTicketError::ContractPaused);
         }
 
         // Generate batch ID
@@ -224,7 +224,7 @@ impl ZKTicketContract {
 
         // Process each proof
         for proof_id in proof_ids.iter() {
-            let result = Self::verify_single_proof(&e, proof_id);
+            let result = Self::verify_single_proof(&e, &proof_id)?;
             batch.results.push_back(result);
         }
 
@@ -238,7 +238,7 @@ impl ZKTicketContract {
             batch.results.len(),
         );
 
-        batch_id
+        Ok(batch_id)
     }
 
     // Mobile-friendly proof verification
@@ -325,29 +325,32 @@ impl ZKTicketContract {
     }
 
     // Revoke a ticket/commitment
-    pub fn revoke_ticket(e: Env, ticket_commitment: BytesN<32>, reason: Symbol) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn revoke_ticket(e: Env, ticket_commitment: BytesN<32>, reason: Symbol) -> Result<(), ZKTicketError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(ZKTicketError::NotInitialized)?;
         admin.require_auth();
 
         let mut commitment: TicketCommitment = e.storage().instance().get(&DataKey::TicketCommitment(ticket_commitment.clone()))
-            .unwrap_or_else(|| panic!("commitment not found"));
+            .ok_or(ZKTicketError::InvalidCommitment)?;
 
         if !commitment.active {
-            panic!("commitment already inactive");
+            return Err(ZKTicketError::InvalidCommitment);
         }
 
         commitment.active = false;
         e.storage().instance().set(&DataKey::TicketCommitment(ticket_commitment.clone()), &commitment);
 
-        // Add to revocation list
+        // Add to revocation list metadata (still kept for historical reasons)
         let mut revocation_list: RevocationList = e.storage().instance().get(&DataKey::RevocationList).unwrap();
         revocation_list.revoked_commitments.push_back(ticket_commitment.clone());
         revocation_list.last_updated = e.ledger().timestamp();
         e.storage().instance().set(&DataKey::RevocationList, &revocation_list);
 
+        // Efficient O(1) revocation mark
+        e.storage().instance().set(&DataKey::RevokedCommitment(ticket_commitment.clone()), &true);
+
         // Update event commitments
         let event_key = DataKey::EventCommitments(commitment.event_id.clone());
-        let mut event_commits: EventCommitments = e.storage().persistent().get(&event_key).unwrap();
+        let mut event_commits: EventCommitments = e.storage().persistent().get(&event_key).ok_or(ZKTicketError::InvalidEventId)?;
         event_commits.active_tickets = event_commits.active_tickets.saturating_sub(1);
         e.storage().persistent().set(&event_key, &event_commits);
 
@@ -356,6 +359,7 @@ impl ZKTicketContract {
             (symbol_short!("ticket_revoked"), ticket_commitment.clone()),
             reason,
         );
+        Ok(())
     }
 
     // Admin functions
@@ -379,29 +383,29 @@ impl ZKTicketContract {
     }
 
     // View functions
-    pub fn get_proof(e: Env, proof_id: BytesN<32>) -> ZKProof {
+    pub fn get_proof(e: Env, proof_id: BytesN<32>) -> Result<ZKProof, ZKTicketError> {
         e.storage().instance().get(&DataKey::ZKProof(proof_id))
-            .unwrap_or_else(|| panic!("proof not found"))
+            .ok_or(ZKTicketError::ProofNotFound)
     }
 
-    pub fn get_commitment(e: Env, commitment: BytesN<32>) -> TicketCommitment {
+    pub fn get_commitment(e: Env, commitment: BytesN<32>) -> Result<TicketCommitment, ZKTicketError> {
         e.storage().instance().get(&DataKey::TicketCommitment(commitment))
-            .unwrap_or_else(|| panic!("commitment not found"))
+            .ok_or(ZKTicketError::InvalidCommitment)
     }
 
-    pub fn get_nullifier_info(e: Env, nullifier: BytesN<32>) -> NullifierInfo {
+    pub fn get_nullifier_info(e: Env, nullifier: BytesN<32>) -> Result<NullifierInfo, ZKTicketError> {
         e.storage().instance().get(&DataKey::Nullifier(nullifier))
-            .unwrap_or_else(|| panic!("nullifier not found"))
+            .ok_or(ZKTicketError::InvalidNullifier)
     }
 
-    pub fn get_event_commitments(e: Env, event_id: Address) -> EventCommitments {
+    pub fn get_event_commitments(e: Env, event_id: Address) -> Result<EventCommitments, ZKTicketError> {
         e.storage().persistent().get(&DataKey::EventCommitments(event_id))
-            .unwrap_or_else(|| panic!("event commitments not found"))
+            .ok_or(ZKTicketError::InvalidEventId)
     }
 
-    pub fn get_batch_verification(e: Env, batch_id: BytesN<32>) -> BatchVerification {
+    pub fn get_batch_verification(e: Env, batch_id: BytesN<32>) -> Result<BatchVerification, ZKTicketError> {
         e.storage().instance().get(&DataKey::BatchVerification(batch_id))
-            .unwrap_or_else(|| panic!("batch not found"))
+            .ok_or(ZKTicketError::BatchNotFound)
     }
 
     pub fn get_user_proofs(e: Env, user: Address) -> Vec<BytesN<32>> {
@@ -422,15 +426,15 @@ impl ZKTicketContract {
     }
 
     // Helper functions
-    fn validate_circuit_params(params: &CircuitParameters) {
+    fn validate_circuit_params(params: &CircuitParameters) -> Result<(), ZKTicketError> {
         if params.attribute_count == 0 {
-            panic!("invalid attribute count");
+            return Err(ZKTicketError::InvalidCircuitParams);
         }
 
         if params.public_inputs == 0 || params.private_inputs == 0 {
-            panic!("invalid input counts");
+            return Err(ZKTicketError::InvalidCircuitParams);
         }
-
+        Ok(())
         // In a real implementation, you'd validate the circuit hashes against known good circuits
     }
 
@@ -522,31 +526,33 @@ impl ZKTicketContract {
         hash != BytesN::from_array(e, &[0; 32])
     }
 
-    fn verify_single_proof(e: &Env, proof_id: &BytesN<32>) -> bool {
+    fn verify_single_proof(e: &Env, proof_id: &BytesN<32>) -> Result<bool, ZKTicketError> {
         let proof: ZKProof = e.storage().instance().get(&DataKey::ZKProof(proof_id.clone()))
-            .unwrap_or_else(|| false);
+            .ok_or(ZKTicketError::ProofNotFound)?;
 
         if proof.revoked || e.ledger().timestamp() > proof.expires_at {
-            return false;
+            return Ok(false);
         }
 
         // Check verification cache
         let cache_key = Self::generate_cache_key(e, proof_id);
-        if let Some(cached) = e.storage().instance().get(&DataKey::VerificationCache) {
+        if let Some(cached) = e.storage().instance().get::<_, VerificationCache>(&DataKey::VerificationCache) {
             if cached.cache_key == cache_key && 
                e.ledger().timestamp() - cached.timestamp < 300 { // 5 minute cache
-                return cached.result;
+                return Ok(cached.result);
             }
         }
 
         // Perform verification
-        let verification_result = Self::verify_zk_proof(e, &proof.proof_data, &proof.attributes, 
-                                                      &e.storage().instance().get(&DataKey::TicketCommitment(proof.ticket_commitment.clone())).unwrap()).is_ok();
+        let commitment = e.storage().instance().get(&DataKey::TicketCommitment(proof.ticket_commitment.clone()))
+            .ok_or(ZKTicketError::InvalidCommitment)?;
+
+        let verification_result = Self::verify_zk_proof(e, &proof.proof_data, &proof.attributes, &commitment).is_ok();
 
         // Cache result
         Self::cache_verification_result(e, proof_id, verification_result);
 
-        verification_result
+        Ok(verification_result)
     }
 
     fn verify_mobile_proof_internal(e: &Env, proof_template: &Vec<u8>, proof_data: &Vec<u8>) -> Result<bool, ZKTicketError> {

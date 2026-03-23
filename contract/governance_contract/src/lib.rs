@@ -16,9 +16,9 @@ impl GovernanceContract {
         token: Address,
         timelock_duration: u64,
         emergency_address: Address,
-    ) {
+    ) -> Result<(), GovernanceError> {
         if env.storage().instance().has(&DataKey::Admin) {
-            panic!("Already initialized");
+            return Err(GovernanceError::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Token, &token);
@@ -31,6 +31,7 @@ impl GovernanceContract {
         Self::set_category_settings(&env, 1, 500, 50, 50);   // FeeAdjustment
         Self::set_category_settings(&env, 2, 100, 50, 30);   // ParameterUpdate
         Self::set_category_settings(&env, 3, 2000, 66, 20);  // Emergency
+        Ok(())
     }
 
     pub fn set_category_settings(env: &Env, category_id: u32, quorum: i128, threshold: u32, period: u32) {
@@ -48,16 +49,16 @@ impl GovernanceContract {
         action: GovernanceAction,
         category: ProposalCategory,
         description: String,
-    ) -> u32 {
+    ) -> Result<u32, GovernanceError> {
         proposer.require_auth();
 
-        let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let token_addr: Address = env.storage().instance().get(&DataKey::Token).ok_or(GovernanceError::NotInitialized)?;
         let token_client = token::Client::new(&env, &token_addr);
         let balance = token_client.balance(&proposer);
         
         let min_propose_power = 100; // Hardcoded for now
         if balance < min_propose_power {
-            panic!("Insufficient tokens to propose");
+            return Err(GovernanceError::InsufficientTokens);
         }
 
         let category_id = match category {
@@ -68,7 +69,7 @@ impl GovernanceContract {
         };
 
         let settings: CategorySettings = env.storage().instance().get(&DataKey::CategorySettings(category_id))
-            .expect("Category settings not found");
+            .ok_or(GovernanceError::CategoryNotFound)?;
 
         let mut count: u32 = env.storage().instance().get(&DataKey::ProposalCount).unwrap_or(0);
         count += 1;
@@ -90,7 +91,7 @@ impl GovernanceContract {
         env.storage().persistent().set(&DataKey::Proposal(count), &proposal);
         env.storage().instance().set(&DataKey::ProposalCount, &count);
 
-        count
+        Ok(count)
     }
 
     pub fn vote(
@@ -100,20 +101,20 @@ impl GovernanceContract {
         support: bool,
         use_quadratic: bool,
         delegators: Vec<Address>,
-    ) {
+    ) -> Result<(), GovernanceError> {
         voter.require_auth();
 
         let mut proposal: Proposal = env
             .storage()
             .persistent()
             .get(&DataKey::Proposal(proposal_id))
-            .expect("Proposal not found");
+            .ok_or(GovernanceError::ProposalNotFound)?;
 
         if env.ledger().sequence() > proposal.end_ledger {
-            panic!("Voting period ended");
+            return Err(GovernanceError::VotingPeriodEnded);
         }
 
-        let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let token_addr: Address = env.storage().instance().get(&DataKey::Token).ok_or(GovernanceError::NotInitialized)?;
         let token_client = token::Client::new(&env, &token_addr);
 
         let mut total_power: i128 = 0;
@@ -135,10 +136,10 @@ impl GovernanceContract {
         // Delegators' power
         for delegator in delegators.iter() {
             let delegatee: Address = env.storage().persistent().get(&DataKey::UserDelegation(delegator.clone()))
-                .expect("Not a delegatee for this user");
+                .ok_or(GovernanceError::InvalidDelegation)?;
             
             if delegatee != voter {
-                panic!("Invalid delegatee for one of the delegators");
+                return Err(GovernanceError::Unauthorized);
             }
 
             if env.storage().persistent().has(&DataKey::Vote(proposal_id, delegator.clone())) {
@@ -165,6 +166,7 @@ impl GovernanceContract {
         }
 
         env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
+        Ok(())
     }
 
     pub fn delegate(env: Env, delegator: Address, delegatee: Address) {
@@ -177,15 +179,15 @@ impl GovernanceContract {
         env.storage().persistent().remove(&DataKey::UserDelegation(delegator));
     }
 
-    pub fn queue(env: Env, proposal_id: u32) {
+    pub fn queue(env: Env, proposal_id: u32) -> Result<(), GovernanceError> {
         let mut proposal: Proposal = env
             .storage()
             .persistent()
             .get(&DataKey::Proposal(proposal_id))
-            .expect("Proposal not found");
+            .ok_or(GovernanceError::ProposalNotFound)?;
 
         if env.ledger().sequence() <= proposal.end_ledger {
-            panic!("Voting still active");
+            return Err(GovernanceError::VotingPeriodNotEnded);
         }
 
         let category_id = match proposal.category {
@@ -196,7 +198,7 @@ impl GovernanceContract {
         };
 
         let settings: CategorySettings = env.storage().instance().get(&DataKey::CategorySettings(category_id))
-            .expect("Settings not found");
+            .ok_or(GovernanceError::CategoryNotFound)?;
 
         let total_votes = proposal.total_votes_for + proposal.total_votes_against;
 
@@ -204,7 +206,7 @@ impl GovernanceContract {
             let for_percentage = if total_votes > 0 { (proposal.total_votes_for * 100) / total_votes } else { 0 };
             if for_percentage >= settings.threshold as i128 {
                 proposal.status = ProposalStatus::Queued;
-                let timelock: u64 = env.storage().instance().get(&DataKey::TimelockDuration).unwrap();
+                let timelock: u64 = env.storage().instance().get(&DataKey::TimelockDuration).unwrap_or(0);
                 proposal.eta = env.ledger().timestamp() + timelock;
             } else {
                 proposal.status = ProposalStatus::Defeated;
@@ -214,38 +216,41 @@ impl GovernanceContract {
         }
 
         env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
+        Ok(())
     }
 
-    pub fn execute(env: Env, proposal_id: u32) {
+    pub fn execute(env: Env, proposal_id: u32) -> Result<(), GovernanceError> {
         let mut proposal: Proposal = env
             .storage()
             .persistent()
             .get(&DataKey::Proposal(proposal_id))
-            .expect("Proposal not found");
+            .ok_or(GovernanceError::ProposalNotFound)?;
 
         if !matches!(proposal.status, ProposalStatus::Queued) {
-            panic!("Proposal not queued");
+            return Err(GovernanceError::ProposalNotQueued);
         }
 
         if env.ledger().timestamp() < proposal.eta {
-            panic!("Timelock not expired");
+            return Err(GovernanceError::TimelockNotExpired);
         }
 
         proposal.status = ProposalStatus::Executed;
         env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
         
         env.events().publish((symbol_short!("execute"), proposal_id), proposal.action);
+        Ok(())
     }
 
-    pub fn emergency_action(env: Env, caller: Address, action: GovernanceAction) {
-        let emergency_addr: Address = env.storage().instance().get(&DataKey::EmergencyAddress).unwrap();
+    pub fn emergency_action(env: Env, caller: Address, action: GovernanceAction) -> Result<(), GovernanceError> {
+        let emergency_addr: Address = env.storage().instance().get(&DataKey::EmergencyAddress).ok_or(GovernanceError::NotInitialized)?;
         caller.require_auth();
         
         if caller != emergency_addr {
-            panic!("Not authorized for emergency actions");
+            return Err(GovernanceError::Unauthorized);
         }
 
         env.events().publish((symbol_short!("emergen"),), action);
+        Ok(())
     }
 
     fn sqrt(n: i128) -> i128 {
@@ -259,8 +264,8 @@ impl GovernanceContract {
         x
     }
 
-    pub fn get_proposal(env: Env, proposal_id: u32) -> Proposal {
-        env.storage().persistent().get(&DataKey::Proposal(proposal_id)).expect("Proposal not found")
+    pub fn get_proposal(env: Env, proposal_id: u32) -> Result<Proposal, GovernanceError> {
+        env.storage().persistent().get(&DataKey::Proposal(proposal_id)).ok_or(GovernanceError::ProposalNotFound)
     }
 
     pub fn get_vote(env: Env, proposal_id: u32, voter: Address) -> Option<VoteRecord> {

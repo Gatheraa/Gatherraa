@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Vec, String};
+use soroban_sdk::{contracttype, contracterror, Address, Vec, String};
 
 #[derive(Clone)]
 #[contracttype]
@@ -78,4 +78,22 @@ pub struct VoteRecord {
     pub support: bool,
     pub amount: i128,
     pub is_quadratic: bool,
+}
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum GovernanceError {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    ProposalNotFound = 4,
+    VotingPeriodEnded = 5,
+    VotingPeriodNotEnded = 6,
+    InsufficientTokens = 7,
+    AlreadyVoted = 8,
+    InvalidDelegation = 9,
+    ProposalNotQueued = 10,
+    TimelockNotExpired = 11,
+    CategoryNotFound = 12,
 }

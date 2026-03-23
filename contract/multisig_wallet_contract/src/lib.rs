@@ -17,26 +17,19 @@ pub struct MultisigWalletContract;
 #[contractimpl]
 impl MultisigWalletContract {
     // Initialize the wallet
-    pub fn initialize(e: Env, admin: Address, config: WalletConfig, initial_signers: Vec<Address>) {
+    pub fn initialize(e: Env, admin: Address, config: WalletConfig, initial_signers: Vec<Address>) -> Result<(), MultisigError> {
         if e.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(MultisigError::AlreadyInitialized);
         }
 
         // Validate config
-        Self::validate_config(&config);
+        Self::validate_config(&config)?;
 
         e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage().instance().set(&DataKey::WalletConfig, &config);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::Version, &1u32);
         e.storage().instance().set(&DataKey::Frozen, &false);
-        
-        // Initialize nonce manager
-        let nonce_manager = NonceManager {
-            current_nonce: 0,
-            used_nonces: map![&e],
-        };
-        e.storage().instance().set(&DataKey::Nonce, &nonce_manager);
         
         // Initialize timelock queue
         let timelock_queue = TimelockQueue {
@@ -48,46 +41,42 @@ impl MultisigWalletContract {
         
         // Add initial signers as owners
         for signer_address in initial_signers.iter() {
-            Self::add_signer_internal(&e, signer_address.clone(), Role::Owner, 1);
+            Self::add_signer_internal(&e, signer_address.clone(), Role::Owner, 1)?;
         }
+        Ok(())
     }
 
     // Add a new signer
-    pub fn add_signer(e: Env, signer_address: Address, role: Role, weight: u32) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn add_signer(e: Env, signer_address: Address, role: Role, weight: u32) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
         admin.require_auth();
 
-        Self::add_signer_internal(&e, signer_address, role, weight);
+        Self::add_signer_internal(&e, signer_address, role, weight)
     }
 
     // Remove a signer
-    pub fn remove_signer(e: Env, signer_address: Address) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn remove_signer(e: Env, signer_address: Address) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
         admin.require_auth();
 
-        let mut signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(&e));
+        let mut signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(&e));
         
-        // Check if signer exists
         let signer_index = signers.iter().position(|s| s.address == signer_address)
-            .unwrap_or_else(|| panic!("signer not found"));
+            .ok_or(MultisigError::SignerNotFound)?;
 
-        let signer = signers.get(signer_index).unwrap();
-        
-        // Cannot remove if it would make m > n
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
+        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).ok_or(MultisigError::NotInitialized)?;
         if signers.len() - 1 < config.m {
-            panic!("cannot remove signer: would make m > n");
+            return Err(MultisigError::InvalidConfig);
         }
 
-        // Remove signer
         signers.remove(signer_index);
         e.storage().persistent().set(&DataKey::Signers, &signers);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("signer_removed"), signer_address.clone()),
+            (symbol_short!("sig_rem"), signer_address.clone()),
             (),
         );
+        Ok(())
     }
 
     // Propose a transaction
@@ -99,16 +88,18 @@ impl MultisigWalletContract {
         data: Vec<u8>,
         proposer: Address,
         nonce: u64,
-    ) -> BytesN<32> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<BytesN<32>, MultisigError> {
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(MultisigError::ContractPaused);
         }
 
-        let frozen: bool = e.storage().instance().get(&DataKey::Frozen).unwrap();
+        let frozen: bool = e.storage().instance().get(&DataKey::Frozen).unwrap_or(false);
         if frozen {
-            panic!("wallet is frozen");
+            return Err(MultisigError::WalletFrozen);
         }
+
+        proposer.require_auth();
 
         // Validate nonce
         Self::validate_nonce(&e, &proposer, nonce)?;
@@ -119,7 +110,8 @@ impl MultisigWalletContract {
         // Generate transaction ID
         let transaction_id = Self::generate_transaction_id(&e, &to, &token, amount, &proposer, nonce);
 
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
+        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig)
+            .ok_or(MultisigError::NotInitialized)?;
         
         // Check if timelock is required
         let timelock_until = if amount >= config.timelock_threshold {
@@ -156,28 +148,27 @@ impl MultisigWalletContract {
         // Mark nonce as used
         Self::use_nonce(&e, &proposer, nonce);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("transaction_proposed"), transaction_id.clone()),
+            (symbol_short!("tx_prop"), transaction_id.clone()),
             (to, token, amount, proposer),
         );
 
-        transaction_id
+        Ok(transaction_id)
     }
 
     // Sign a transaction
-    pub fn sign_transaction(e: Env, transaction_id: BytesN<32>, signer: Address) {
+    pub fn sign_transaction(e: Env, transaction_id: BytesN<32>, signer: Address) -> Result<(), MultisigError> {
         signer.require_auth();
 
         let mut transaction: Transaction = e.storage().instance().get(&DataKey::Transaction(transaction_id.clone()))
-            .unwrap_or_else(|| panic!("transaction not found"));
+            .ok_or(MultisigError::TransactionNotFound)?;
 
         if transaction.status != TransactionStatus::Proposed {
-            panic!("invalid transaction status");
+            return Err(MultisigError::InvalidTransactionStatus);
         }
 
         if e.ledger().timestamp() > transaction.expires_at {
-            panic!("transaction expired");
+            return Err(MultisigError::TransactionExpired);
         }
 
         // Validate signer
@@ -185,49 +176,46 @@ impl MultisigWalletContract {
 
         // Check if already signed
         if transaction.signatures.contains(&signer) {
-            panic!("already signed");
+            return Err(MultisigError::AlreadySigned);
         }
 
         // Add signature
         transaction.signatures.push_back(signer.clone());
-        e.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
 
         // Check if transaction is approved
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
+        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).ok_or(MultisigError::NotInitialized)?;
         if Self::has_required_signatures(&e, &transaction, config.m) {
             transaction.status = TransactionStatus::Approved;
-            e.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
-
-            #[allow(deprecated)]
             e.events().publish(
-                (symbol_short!("transaction_approved"), transaction_id.clone()),
-                signer,
+                (symbol_short!("tx_app"), transaction_id.clone()),
+                signer.clone(),
             );
         }
 
-        #[allow(deprecated)]
+        e.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
         e.events().publish(
-            (symbol_short!("transaction_signed"), transaction_id.clone()),
+            (symbol_short!("tx_sig"), transaction_id.clone()),
             signer,
         );
+        Ok(())
     }
 
     // Execute a transaction
-    pub fn execute_transaction(e: Env, transaction_id: BytesN<32>) {
+    pub fn execute_transaction(e: Env, transaction_id: BytesN<32>) -> Result<(), MultisigError> {
         let mut transaction: Transaction = e.storage().instance().get(&DataKey::Transaction(transaction_id.clone()))
-            .unwrap_or_else(|| panic!("transaction not found"));
+            .ok_or(MultisigError::TransactionNotFound)?;
 
         if transaction.status != TransactionStatus::Approved {
-            panic!("transaction not approved");
+            return Err(MultisigError::InvalidTransactionStatus);
         }
 
         if e.ledger().timestamp() > transaction.expires_at {
-            panic!("transaction expired");
+            return Err(MultisigError::TransactionExpired);
         }
 
         // Check timelock
         if transaction.timelock_until > 0 && e.ledger().timestamp() < transaction.timelock_until {
-            panic!("timelock not expired");
+            return Err(MultisigError::TimelockNotExpired);
         }
 
         // Check daily spending limit
@@ -235,9 +223,7 @@ impl MultisigWalletContract {
 
         // Execute transaction
         let token_client = soroban_sdk::token::Client::new(&e, &transaction.token);
-        let contract_address = e.current_contract_address();
-        
-        token_client.transfer(&contract_address, &transaction.to, &transaction.amount);
+        token_client.transfer(&e.current_contract_address(), &transaction.to, &transaction.amount);
 
         // Update transaction status
         transaction.status = TransactionStatus::Executed;
@@ -248,17 +234,20 @@ impl MultisigWalletContract {
 
         // Update timelock queue
         if transaction.timelock_until > 0 {
-            let mut queue: TimelockQueue = e.storage().instance().get(&DataKey::TimelockQueue).unwrap();
-            queue.ready.remove_first(|id| id == &transaction_id);
-            queue.executed.push_back(transaction_id.clone());
-            e.storage().instance().set(&DataKey::TimelockQueue, &queue);
+            if let Some(mut queue) = e.storage().instance().get::<_, TimelockQueue>(&DataKey::TimelockQueue) {
+                if let Some(idx) = queue.ready.iter().position(|id| id == transaction_id) {
+                    queue.ready.remove(idx);
+                    queue.executed.push_back(transaction_id.clone());
+                    e.storage().instance().set(&DataKey::TimelockQueue, &queue);
+                }
+            }
         }
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("transaction_executed"), transaction_id.clone()),
+            (symbol_short!("tx_exec"), transaction_id.clone()),
             transaction.amount,
         );
+        Ok(())
     }
 
     // Propose a batch transaction
@@ -267,16 +256,18 @@ impl MultisigWalletContract {
         transactions: Vec<BytesN<32>>,
         proposer: Address,
         nonce: u64,
-    ) -> BytesN<32> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<BytesN<32>, MultisigError> {
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(MultisigError::ContractPaused);
         }
 
-        let frozen: bool = e.storage().instance().get(&DataKey::Frozen).unwrap();
+        let frozen: bool = e.storage().instance().get(&DataKey::Frozen).unwrap_or(false);
         if frozen {
-            panic!("wallet is frozen");
+            return Err(MultisigError::WalletFrozen);
         }
+
+        proposer.require_auth();
 
         // Validate nonce
         Self::validate_nonce(&e, &proposer, nonce)?;
@@ -285,22 +276,22 @@ impl MultisigWalletContract {
         Self::validate_signer(&e, &proposer)?;
 
         // Validate batch size
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
-        if transactions.len() > config.max_batch_size as usize {
-            panic!("batch size exceeded");
+        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).ok_or(MultisigError::NotInitialized)?;
+        if transactions.len() > config.max_batch_size {
+            return Err(MultisigError::BatchSizeExceeded);
         }
 
         // Validate all transactions exist and are proposed
         for tx_id in transactions.iter() {
             let tx: Transaction = e.storage().instance().get(&DataKey::Transaction(tx_id.clone()))
-                .unwrap_or_else(|| panic!("transaction not found"));
+                .ok_or(MultisigError::TransactionNotFound)?;
             
             if tx.status != TransactionStatus::Proposed {
-                panic!("invalid transaction status in batch");
+                return Err(MultisigError::InvalidTransactionStatus);
             }
 
             if tx.batch_id.is_some() {
-                panic!("transaction already in batch");
+                return Err(MultisigError::TransactionAlreadyInBatch);
             }
         }
 
@@ -330,28 +321,27 @@ impl MultisigWalletContract {
         // Mark nonce as used
         Self::use_nonce(&e, &proposer, nonce);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("batch_proposed"), batch_id.clone()),
+            (symbol_short!("bat_prop"), batch_id.clone()),
             (transactions.len(), proposer),
         );
 
-        batch_id
+        Ok(batch_id)
     }
 
     // Sign a batch
-    pub fn sign_batch(e: Env, batch_id: BytesN<32>, signer: Address) {
+    pub fn sign_batch(e: Env, batch_id: BytesN<32>, signer: Address) -> Result<(), MultisigError> {
         signer.require_auth();
 
         let mut batch: Batch = e.storage().instance().get(&DataKey::Batch(batch_id.clone()))
-            .unwrap_or_else(|| panic!("batch not found"));
+            .ok_or(MultisigError::BatchNotFound)?;
 
         if batch.status != BatchStatus::Proposed {
-            panic!("invalid batch status");
+            return Err(MultisigError::InvalidBatchStatus);
         }
 
         if e.ledger().timestamp() > batch.expires_at {
-            panic!("batch expired");
+            return Err(MultisigError::BatchExpired);
         }
 
         // Validate signer
@@ -359,140 +349,134 @@ impl MultisigWalletContract {
 
         // Check if already signed
         if batch.signatures.contains(&signer) {
-            panic!("already signed");
+            return Err(MultisigError::AlreadySigned);
         }
 
         // Add signature
         batch.signatures.push_back(signer.clone());
-        e.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
 
         // Check if batch is approved
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
+        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).ok_or(MultisigError::NotInitialized)?;
         if Self::has_required_signatures_batch(&e, &batch, config.m) {
             batch.status = BatchStatus::Approved;
-            e.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
-
-            #[allow(deprecated)]
             e.events().publish(
-                (symbol_short!("batch_approved"), batch_id.clone()),
-                signer,
+                (symbol_short!("bat_app"), batch_id.clone()),
+                signer.clone(),
             );
         }
 
-        #[allow(deprecated)]
+        e.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
         e.events().publish(
-            (symbol_short!("batch_signed"), batch_id.clone()),
+            (symbol_short!("bat_sig"), batch_id.clone()),
             signer,
         );
+        Ok(())
     }
 
     // Execute a batch
-    pub fn execute_batch(e: Env, batch_id: BytesN<32>) {
-        let batch: Batch = e.storage().instance().get(&DataKey::Batch(batch_id.clone()))
-            .unwrap_or_else(|| panic!("batch not found"));
+    pub fn execute_batch(e: Env, batch_id: BytesN<32>) -> Result<(), MultisigError> {
+        let mut batch: Batch = e.storage().instance().get(&DataKey::Batch(batch_id.clone()))
+            .ok_or(MultisigError::BatchNotFound)?;
 
         if batch.status != BatchStatus::Approved {
-            panic!("batch not approved");
+            return Err(MultisigError::InvalidBatchStatus);
         }
 
         if e.ledger().timestamp() > batch.expires_at {
-            panic!("batch expired");
+            return Err(MultisigError::BatchExpired);
         }
 
         // Execute all transactions in batch
         for tx_id in batch.transactions.iter() {
-            let mut tx: Transaction = e.storage().instance().get(&DataKey::Transaction(tx_id.clone())).unwrap();
-            
-            if tx.status == TransactionStatus::Approved {
-                // Execute transaction
-                let token_client = soroban_sdk::token::Client::new(&e, &tx.token);
-                let contract_address = e.current_contract_address();
-                
-                token_client.transfer(&contract_address, &tx.to, &tx.amount);
+            if let Some(mut tx) = e.storage().instance().get::<_, Transaction>(&DataKey::Transaction(tx_id.clone())) {
+                if tx.status == TransactionStatus::Approved {
+                    let token_client = soroban_sdk::token::Client::new(&e, &tx.token);
+                    token_client.transfer(&e.current_contract_address(), &tx.to, &tx.amount);
 
-                tx.status = TransactionStatus::Executed;
-                e.storage().instance().set(&DataKey::Transaction(tx_id.clone()), &tx);
+                    tx.status = TransactionStatus::Executed;
+                    e.storage().instance().set(&DataKey::Transaction(tx_id.clone()), &tx);
 
-                // Update daily spending
-                Self::update_daily_spending(&e, &tx);
+                    Self::update_daily_spending(&e, &tx);
+                }
             }
         }
 
-        // Update batch status
-        let mut batch = batch;
         batch.status = BatchStatus::Executed;
         e.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("batch_executed"), batch_id.clone()),
+            (symbol_short!("bat_exec"), batch_id.clone()),
             batch.transactions.len(),
         );
+        Ok(())
     }
 
     // Emergency freeze
-    pub fn emergency_freeze(e: Env, duration: u64) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn emergency_freeze(e: Env, duration: u64) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
         admin.require_auth();
 
         e.storage().instance().set(&DataKey::Frozen, &true);
-        
-        // Schedule unfreeze
-        e.storage().instance().set(&symbol_short!("unfreeze_time"), &(e.ledger().timestamp() + duration));
+        e.storage().instance().set(&symbol_short!("unf_time"), &(e.ledger().timestamp() + duration));
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("emergency_freeze"),),
+            (symbol_short!("freeze"),),
             duration,
         );
+        Ok(())
     }
 
     // Unfreeze (can be called by admin or after timeout)
-    pub fn unfreeze(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-        let unfreeze_time: Option<u64> = e.storage().instance().get(&symbol_short!("unfreeze_time"));
+    pub fn unfreeze(e: Env) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
+        let unfreeze_time: Option<u64> = e.storage().instance().get(&symbol_short!("unf_time"));
 
-        let caller = e.current_contract_address();
+        let mut is_admin = false;
+        if let Ok(_) = admin.require_auth() {
+            is_admin = true;
+        }
         
-        // Allow admin to unfreeze anytime or anyone after timeout
-        if caller != admin {
+        if !is_admin {
             if let Some(time) = unfreeze_time {
                 if e.ledger().timestamp() < time {
-                    admin.require_auth(); // Require admin if timeout not reached
+                    return Err(MultisigError::Unauthorized);
                 }
             } else {
-                admin.require_auth(); // No timeout set, require admin
+                return Err(MultisigError::Unauthorized);
             }
         }
 
         e.storage().instance().set(&DataKey::Frozen, &false);
-        e.storage().instance().remove(&symbol_short!("unfreeze_time"));
+        e.storage().instance().remove(&symbol_short!("unf_time"));
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("unfrozen"),),
+            (symbol_short!("unfreeze"),),
             (),
         );
+        Ok(())
     }
 
     // Admin functions
-    pub fn pause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn pause(e: Env) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
         admin.require_auth();
         e.storage().instance().set(&DataKey::Paused, &true);
+        Ok(())
     }
 
-    pub fn unpause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn unpause(e: Env) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
         admin.require_auth();
         e.storage().instance().set(&DataKey::Paused, &false);
+        Ok(())
     }
 
-    pub fn update_config(e: Env, new_config: WalletConfig) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn update_config(e: Env, new_config: WalletConfig) -> Result<(), MultisigError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(MultisigError::NotInitialized)?;
         admin.require_auth();
-        Self::validate_config(&new_config);
+        Self::validate_config(&new_config)?;
         e.storage().instance().set(&DataKey::WalletConfig, &new_config);
+        Ok(())
     }
 
     // View functions
@@ -504,14 +488,14 @@ impl MultisigWalletContract {
         e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(&e))
     }
 
-    pub fn get_transaction(e: Env, transaction_id: BytesN<32>) -> Transaction {
+    pub fn get_transaction(e: Env, transaction_id: BytesN<32>) -> Result<Transaction, MultisigError> {
         e.storage().instance().get(&DataKey::Transaction(transaction_id))
-            .unwrap_or_else(|| panic!("transaction not found"))
+            .ok_or(MultisigError::TransactionNotFound)
     }
 
-    pub fn get_batch(e: Env, batch_id: BytesN<32>) -> Batch {
+    pub fn get_batch(e: Env, batch_id: BytesN<32>) -> Result<Batch, MultisigError> {
         e.storage().instance().get(&DataKey::Batch(batch_id))
-            .unwrap_or_else(|| panic!("batch not found"))
+            .ok_or(MultisigError::BatchNotFound)
     }
 
     pub fn get_daily_spending(e: Env) -> DailySpending {
@@ -533,34 +517,27 @@ impl MultisigWalletContract {
     }
 
     // Helper functions
-    fn validate_config(config: &WalletConfig) {
+    fn validate_config(config: &WalletConfig) -> Result<(), MultisigError> {
         if config.m == 0 || config.n == 0 {
-            panic!("m and n must be greater than 0");
+            return Err(MultisigError::InvalidConfig);
         }
 
         if config.m > config.n {
-            panic!("m cannot be greater than n");
+            return Err(MultisigError::InvalidConfig);
         }
 
         if config.daily_spending_limit <= 0 {
-            panic!("daily spending limit must be positive");
+            return Err(MultisigError::InvalidAmount);
         }
 
-        if config.timelock_threshold <= 0 {
-            panic!("timelock threshold must be positive");
-        }
-
-        if config.max_batch_size == 0 {
-            panic!("max batch size must be positive");
-        }
+        Ok(())
     }
 
-    fn add_signer_internal(e: &Env, signer_address: Address, role: Role, weight: u32) {
-        let mut signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(e));
+    fn add_signer_internal(e: &Env, signer_address: Address, role: Role, weight: u32) -> Result<(), MultisigError> {
+        let mut signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(e));
         
-        // Check if signer already exists
         if signers.iter().any(|s| s.address == signer_address) {
-            panic!("signer already exists");
+            return Err(MultisigError::SignerAlreadyExists);
         }
 
         let signer = Signer {
@@ -576,15 +553,15 @@ impl MultisigWalletContract {
         signers.push_back(signer);
         e.storage().persistent().set(&DataKey::Signers, &signers);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("signer_added"), signer_address.clone()),
+            (symbol_short!("sig_add"), signer_address.clone()),
             (),
         );
+        Ok(())
     }
 
     fn validate_signer(e: &Env, signer: &Address) -> Result<(), MultisigError> {
-        let signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(e));
+        let signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(e));
         
         for s in signers.iter() {
             if s.address == signer {
@@ -599,32 +576,25 @@ impl MultisigWalletContract {
     }
 
     fn validate_nonce(e: &Env, signer: &Address, nonce: u64) -> Result<(), MultisigError> {
-        let mut nonce_manager: NonceManager = e.storage().instance().get(&DataKey::Nonce).unwrap();
-        
-        if let Some(used_nonce) = nonce_manager.used_nonces.get(signer) {
-            if nonce <= used_nonce {
-                return Err(MultisigError::NonceUsed);
-            }
+        let used_nonce: u64 = e.storage().instance().get(&DataKey::UserNonce(signer.clone())).unwrap_or(0);
+        if nonce <= used_nonce {
+            return Err(MultisigError::NonceUsed);
         }
-        
         Ok(())
     }
 
     fn use_nonce(e: &Env, signer: &Address, nonce: u64) {
-        let mut nonce_manager: NonceManager = e.storage().instance().get(&DataKey::Nonce).unwrap();
-        nonce_manager.used_nonces.set(signer.clone(), nonce);
-        e.storage().instance().set(&DataKey::Nonce, &nonce_manager);
+        e.storage().instance().set(&DataKey::UserNonce(signer.clone()), &nonce);
     }
 
     fn has_required_signatures(e: &Env, transaction: &Transaction, required: u32) -> bool {
+        let signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(e));
         let mut total_weight = 0;
-        let signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(e));
         
         for signature in transaction.signatures.iter() {
-            for signer in signers.iter() {
-                if signer.address == signature && signer.active {
+            if let Some(signer) = signers.iter().find(|s| s.address == signature) {
+                if signer.active {
                     total_weight += signer.weight;
-                    break;
                 }
             }
         }
@@ -633,14 +603,13 @@ impl MultisigWalletContract {
     }
 
     fn has_required_signatures_batch(e: &Env, batch: &Batch, required: u32) -> bool {
+        let signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or_else(|| Vec::new(e));
         let mut total_weight = 0;
-        let signers: Vec<Signer> = e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(e));
         
         for signature in batch.signatures.iter() {
-            for signer in signers.iter() {
-                if signer.address == signature && signer.active {
+            if let Some(signer) = signers.iter().find(|s| s.address == signature) {
+                if signer.active {
                     total_weight += signer.weight;
-                    break;
                 }
             }
         }

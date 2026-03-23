@@ -1,4 +1,27 @@
-use soroban_sdk::{contracttype, Address, Bytes, String, Vec, BytesN};
+use soroban_sdk::{contracttype, contracterror, Address, Bytes, String, Vec, BytesN};
+
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum IdentityError {
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    Paused = 4,
+    DIDAlreadyExists = 5,
+    DIDNotFound = 6,
+    ClaimNotFound = 7,
+    ClaimAlreadyVerified = 8,
+    ClaimRevoked = 9,
+    MaxClaimsReached = 10,
+    MaxDelegationsReached = 11,
+    DelegationNotFound = 12,
+    DelegationRevoked = 13,
+    DelegationExpired = 14,
+    PermissionDenied = 15,
+    InvalidOracleSignature = 16,
+    DIDDeactivated = 17,
+}
 
 #[derive(Clone)]
 #[contracttype]

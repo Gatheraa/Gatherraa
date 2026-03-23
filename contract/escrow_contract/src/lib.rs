@@ -17,18 +17,19 @@ pub struct EscrowContract;
 #[contractimpl]
 impl EscrowContract {
     // Initialize the contract
-    pub fn initialize(e: Env, admin: Address, config: RevenueSplitConfig) {
+    pub fn initialize(e: Env, admin: Address, config: RevenueSplitConfig) -> Result<(), EscrowError> {
         if e.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(EscrowError::AlreadyInitialized);
         }
 
         // Validate configuration
-        Self::validate_config(&config);
+        Self::validate_config(&config)?;
 
         e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage().instance().set(&DataKey::RevenueSplitConfig, &config);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::Version, &1u32);
+        Ok(())
     }
 
     // Create a new escrow
@@ -43,16 +44,21 @@ impl EscrowContract {
         revenue_splits: Option<RevenueSplit>,
         referral: Option<Address>,
         milestones: Option<Vec<Milestone>>,
-    ) -> BytesN<32> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<BytesN<32>, EscrowError> {
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(EscrowError::ContractPaused);
         }
 
         // Validate amount against config
-        let config: RevenueSplitConfig = e.storage().instance().get(&DataKey::RevenueSplitConfig).unwrap();
-        if amount < config.min_escrow_amount || amount > config.max_escrow_amount {
-            panic!("invalid amount");
+        let config: RevenueSplitConfig = e.storage().instance().get(&DataKey::RevenueSplitConfig)
+            .ok_or(EscrowError::NotInitialized)?;
+            
+        if amount < config.min_escrow_amount {
+            return Err(EscrowError::AmountTooLow);
+        }
+        if amount > config.max_escrow_amount {
+            return Err(EscrowError::AmountTooHigh);
         }
 
         // Generate unique escrow ID
@@ -67,7 +73,7 @@ impl EscrowContract {
         });
 
         // Validate revenue splits
-        Self::validate_revenue_splits(&splits);
+        Self::validate_revenue_splits(&splits)?;
 
         // Handle referral if provided
         if let Some(ref ref_addr) = referral {
@@ -86,7 +92,7 @@ impl EscrowContract {
             status: EscrowStatus::Pending,
             revenue_splits: splits,
             referral,
-            milestones: milestones.unwrap_or_default(),
+            milestones: milestones.unwrap_or_else(|| Vec::new(&e)),
             dispute_active: false,
         };
 
@@ -95,97 +101,94 @@ impl EscrowContract {
 
         // Update event escrows
         let event_key = DataKey::EventEscrows(event);
-        let mut event_escrows: Vec<BytesN<32>> = e.storage().persistent().get(&event_key).unwrap_or(Vec::new(&e));
+        let mut event_escrows: Vec<BytesN<32>> = e.storage().persistent().get(&event_key).unwrap_or_else(|| Vec::new(&e));
         event_escrows.push_back(escrow_id.clone());
         e.storage().persistent().set(&event_key, &event_escrows);
 
         // Update user escrows
         let user_key = DataKey::UserEscrows(purchaser);
-        let mut user_escrows: Vec<BytesN<32>> = e.storage().persistent().get(&user_key).unwrap_or(Vec::new(&e));
+        let mut user_escrows: Vec<BytesN<32>> = e.storage().persistent().get(&user_key).unwrap_or_else(|| Vec::new(&e));
         user_escrows.push_back(escrow_id.clone());
         e.storage().persistent().set(&user_key, &user_escrows);
 
         // Emit event
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("escrow_created"), escrow_id.clone()),
+            (symbol_short!("esc_creat"), escrow_id.clone()),
             (event, organizer, purchaser, amount, token),
         );
 
-        escrow_id
+        Ok(escrow_id)
     }
 
     // Lock escrow (transfer funds to contract)
-    pub fn lock_escrow(e: Env, escrow_id: BytesN<32>) {
+    pub fn lock_escrow(e: Env, escrow_id: BytesN<32>) -> Result<(), EscrowError> {
         let mut escrow: Escrow = e.storage().instance().get(&DataKey::Escrow(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("escrow not found"));
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if escrow.status != EscrowStatus::Pending {
-            panic!("invalid status");
+            return Err(EscrowError::InvalidStatus);
         }
 
         escrow.purchaser.require_auth();
 
         // Transfer tokens to contract
         let token_client = soroban_sdk::token::Client::new(&e, &escrow.token);
-        let contract_address = e.current_contract_address();
-        
-        token_client.transfer(&escrow.purchaser, &contract_address, &escrow.amount);
+        token_client.transfer(&escrow.purchaser, &e.current_contract_address(), &escrow.amount);
 
         escrow.status = EscrowStatus::Locked;
         e.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("escrow_locked"), escrow_id.clone()),
+            (symbol_short!("esc_lock"), escrow_id.clone()),
             escrow.amount,
         );
+        Ok(())
     }
 
     // Release escrow funds
-    pub fn release_escrow(e: Env, escrow_id: BytesN<32>) {
+    pub fn release_escrow(e: Env, escrow_id: BytesN<32>) -> Result<(), EscrowError> {
         let mut escrow: Escrow = e.storage().instance().get(&DataKey::Escrow(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("escrow not found"));
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if escrow.status != EscrowStatus::Locked {
-            panic!("invalid status");
+            return Err(EscrowError::InvalidStatus);
         }
 
         if escrow.dispute_active {
-            panic!("dispute active");
+            return Err(EscrowError::DisputeActive);
         }
 
         if e.ledger().timestamp() < escrow.release_time {
-            panic!("release time not reached");
+            return Err(EscrowError::InvalidTime);
         }
 
-        // Authorize organizer or purchaser
+        // Authorize organizer
         escrow.organizer.require_auth();
 
         // Calculate and distribute revenue splits
-        Self::distribute_revenue(&e, &escrow);
+        Self::distribute_revenue(&e, &escrow)?;
 
         escrow.status = EscrowStatus::Released;
         e.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("escrow_released"), escrow_id.clone()),
+            (symbol_short!("esc_rel"), escrow_id.clone()),
             escrow.amount,
         );
+        Ok(())
     }
 
     // Refund escrow
-    pub fn refund_escrow(e: Env, escrow_id: BytesN<32>) {
+    pub fn refund_escrow(e: Env, escrow_id: BytesN<32>) -> Result<(), EscrowError> {
         let mut escrow: Escrow = e.storage().instance().get(&DataKey::Escrow(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("escrow not found"));
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if escrow.status != EscrowStatus::Locked {
-            panic!("invalid status");
+            return Err(EscrowError::InvalidStatus);
         }
 
         if escrow.dispute_active {
-            panic!("dispute active");
+            return Err(EscrowError::DisputeActive);
         }
 
         // Authorize organizer
@@ -193,31 +196,29 @@ impl EscrowContract {
 
         // Refund full amount to purchaser
         let token_client = soroban_sdk::token::Client::new(&e, &escrow.token);
-        let contract_address = e.current_contract_address();
-        
-        token_client.transfer(&contract_address, &escrow.purchaser, &escrow.amount);
+        token_client.transfer(&e.current_contract_address(), &escrow.purchaser, &escrow.amount);
 
         escrow.status = EscrowStatus::Refunded;
         e.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("escrow_refunded"), escrow_id.clone()),
+            (symbol_short!("esc_ref"), escrow_id.clone()),
             escrow.amount,
         );
+        Ok(())
     }
 
     // Create dispute
-    pub fn create_dispute(e: Env, escrow_id: BytesN<32>, challenger: Address, reason: Symbol, evidence: Vec<Symbol>) {
+    pub fn create_dispute(e: Env, escrow_id: BytesN<32>, challenger: Address, reason: Symbol, evidence: Vec<Symbol>) -> Result<(), EscrowError> {
         let mut escrow: Escrow = e.storage().instance().get(&DataKey::Escrow(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("escrow not found"));
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if escrow.status != EscrowStatus::Locked {
-            panic!("invalid status");
+            return Err(EscrowError::InvalidStatus);
         }
 
         if escrow.dispute_active {
-            panic!("dispute already active");
+            return Err(EscrowError::DisputeActive);
         }
 
         challenger.require_auth();
@@ -236,27 +237,28 @@ impl EscrowContract {
         e.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
         e.storage().instance().set(&DataKey::Dispute(escrow_id.clone()), &dispute);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("dispute_created"), escrow_id.clone()),
+            (symbol_short!("disp_cre"), escrow_id.clone()),
             challenger,
         );
+        Ok(())
     }
 
     // Resolve dispute
-    pub fn resolve_dispute(e: Env, escrow_id: BytesN<32>, resolution: DisputeResolution) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn resolve_dispute(e: Env, escrow_id: BytesN<32>, resolution: DisputeResolution) -> Result<(), EscrowError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin)
+            .ok_or(EscrowError::NotInitialized)?;
         admin.require_auth();
 
         let mut escrow: Escrow = e.storage().instance().get(&DataKey::Escrow(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("escrow not found"));
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if !escrow.dispute_active {
-            panic!("no active dispute");
+            return Err(EscrowError::NoDispute);
         }
 
         let mut dispute: Dispute = e.storage().instance().get(&DataKey::Dispute(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("dispute not found"));
+            .ok_or(EscrowError::NoDispute)?;
 
         // Execute resolution
         let token_client = soroban_sdk::token::Client::new(&e, &escrow.token);
@@ -280,37 +282,36 @@ impl EscrowContract {
         e.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
         e.storage().instance().set(&DataKey::Dispute(escrow_id.clone()), &dispute);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("dispute_resolved"), escrow_id.clone()),
+            (symbol_short!("disp_res"), escrow_id.clone()),
             resolution.winner,
         );
+        Ok(())
     }
 
     // Release milestone payment
-    pub fn release_milestone(e: Env, escrow_id: BytesN<32>, milestone_id: u32) {
+    pub fn release_milestone(e: Env, escrow_id: BytesN<32>, milestone_id: u32) -> Result<(), EscrowError> {
         let mut escrow: Escrow = e.storage().instance().get(&DataKey::Escrow(escrow_id.clone()))
-            .unwrap_or_else(|| panic!("escrow not found"));
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if escrow.status != EscrowStatus::Locked {
-            panic!("invalid status");
+            return Err(EscrowError::InvalidStatus);
         }
 
         if escrow.dispute_active {
-            panic!("dispute active");
+            return Err(EscrowError::DisputeActive);
         }
 
         // Find milestone
         let milestone_index = escrow.milestones.iter().position(|m| m.id == milestone_id)
-            .unwrap_or_else(|| panic!("milestone not found"));
+            .ok_or(EscrowError::InvalidMilestone)?;
 
-        let milestone = &escrow.milestones[milestone_index];
-        if milestone.released {
-            panic!("milestone already released");
+        if escrow.milestones[milestone_index].released {
+            return Err(EscrowError::MilestoneAlreadyReleased);
         }
 
-        if e.ledger().timestamp() < milestone.release_time {
-            panic!("milestone release time not reached");
+        if e.ledger().timestamp() < escrow.milestones[milestone_index].release_time {
+            return Err(EscrowError::InvalidTime);
         }
 
         escrow.organizer.require_auth();
@@ -318,17 +319,19 @@ impl EscrowContract {
         // Release milestone amount with revenue splits
         let token_client = soroban_sdk::token::Client::new(&e, &escrow.token);
         let contract_address = e.current_contract_address();
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EscrowError::NotInitialized)?;
+
+        let milestone_amt = escrow.milestones[milestone_index].amount;
 
         // Calculate splits for milestone amount
-        let organizer_amount = Self::calculate_split(milestone.amount, escrow.revenue_splits.organizer_percentage, escrow.revenue_splits.precision);
-        let platform_amount = Self::calculate_split(milestone.amount, escrow.revenue_splits.platform_percentage, escrow.revenue_splits.precision);
-        let mut referral_amount = Self::calculate_split(milestone.amount, escrow.revenue_splits.referral_percentage, escrow.revenue_splits.precision);
+        let organizer_amount = Self::calculate_split(milestone_amt, escrow.revenue_splits.organizer_percentage, escrow.revenue_splits.precision);
+        let platform_amount = Self::calculate_split(milestone_amt, escrow.revenue_splits.platform_percentage, escrow.revenue_splits.precision);
+        let mut referral_amount = Self::calculate_split(milestone_amt, escrow.revenue_splits.referral_percentage, escrow.revenue_splits.precision);
 
         // Adjust for rounding
         let total_splits = organizer_amount + platform_amount + referral_amount;
-        if total_splits > milestone.amount {
-            referral_amount -= (total_splits - milestone.amount);
+        if total_splits > milestone_amt {
+            referral_amount -= (total_splits - milestone_amt);
         }
 
         // Transfer funds
@@ -346,11 +349,11 @@ impl EscrowContract {
         escrow.milestones[milestone_index].released = true;
         e.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
 
-        #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("milestone_released"), escrow_id.clone()),
+            (symbol_short!("mil_rel"), escrow_id.clone()),
             milestone_id,
         );
+        Ok(())
     }
 
     // Emergency withdrawal (admin only)
@@ -452,36 +455,38 @@ impl EscrowContract {
         e.crypto().sha256(&data.to_bytes())
     }
 
-    fn validate_config(config: &RevenueSplitConfig) {
+    fn validate_config(config: &RevenueSplitConfig) -> Result<(), EscrowError> {
         let total_percentage = config.default_organizer_percentage + config.default_platform_percentage + config.default_referral_percentage;
         if total_percentage != 100 * config.precision {
-            panic!("invalid percentage distribution");
+            return Err(EscrowError::InvalidPercentage);
         }
 
         if config.max_referral_percentage > 50 * config.precision {
-            panic!("max referral percentage too high");
+            return Err(EscrowError::InvalidPercentage);
         }
 
         if config.min_escrow_amount <= 0 || config.max_escrow_amount <= config.min_escrow_amount {
-            panic!("invalid escrow amount limits");
+            return Err(EscrowError::InvalidAmount);
         }
+        Ok(())
     }
 
-    fn validate_revenue_splits(splits: &RevenueSplit) {
+    fn validate_revenue_splits(splits: &RevenueSplit) -> Result<(), EscrowError> {
         let total_percentage = splits.organizer_percentage + splits.platform_percentage + splits.referral_percentage;
         if total_percentage != 100 * splits.precision {
-            panic!("invalid percentage distribution");
+            return Err(EscrowError::InvalidPercentage);
         }
+        Ok(())
     }
 
     fn calculate_split(amount: i128, percentage: u32, precision: u32) -> i128 {
         (amount * percentage as i128) / (100 * precision as i128)
     }
 
-    fn distribute_revenue(e: &Env, escrow: &Escrow) {
+    fn distribute_revenue(e: &Env, escrow: &Escrow) -> Result<(), EscrowError> {
         let token_client = soroban_sdk::token::Client::new(e, &escrow.token);
         let contract_address = e.current_contract_address();
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EscrowError::NotInitialized)?;
 
         let organizer_amount = Self::calculate_split(escrow.amount, escrow.revenue_splits.organizer_percentage, escrow.revenue_splits.precision);
         let platform_amount = Self::calculate_split(escrow.amount, escrow.revenue_splits.platform_percentage, escrow.revenue_splits.precision);
@@ -503,6 +508,7 @@ impl EscrowContract {
                 Self::update_referral_rewards(e, ref_addr, referral_amount);
             }
         }
+        Ok(())
     }
 
     fn track_referral(e: &Env, referrer: &Address, purchaser: &Address) {

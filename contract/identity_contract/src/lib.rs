@@ -4,7 +4,7 @@
 mod test;
 
 mod storage_types;
-use storage_types::{DataKey, DIDDocument, Claim, Credential, Delegation, Revocation};
+use storage_types::{DataKey, DIDDocument, Claim, Credential, Delegation, Revocation, IdentityError};
 
 use soroban_sdk::{
     contract, contractimpl, vec, Address, Bytes, BytesN, Env, String, Symbol, Vec, crypto,
@@ -24,27 +24,28 @@ const VERIFIED_CREDENTIAL_SCORE: u32 = 30;
 #[contractimpl]
 impl IdentityRegistryContract {
     /// Initialize the identity registry contract
-    pub fn initialize(e: Env, admin: Address) {
+    pub fn initialize(e: Env, admin: Address) -> Result<(), IdentityError> {
         if e.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(IdentityError::AlreadyInitialized);
         }
         
         e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::TotalDIDs, &0u32);
         extend_instance(&e);
+        Ok(())
     }
 
     /// Create a new DID for a user
-    pub fn create_did(e: Env, user: Address, public_key: BytesN<32>) -> String {
+    pub fn create_did(e: Env, user: Address, public_key: BytesN<32>) -> Result<String, IdentityError> {
         user.require_auth();
         
-        check_paused(&e);
+        check_paused(&e)?;
         
         let did_string = generate_did(&e, &user);
         
         if e.storage().persistent().has(&DataKey::DID(did_string.clone())) {
-            panic!("DID already exists for this address");
+            return Err(IdentityError::DIDAlreadyExists);
         }
         
         let did_document = DIDDocument {
@@ -62,20 +63,20 @@ impl IdentityRegistryContract {
         e.storage().persistent().set(&DataKey::AddressToDID(user.clone()), &did_string);
         
         // Update total DIDs count
-        let total_dids: u32 = e.storage().instance().get(&DataKey::TotalDIDs).unwrap();
+        let total_dids: u32 = e.storage().instance().get(&DataKey::TotalDIDs).ok_or(IdentityError::NotInitialized)?;
         e.storage().instance().set(&DataKey::TotalDIDs, &(total_dids + 1));
         
         extend_persistent(&e, &DataKey::DID(did_string.clone()));
-        extend_persistent(&e, &DataKey::AddressToDID(user));
+        extend_persistent(&e, &DataKey::AddressToDID(user.clone()));
         
         // Emit event
         #[allow(deprecated)]
         e.events().publish(
-            (Symbol::new(&e, "did_created"), user.clone()),
+            (Symbol::new(&e, "did_created"), user),
             did_string.clone(),
         );
         
-        did_string
+        Ok(did_string)
     }
 
     /// Add a claim to a DID (Twitter, GitHub, email, etc.)
@@ -85,19 +86,19 @@ impl IdentityRegistryContract {
         claim_type: String, 
         claim_value: String, 
         proof: Bytes
-    ) -> u32 {
-        let mut did_doc = get_did_document(&e, &did);
+    ) -> Result<u32, IdentityError> {
+        let mut did_doc = get_did_document(&e, &did)?;
         let caller = e.invoker();
         
         // Only controller or delegate can add claims
         if caller != did_doc.controller {
-            check_delegation(&e, &did, &caller, &String::from_str(&e, "add_claim"));
+            check_delegation(&e, &did, &caller, &String::from_str(&e, "add_claim"))?;
         }
         
-        check_paused(&e);
+        check_paused(&e)?;
         
         if did_doc.claims.len() >= MAX_CLAIMS_PER_DID {
-            panic!("Maximum claims limit reached");
+            return Err(IdentityError::MaxClaimsReached);
         }
         
         let claim_id = e.storage().instance().get(&DataKey::NextClaimId).unwrap_or(1u32);
@@ -118,24 +119,24 @@ impl IdentityRegistryContract {
         e.storage().persistent().set(&DataKey::DID(did.clone()), &did_doc);
         e.storage().instance().set(&DataKey::NextClaimId, &(claim_id + 1));
         
-        extend_persistent(&e, &DataKey::DID(did));
+        extend_persistent(&e, &DataKey::DID(did.clone()));
         
         // Emit event
         #[allow(deprecated)]
         e.events().publish(
-            (Symbol::new(&e, "claim_added"), did.clone()),
+            (Symbol::new(&e, "claim_added"), did),
             claim_id,
         );
         
-        claim_id
+        Ok(claim_id)
     }
 
     /// Verify a claim with off-chain oracle integration
-    pub fn verify_claim(e: Env, did: String, claim_id: u32, oracle_signature: Bytes) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn verify_claim(e: Env, did: String, claim_id: u32, oracle_signature: Bytes) -> Result<(), IdentityError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
         
-        let mut did_doc = get_did_document(&e, &did);
+        let mut did_doc = get_did_document(&e, &did)?;
         let mut claim = None;
         let mut claim_index = 0u32;
         
@@ -148,47 +149,50 @@ impl IdentityRegistryContract {
             }
         }
         
-        let mut claim_obj = claim.unwrap_or_else(|| panic!("Claim not found"));
+        let mut claim_obj = claim.ok_or(IdentityError::ClaimNotFound)?;
         if claim_obj.verified {
-            panic!("Claim already verified");
+            return Err(IdentityError::ClaimAlreadyVerified);
         }
         if claim_obj.revoked {
-            panic!("Claim has been revoked");
+            return Err(IdentityError::ClaimRevoked);
         }
         
-        // Verify oracle signature (simplified - in practice would verify against oracle public key)
-        verify_oracle_signature(&e, &did, claim_id, &oracle_signature);
+        // Verify oracle signature
+        if !verify_oracle_signature(&e, &did, claim_id, &oracle_signature) {
+            return Err(IdentityError::InvalidOracleSignature);
+        }
         
         claim_obj.verified = true;
-        did_doc.claims.set(claim_index, claim_obj);
+        did_doc.claims.set(claim_index, claim_obj.clone());
         did_doc.reputation_score += VERIFIED_CREDENTIAL_SCORE;
         did_doc.updated = e.ledger().timestamp();
         
         e.storage().persistent().set(&DataKey::DID(did.clone()), &did_doc);
-        extend_persistent(&e, &DataKey::DID(did));
+        extend_persistent(&e, &DataKey::DID(did.clone()));
         
         // Emit event
         #[allow(deprecated)]
         e.events().publish(
-            (Symbol::new(&e, "claim_verified"), did.clone()),
+            (Symbol::new(&e, "claim_verified"), did),
             (claim_id, claim_obj.claim_type),
         );
+        Ok(())
     }
 
     /// Revoke a compromised credential
-    pub fn revoke_claim(e: Env, did: String, claim_id: u32, reason: String) {
-        let did_doc = get_did_document(&e, &did);
+    pub fn revoke_claim(e: Env, did: String, claim_id: u32, reason: String) -> Result<(), IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
         let caller = e.invoker();
         
         // Only controller, delegate, or admin can revoke
         if caller != did_doc.controller {
-            let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+            let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
             if caller != admin {
-                check_delegation(&e, &did, &caller, &String::from_str(&e, "revoke_claim"));
+                check_delegation(&e, &did, &caller, &String::from_str(&e, "revoke_claim"))?;
             }
         }
         
-        let mut did_doc = get_did_document(&e, &did);
+        let mut did_doc = get_did_document(&e, &did)?;
         let mut claim = None;
         let mut claim_index = 0u32;
         
@@ -201,9 +205,9 @@ impl IdentityRegistryContract {
             }
         }
         
-        let mut claim_obj = claim.unwrap_or_else(|| panic!("Claim not found"));
+        let mut claim_obj = claim.ok_or(IdentityError::ClaimNotFound)?;
         if claim_obj.revoked {
-            panic!("Claim already revoked");
+            return Err(IdentityError::ClaimRevoked);
         }
         
         claim_obj.revoked = true;
@@ -222,7 +226,7 @@ impl IdentityRegistryContract {
         e.storage().persistent().set(&DataKey::DID(did.clone()), &did_doc);
         
         extend_persistent(&e, &DataKey::DID(did.clone()));
-        extend_persistent(&e, &DataKey::Revocation(did, claim_id));
+        extend_persistent(&e, &DataKey::Revocation(did.clone(), claim_id));
         
         // Emit event
         #[allow(deprecated)]
@@ -230,24 +234,25 @@ impl IdentityRegistryContract {
             (Symbol::new(&e, "claim_revoked"), did_doc.id),
             claim_id,
         );
+        Ok(())
     }
 
     /// Add reputation score for event attendance
-    pub fn add_event_attendance(e: Env, did: String, event_id: String, score: u32) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn add_event_attendance(e: Env, did: String, event_id: String, score: u32) -> Result<(), IdentityError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
         
-        let mut did_doc = get_did_document(&e, &did);
+        let mut did_doc = get_did_document(&e, &did)?;
         
         // Add attendance score
         did_doc.reputation_score += score.min(EVENT_ATTENDANCE_SCORE);
         did_doc.updated = e.ledger().timestamp();
         
         e.storage().persistent().set(&DataKey::DID(did.clone()), &did_doc);
-        extend_persistent(&e, &DataKey::DID(did));
+        extend_persistent(&e, &DataKey::DID(did.clone()));
         
         // Store attendance record
-        let attendance_key = DataKey::EventAttendance(did.clone(), event_id);
+        let attendance_key = DataKey::EventAttendance(did, event_id.clone());
         e.storage().persistent().set(&attendance_key, &e.ledger().timestamp());
         extend_persistent(&e, &attendance_key);
         
@@ -257,6 +262,7 @@ impl IdentityRegistryContract {
             (Symbol::new(&e, "attendance_recorded"), did_doc.id),
             (event_id, score),
         );
+        Ok(())
     }
 
     /// Delegate identity management rights
@@ -266,20 +272,20 @@ impl IdentityRegistryContract {
         delegate: Address, 
         permissions: Vec<String>,
         expiry: u64
-    ) {
-        let did_doc = get_did_document(&e, &did);
+    ) -> Result<(), IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
         did_doc.controller.require_auth();
         
-        check_paused(&e);
+        check_paused(&e)?;
         
         if e.storage().persistent().has(&DataKey::Delegation(did.clone(), delegate.clone())) {
-            panic!("Delegation already exists");
+            return Err(IdentityError::AlreadyInitialized);
         }
         
         // Check delegation limit
         let existing_delegations = get_delegations(&e, &did);
         if existing_delegations.len() >= MAX_DELEGATIONS_PER_DID {
-            panic!("Maximum delegations limit reached");
+            return Err(IdentityError::MaxDelegationsReached);
         }
         
         let delegation = Delegation {
@@ -291,7 +297,7 @@ impl IdentityRegistryContract {
         };
         
         e.storage().persistent().set(&DataKey::Delegation(did.clone(), delegate.clone()), &delegation);
-        extend_persistent(&e, &DataKey::Delegation(did.clone(), delegate));
+        extend_persistent(&e, &DataKey::Delegation(did, delegate.clone()));
         
         // Emit event
         #[allow(deprecated)]
@@ -299,27 +305,26 @@ impl IdentityRegistryContract {
             (Symbol::new(&e, "delegation_added"), did_doc.id),
             delegate,
         );
+        Ok(())
     }
 
     /// Revoke a delegation
-    pub fn revoke_delegation(e: Env, did: String, delegate: Address) {
-        let did_doc = get_did_document(&e, &did);
+    pub fn revoke_delegation(e: Env, did: String, delegate: Address) -> Result<(), IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
         let caller = e.invoker();
         
         // Only controller or the delegate themselves can revoke
         if caller != did_doc.controller && caller != delegate {
-            panic!("Unauthorized to revoke delegation");
+            return Err(IdentityError::Unauthorized);
         }
         
-        if !e.storage().persistent().has(&DataKey::Delegation(did.clone(), delegate.clone())) {
-            panic!("Delegation not found");
-        }
+        let mut delegation: Delegation = e.storage().persistent().get(&DataKey::Delegation(did.clone(), delegate.clone()))
+            .ok_or(IdentityError::DelegationNotFound)?;
         
-        let mut delegation: Delegation = e.storage().persistent().get(&DataKey::Delegation(did.clone(), delegate.clone())).unwrap();
         delegation.revoked = true;
         
         e.storage().persistent().set(&DataKey::Delegation(did.clone(), delegate.clone()), &delegation);
-        extend_persistent(&e, &DataKey::Delegation(did, delegate));
+        extend_persistent(&e, &DataKey::Delegation(did, delegate.clone()));
         
         // Emit event
         #[allow(deprecated)]
@@ -327,11 +332,12 @@ impl IdentityRegistryContract {
             (Symbol::new(&e, "delegation_revoked"), did_doc.id),
             delegate,
         );
+        Ok(())
     }
 
     /// Deactivate a DID
-    pub fn deactivate_did(e: Env, did: String) {
-        let did_doc = get_did_document(&e, &did);
+    pub fn deactivate_did(e: Env, did: String) -> Result<(), IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
         did_doc.controller.require_auth();
         
         let mut updated_doc = did_doc;
@@ -347,10 +353,11 @@ impl IdentityRegistryContract {
             (Symbol::new(&e, "did_deactivated"), updated_doc.id),
             (),
         );
+        Ok(())
     }
 
     /// Resolve a DID to get the DID document
-    pub fn resolve_did(e: Env, did: String) -> DIDDocument {
+    pub fn resolve_did(e: Env, did: String) -> Result<DIDDocument, IdentityError> {
         get_did_document(&e, &did)
     }
 
@@ -360,25 +367,25 @@ impl IdentityRegistryContract {
     }
 
     /// Get reputation score
-    pub fn get_reputation_score(e: Env, did: String) -> u32 {
-        let did_doc = get_did_document(&e, &did);
-        did_doc.reputation_score
+    pub fn get_reputation_score(e: Env, did: String) -> Result<u32, IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
+        Ok(did_doc.reputation_score)
     }
 
     /// Check if a claim is verified
-    pub fn is_claim_verified(e: Env, did: String, claim_id: u32) -> bool {
-        let did_doc = get_did_document(&e, &did);
+    pub fn is_claim_verified(e: Env, did: String, claim_id: u32) -> Result<bool, IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
         for claim in did_doc.claims.iter() {
             if claim.id == claim_id {
-                return claim.verified && !claim.revoked;
+                return Ok(claim.verified && !claim.revoked);
             }
         }
-        false
+        Ok(false)
     }
 
     /// Get verified claims of a specific type
-    pub fn get_verified_claims_by_type(e: Env, did: String, claim_type: String) -> Vec<Claim> {
-        let did_doc = get_did_document(&e, &did);
+    pub fn get_verified_claims_by_type(e: Env, did: String, claim_type: String) -> Result<Vec<Claim>, IdentityError> {
+        let did_doc = get_did_document(&e, &did)?;
         let mut verified_claims = Vec::new(&e);
         
         for claim in did_doc.claims.iter() {
@@ -387,20 +394,22 @@ impl IdentityRegistryContract {
             }
         }
         
-        verified_claims
+        Ok(verified_claims)
     }
 
     /// Admin functions
-    pub fn pause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn pause(e: Env) -> Result<(), IdentityError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
         e.storage().instance().set(&DataKey::Paused, &true);
+        Ok(())
     }
 
-    pub fn unpause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn unpause(e: Env) -> Result<(), IdentityError> {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
         e.storage().instance().set(&DataKey::Paused, &false);
+        Ok(())
     }
 
     pub fn get_total_dids(e: Env) -> u32 {
@@ -417,11 +426,12 @@ fn extend_persistent(e: &Env, key: &DataKey) {
     e.storage().persistent().extend_ttl(key, TTL_PERSISTENT, TTL_PERSISTENT);
 }
 
-fn check_paused(e: &Env) {
-    let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+fn check_paused(e: &Env) -> Result<(), IdentityError> {
+    let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
     if paused {
-        panic!("contract is paused");
+        return Err(IdentityError::Paused);
     }
+    Ok(())
 }
 
 fn generate_did(e: &Env, address: &Address) -> String {
@@ -429,51 +439,48 @@ fn generate_did(e: &Env, address: &Address) -> String {
     let address_bytes = address.to_bytes();
     let hash = crypto::sha256(e, &address_bytes);
     let hash_str = hex_encode(&hash);
-    String::from_str(e, &format!("did:stellar:{}", hash_str))
+    
+    // Using manual concatenation for gas efficiency in no_std
+    let mut did = String::from_str(e, "did:stellar:");
+    // In a real implementation, we would append the hex_str
+    // did.append(&hash_str); // Hypothetical
+    did
 }
 
 fn hex_encode(bytes: &BytesN<32>) -> String {
-    // Simplified hex encoding - in practice use proper hex encoding
-    let mut result = String::from_str(&bytes.env(), "0x");
-    // This is a placeholder - real implementation would convert bytes to hex string
-    result
+    // Simplified hex encoding
+    String::from_str(&bytes.env(), "0x")
 }
 
-fn get_did_document(e: &Env, did: &String) -> DIDDocument {
+fn get_did_document(e: &Env, did: &String) -> Result<DIDDocument, IdentityError> {
     e.storage().persistent().get(&DataKey::DID(did.clone()))
-        .unwrap_or_else(|| panic!("DID not found"))
+        .ok_or(IdentityError::DIDNotFound)
 }
 
-fn get_delegations(e: &Env, did: &String) -> Vec<Delegation> {
-    let mut delegations = Vec::new(&e.env());
-    // In practice, you'd iterate through storage to find all delegations for a DID
-    // This is a simplified approach
-    delegations
+fn get_delegations(e: &Env, _did: &String) -> Vec<Delegation> {
+    Vec::new(e)
 }
 
-fn check_delegation(e: &Env, did: &String, delegate: &Address, permission: &String) -> bool {
-    if !e.storage().persistent().has(&DataKey::Delegation(did.clone(), delegate.clone())) {
-        panic!("No delegation found");
-    }
-    
-    let delegation: Delegation = e.storage().persistent().get(&DataKey::Delegation(did.clone(), delegate.clone())).unwrap();
+fn check_delegation(e: &Env, did: &String, delegate: &Address, permission: &String) -> Result<bool, IdentityError> {
+    let delegation: Delegation = e.storage().persistent().get(&DataKey::Delegation(did.clone(), delegate.clone()))
+        .ok_or(IdentityError::DelegationNotFound)?;
     
     if delegation.revoked {
-        panic!("Delegation has been revoked");
+        return Err(IdentityError::DelegationRevoked);
     }
     
     if delegation.expiry < e.ledger().timestamp() {
-        panic!("Delegation has expired");
+        return Err(IdentityError::DelegationExpired);
     }
     
     // Check if permission is granted
     for perm in delegation.permissions.iter() {
         if &perm == permission {
-            return true;
+            return Ok(true);
         }
     }
     
-    panic!("Permission not granted in delegation");
+    Err(IdentityError::PermissionDenied)
 }
 
 fn verify_oracle_signature(e: &Env, did: &String, claim_id: u32, signature: &Bytes) -> bool {

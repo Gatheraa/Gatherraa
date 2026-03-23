@@ -52,23 +52,12 @@ impl StakingContract {
             panic!("amount must be > 0");
         }
 
-        update_reward(&env, Some(&user));
-
         let config = read_config(&env);
+        let mut user_info = update_reward(&env, Some(&user), &config).unwrap();
 
         // Transfer staking tokens from user to contract
         let token_client = token::Client::new(&env, &config.staking_token);
         token_client.transfer(&user, &env.current_contract_address(), &amount);
-
-        let mut user_info = read_user_info(&env, &user).unwrap_or(UserInfo {
-            amount: 0,
-            shares: 0,
-            reward_per_token_paid: read_reward_per_token_stored(&env),
-            rewards: 0,
-            lock_start_time: 0,
-            lock_duration: 0,
-            tier_id: 0,
-        });
 
         // Update amount
         user_info.amount += amount;
@@ -108,26 +97,19 @@ impl StakingContract {
 
     pub fn claim(env: Env, user: Address, compound: bool) {
         user.require_auth();
-        update_reward(&env, Some(&user));
-
-        let mut user_info = read_user_info(&env, &user).expect("user not found");
+        let config = read_config(&env);
+        let mut user_info = update_reward(&env, Some(&user), &config).expect("user not found");
         let reward = user_info.rewards;
 
         if reward > 0 {
             user_info.rewards = 0;
-            write_user_info(&env, &user, &user_info);
-
-            let config = read_config(&env);
-            let reward_token = token::Client::new(&env, &config.reward_token);
 
             if compound {
                 // To compound, we would stake the reward. But reward token and staking token might differ.
-                // Assuming they are the same for compounding to work seamlessly, or they trade them if we had a dex.
                 if config.staking_token != config.reward_token {
                     panic!("cannot compound: reward token differs from staking token");
                 }
 
-                // Keep the reward in contract, just update shares and total shares
                 let tier = read_tier(&env, user_info.tier_id).unwrap_or(Tier {
                     min_amount: 0,
                     reward_multiplier: 100,
@@ -146,6 +128,8 @@ impl StakingContract {
                 total_shares += diff_shares;
                 write_total_shares(&env, total_shares);
             } else {
+                write_user_info(&env, &user, &user_info);
+                let reward_token = token::Client::new(&env, &config.reward_token);
                 reward_token.transfer(&env.current_contract_address(), &user, &reward);
             }
         }
@@ -158,9 +142,9 @@ impl StakingContract {
             panic!("amount must be > 0");
         }
 
-        update_reward(&env, Some(&user));
+        let config = read_config(&env);
+        let mut user_info = update_reward(&env, Some(&user), &config).expect("user not found");
 
-        let mut user_info = read_user_info(&env, &user).expect("user not found");
         if user_info.amount < amount {
             panic!("insufficient balance");
         }
@@ -170,24 +154,18 @@ impl StakingContract {
 
         // Early withdrawal penalty
         if current_time < user_info.lock_start_time + user_info.lock_duration {
-            // Apply 20% penalty
             let penalty = (amount * 20) / 100;
             actual_amount = amount - penalty;
-            // Penalty remains in contract or burned, here we just don't send it to the user.
         }
-
-        let config = read_config(&env);
 
         user_info.amount -= amount;
 
         // Re-calculate shares
-        // If they drop below tier min, should degrade tier? For simplicity, keep tier multiplier on remaining or fail if below min.
         let tier = read_tier(&env, user_info.tier_id).unwrap_or(Tier {
             min_amount: 0,
             reward_multiplier: 100,
         });
         if user_info.amount > 0 && user_info.amount < tier.min_amount {
-            // Drop to base multiplier
             user_info.tier_id = 0;
         }
 
@@ -217,9 +195,7 @@ impl StakingContract {
         let config = read_config(&env);
         config.admin.require_auth();
 
-        update_reward(&env, Some(&user));
-
-        let mut user_info = read_user_info(&env, &user).expect("user not found");
+        let mut user_info = update_reward(&env, Some(&user), &config).expect("user not found");
         if user_info.amount < amount {
             panic!("slash amount exceeds balance");
         }
@@ -251,7 +227,6 @@ impl StakingContract {
         total_shares -= diff_shares;
         write_total_shares(&env, total_shares);
 
-        // Slashed tokens stay in contract or could be burned.
         extend_instance(&env);
     }
 
@@ -381,8 +356,7 @@ impl StakingContract {
     }
 }
 
-fn update_reward(env: &Env, user: Option<&Address>) {
-    let config = read_config(env);
+fn update_reward(env: &Env, user: Option<&Address>, config: &Config) -> Option<UserInfo> {
     let mut rpt_stored = read_reward_per_token_stored(env);
     let last_update_time = read_last_update_time(env);
     let current_time = env.ledger().timestamp();
@@ -398,7 +372,7 @@ fn update_reward(env: &Env, user: Option<&Address>) {
         write_last_update_time(env, current_time);
     }
 
-    if let Some(u) = user {
+    user.map(|u| {
         let mut user_info = read_user_info(env, u).unwrap_or(UserInfo {
             amount: 0,
             shares: 0,
@@ -413,6 +387,6 @@ fn update_reward(env: &Env, user: Option<&Address>) {
             (user_info.shares * (rpt_stored - user_info.reward_per_token_paid)) / PRECISION;
         user_info.rewards += pending;
         user_info.reward_per_token_paid = rpt_stored;
-        write_user_info(env, u, &user_info);
-    }
+        user_info
+    })
 }
