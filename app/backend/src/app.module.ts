@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { AppController } from './app.controller';
+import { ApiController } from './api/api.controller';
 import { AppService } from './app.service';
+import { VersioningMiddleware } from './common/middleware/versioning.middleware';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
@@ -64,7 +66,13 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     WebhooksModule,
     WaitlistModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, ApiController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(VersioningMiddleware)
+      .forRoutes('*');
+  }
+}
