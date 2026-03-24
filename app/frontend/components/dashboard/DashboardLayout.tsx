@@ -1,8 +1,16 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { Sidebar, type SidebarProps, type SidebarItem } from './Sidebar';
-import { Bell, Search, Menu, X, User, Settings, LogOut, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Sidebar, type SidebarProps } from "./Sidebar";
+import {
+  Search,
+  Menu,
+  X,
+  User,
+  Settings,
+  LogOut,
+  ChevronDown,
+} from "lucide-react";
 
 export interface NavbarAction {
   id: string;
@@ -34,15 +42,17 @@ export interface DashboardLayoutProps {
 export function DashboardLayout({
   children,
   sidebarProps,
-  navbarTitle = 'Dashboard',
+  navbarTitle = "Dashboard",
   navbarActions = [],
   navbarUser,
   onUserMenuClick,
   defaultSidebarExpanded = true,
   showNavbar = true,
-  className = '',
+  className = "",
 }: DashboardLayoutProps) {
-  const [sidebarExpanded, setSidebarExpanded] = useState(defaultSidebarExpanded);
+  const [sidebarExpanded, setSidebarExpanded] = useState(
+    defaultSidebarExpanded,
+  );
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -52,7 +62,7 @@ export function DashboardLayout({
   // Handle responsive breakpoint
   useEffect(() => {
     setMounted(true);
-    
+
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
@@ -64,59 +74,69 @@ export function DashboardLayout({
     };
 
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, [defaultSidebarExpanded]);
 
   // Close user menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(event.target as Node)
+      ) {
         setUserMenuOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Handle keyboard navigation
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
       setUserMenuOpen(false);
       setMobileMenuOpen(false);
     }
   }, []);
 
   useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
   const handleSidebarToggle = useCallback((expanded: boolean) => {
     setSidebarExpanded(expanded);
   }, []);
 
-  const handleUserAction = useCallback((action: string) => {
-    setUserMenuOpen(false);
-    onUserMenuClick?.(action);
-  }, [onUserMenuClick]);
+  const handleUserAction = useCallback(
+    (action: string) => {
+      setUserMenuOpen(false);
+      onUserMenuClick?.(action);
+    },
+    [onUserMenuClick],
+  );
 
   // Prevent flash of unstyled content
   if (!mounted) {
     return (
-      <div className="flex h-screen bg-background">
-        <div className={`w-16 flex-shrink-0 bg-surface border-r border-border-default`} />
+      <div className="flex h-screen bg-zinc-50 dark:bg-black">
+        <div
+          className={`w-16 flex-shrink-0 bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800`}
+        />
         <div className="flex-1 flex flex-col">
-          <header className="h-16 bg-surface border-b border-border-default" />
-          <main className="flex-1 p-6 bg-background" />
+          <header className="h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800" />
+          <main className="flex-1 p-6 bg-zinc-50 dark:bg-black" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className={`flex h-screen bg-background overflow-hidden ${className}`}>
+    <div
+      className={`flex h-screen bg-zinc-50 dark:bg-black overflow-hidden ${className}`}
+    >
       {/* Mobile Overlay */}
       {mobileMenuOpen && isMobile && (
         <div
@@ -131,9 +151,9 @@ export function DashboardLayout({
         className={`
           fixed md:relative z-50 h-full
           transition-all duration-300 ease-out
-          ${isMobile ? 'top-0 left-0' : ''}
-          ${mobileMenuOpen || !isMobile ? 'translate-x-0' : '-translate-x-full'}
-          ${isMobile ? 'w-64' : ''}
+          ${isMobile ? "top-0 left-0" : ""}
+          ${mobileMenuOpen || !isMobile ? "translate-x-0" : "-translate-x-full"}
+          ${isMobile ? "w-64" : ""}
         `}
       >
         <Sidebar
@@ -147,25 +167,25 @@ export function DashboardLayout({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Navbar */}
         {showNavbar && (
-          <header className="flex-shrink-0 h-16 bg-surface border-b border-border-default">
+          <header className="flex-shrink-0 h-16 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
             <div className="flex items-center justify-between h-full px-4 md:px-6">
               {/* Left: Menu button (mobile) and Title */}
               <div className="flex items-center gap-4">
                 {isMobile && (
                   <button
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                    className="p-2 rounded-lg hover:bg-surface-elevated transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                    aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+                    className="p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                    aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                     aria-expanded={mobileMenuOpen}
                   >
                     {mobileMenuOpen ? (
-                      <X className="w-5 h-5 text-text-secondary" />
+                      <X className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
                     ) : (
-                      <Menu className="w-5 h-5 text-text-secondary" />
+                      <Menu className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
                     )}
                   </button>
                 )}
-                <h1 className="text-lg font-semibold text-text-primary">
+                <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                   {navbarTitle}
                 </h1>
               </div>
@@ -173,11 +193,11 @@ export function DashboardLayout({
               {/* Center: Search (desktop only) */}
               <div className="hidden md:flex flex-1 max-w-md mx-8">
                 <div className="relative w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                   <input
                     type="search"
                     placeholder="Search..."
-                    className="w-full pl-10 pr-4 py-2 bg-surface-elevated border border-border-default rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-4 py-2 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-sm text-zinc-900 dark:text-zinc-50 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                     aria-label="Search"
                   />
                 </div>
@@ -192,13 +212,13 @@ export function DashboardLayout({
                     <button
                       key={action.id}
                       onClick={action.onClick}
-                      className="relative p-2 rounded-lg hover:bg-surface-elevated transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      className="relative p-2 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       aria-label={action.label}
                     >
-                      <Icon className="w-5 h-5 text-text-secondary" />
+                      <Icon className="w-5 h-5 text-zinc-600 dark:text-zinc-400" />
                       {action.badge !== undefined && action.badge > 0 && (
                         <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center bg-error text-white text-xs font-medium rounded-full">
-                          {action.badge > 9 ? '9+' : action.badge}
+                          {action.badge > 9 ? "9+" : action.badge}
                         </span>
                       )}
                     </button>
@@ -210,7 +230,7 @@ export function DashboardLayout({
                   <div className="relative ml-2" ref={userMenuRef}>
                     <button
                       onClick={() => setUserMenuOpen(!userMenuOpen)}
-                      className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-elevated transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                       aria-label="User menu"
                       aria-expanded={userMenuOpen}
                       aria-haspopup="true"
@@ -224,41 +244,48 @@ export function DashboardLayout({
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                           <span className="text-white text-sm font-medium">
-                            {navbarUser.initials || navbarUser.name.charAt(0).toUpperCase()}
+                            {navbarUser.initials ||
+                              navbarUser.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                       )}
-                      <ChevronDown className={`w-4 h-4 text-text-muted transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDown
+                        className={`w-4 h-4 text-zinc-500 transition-transform duration-200 ${userMenuOpen ? "rotate-180" : ""}`}
+                      />
                     </button>
 
                     {/* Dropdown Menu */}
                     {userMenuOpen && (
-                      <div className="absolute right-0 mt-2 w-56 bg-surface rounded-xl border border-border-default shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
-                        <div className="p-3 border-b border-border-default">
-                          <p className="font-medium text-text-primary">{navbarUser.name}</p>
+                      <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-lg overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-50">
+                        <div className="p-3 border-b border-zinc-200 dark:border-zinc-800">
+                          <p className="font-medium text-zinc-900 dark:text-zinc-50">
+                            {navbarUser.name}
+                          </p>
                           {navbarUser.email && (
-                            <p className="text-sm text-text-muted">{navbarUser.email}</p>
+                            <p className="text-sm text-zinc-500">
+                              {navbarUser.email}
+                            </p>
                           )}
                         </div>
                         <div className="p-2">
                           <button
-                            onClick={() => handleUserAction('profile')}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary rounded-lg hover:bg-surface-elevated transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            onClick={() => handleUserAction("profile")}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           >
                             <User className="w-4 h-4" />
                             Profile
                           </button>
                           <button
-                            onClick={() => handleUserAction('settings')}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-text-secondary rounded-lg hover:bg-surface-elevated transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            onClick={() => handleUserAction("settings")}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-zinc-600 dark:text-zinc-400 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           >
                             <Settings className="w-4 h-4" />
                             Settings
                           </button>
-                          <div className="my-1 border-t border-border-default" />
+                          <div className="my-1 border-t border-zinc-200 dark:border-zinc-800" />
                           <button
-                            onClick={() => handleUserAction('logout')}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-error rounded-lg hover:bg-error/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            onClick={() => handleUserAction("logout")}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           >
                             <LogOut className="w-4 h-4" />
                             Logout
@@ -275,9 +302,7 @@ export function DashboardLayout({
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto">
-            {children}
-          </div>
+          <div className="max-w-7xl mx-auto">{children}</div>
         </main>
       </div>
     </div>

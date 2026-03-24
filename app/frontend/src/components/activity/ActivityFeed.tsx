@@ -1,6 +1,8 @@
-import React from 'react';
-import { Avatar, AvatarImage, AvatarFallback } from '../ui/avatar';
-import { motion } from 'framer-motion';
+"use client";
+
+import React from "react";
+import { motion } from "motion/react";
+import { User } from "lucide-react";
 
 interface ActivityItem {
   id: string;
@@ -25,13 +27,17 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ items }) => {
           transition={{ duration: 0.5 }}
           className="activity-item flex items-center space-x-4 p-4 border-b"
         >
-          <Avatar>
+          <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 overflow-hidden">
             {item.avatarUrl ? (
-              <AvatarImage src={item.avatarUrl} alt="Avatar" />
+              <img
+                src={item.avatarUrl}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
             ) : (
-              <AvatarFallback>{item.avatarFallback}</AvatarFallback>
+              <User className="w-5 h-5" />
             )}
-          </Avatar>
+          </div>
           <div className="flex-1">
             <p className="text-sm text-gray-800">{item.action}</p>
             <span className="text-xs text-gray-500">{item.timestamp}</span>
