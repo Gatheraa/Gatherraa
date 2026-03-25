@@ -1,6 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { AppController } from './app.controller';
+import { ApiController } from './api/api.controller';
 import { AppService } from './app.service';
+import { VersioningMiddleware } from './common/middleware/versioning.middleware';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
@@ -24,6 +26,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { CouponsModule } from './coupons/coupons.module';
 import { MigrationsModule } from './migrations/migrations.module';
 import { BookingModule } from './booking/booking.module';
+import { AuditModule } from './audit/audit.module';
 import { OrganizerModule } from './organizer/organizer.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
@@ -66,7 +69,13 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     WebhooksModule,
     WaitlistModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, ApiController],
   providers: [AppService],
 })
-export class AppModule { }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(VersioningMiddleware)
+      .forRoutes('*');
+  }
+}

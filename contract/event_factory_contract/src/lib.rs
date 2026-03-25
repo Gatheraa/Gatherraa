@@ -13,6 +13,10 @@ use soroban_sdk::{
 #[contract]
 pub struct EventFactoryContract;
 
+const ADMIN_ROLE: Symbol = symbol_short!("ADMIN");
+const MOD_ROLE: Symbol = symbol_short!("MOD");
+const PAUSER_ROLE: Symbol = symbol_short!("PAUSER");
+
 #[contractimpl]
 impl EventFactoryContract {
     pub fn initialize(e: Env, admin: Address, event_wasm_hash: BytesN<32>) {
@@ -26,26 +30,59 @@ impl EventFactoryContract {
             .set(&DataKey::EventWasmHash, &event_wasm_hash);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::Version, &1u32);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "initialized"), admin),
+            event_wasm_hash,
+        );
+        // Grant initial roles
+        let key = DataKey::Role(ADMIN_ROLE, admin);
+        e.storage().persistent().set(&key, &true);
     }
 
-    pub fn pause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn pause(e: Env, admin: Address) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, PAUSER_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &true);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "paused"), admin),
+            (),
+        );
     }
 
-    pub fn unpause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn unpause(e: Env, admin: Address) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, PAUSER_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "unpaused"), admin),
+            (),
+        );
     }
 
-    pub fn update_wasm_hash(e: Env, new_wasm_hash: BytesN<32>) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn update_wasm_hash(e: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage()
             .instance()
             .set(&DataKey::EventWasmHash, &new_wasm_hash);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "wasm_hash_updated"), admin),
+            new_wasm_hash,
+        );
     }
 
     pub fn create_event(
@@ -178,9 +215,11 @@ impl EventFactoryContract {
 
     // --- UPGRADEABILITY MECHANISMS ---
     // Schedule an upgrade with a timelock (e.g., 24 hours).
-    pub fn schedule_upgrade(e: Env, new_wasm_hash: BytesN<32>, unlock_time: u64) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn schedule_upgrade(e: Env, admin: Address, new_wasm_hash: BytesN<32>, unlock_time: u64) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         if e.ledger().timestamp() >= unlock_time {
             panic!("unlock_time must be in the future");
@@ -198,9 +237,11 @@ impl EventFactoryContract {
     }
 
     // Cancel a scheduled upgrade. (Rollback mechanism before execution)
-    pub fn cancel_upgrade(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn cancel_upgrade(e: Env, admin: Address) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         e.storage().instance().remove(&DataKey::UpgradeTimelock);
         e.events()
@@ -208,9 +249,11 @@ impl EventFactoryContract {
     }
 
     // Execute the scheduled upgrade.
-    pub fn execute_upgrade(e: Env, new_wasm_hash: BytesN<32>) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn execute_upgrade(e: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         let (scheduled_hash, unlock_time): (BytesN<32>, u64) = e
             .storage()
@@ -237,9 +280,11 @@ impl EventFactoryContract {
     }
 
     // Execute a state migration after an upgrade.
-    pub fn migrate_state(e: Env, new_version: u32) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn migrate_state(e: Env, admin: Address, new_version: u32) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         let current_version: u32 = e.storage().instance().get(&DataKey::Version).unwrap_or(1);
         if new_version <= current_version {
@@ -258,5 +303,29 @@ impl EventFactoryContract {
     // Get current contract version
     pub fn version(e: Env) -> u32 {
         e.storage().instance().get(&DataKey::Version).unwrap_or(1)
+    }
+
+    // --- ROLE MANAGEMENT ---
+    pub fn grant_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().set(&key, &true);
+    }
+
+    pub fn revoke_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().remove(&key);
+    }
+
+    pub fn has_role(e: &Env, role: Symbol, address: Address) -> bool {
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().has(&key)
     }
 }

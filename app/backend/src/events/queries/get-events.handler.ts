@@ -2,14 +2,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, Like } from 'typeorm';
 import { EventReadModel } from '../entities/event-read.entity';
-
-export class GetEventsQuery {
-  constructor(
-    public readonly filters: any,
-    public readonly limit: number,
-    public readonly offset: number,
-  ) {}
-}
+import { GetEventsQuery } from './get-events.query';
 
 @QueryHandler(GetEventsQuery)
 export class GetEventsHandler implements IQueryHandler<GetEventsQuery> {
@@ -27,6 +20,10 @@ export class GetEventsHandler implements IQueryHandler<GetEventsQuery> {
     
     if (filters.organizerId) {
       queryBuilder.andWhere('event.organizerId = :organizerId', { organizerId: filters.organizerId });
+    }
+    
+    if (filters.organizerName) {
+      queryBuilder.andWhere('event.organizerName LIKE :organizerName', { organizerName: `%${filters.organizerName}%` });
     }
     
     if (filters.status) {

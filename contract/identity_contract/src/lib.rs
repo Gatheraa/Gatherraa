@@ -7,11 +7,14 @@ mod storage_types;
 use storage_types::{DataKey, DIDDocument, Claim, Credential, Delegation, Revocation};
 
 use soroban_sdk::{
-    contract, contractimpl, vec, Address, Bytes, BytesN, Env, String, Symbol, Vec, crypto,
+    contract, contractimpl, symbol_short, vec, Address, Bytes, BytesN, Env, String, Symbol, Vec, crypto,
 };
 
 #[contract]
 pub struct IdentityRegistryContract;
+
+const ADMIN_ROLE: Symbol = symbol_short!("ADMIN");
+const VERIFIER_ROLE: Symbol = symbol_short!("VERIFIER");
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
@@ -29,10 +32,20 @@ impl IdentityRegistryContract {
             panic!("already initialized");
         }
         
-        e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::TotalDIDs, &0u32);
+
+        // Grant initial roles
+        let key = DataKey::Role(ADMIN_ROLE, admin);
+        e.storage().persistent().set(&key, &true);
+
         extend_instance(&e);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "initialized"), admin),
+            (),
+        );
     }
 
     /// Create a new DID for a user
@@ -132,9 +145,11 @@ impl IdentityRegistryContract {
     }
 
     /// Verify a claim with off-chain oracle integration
-    pub fn verify_claim(e: Env, did: String, claim_id: u32, oracle_signature: Bytes) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn verify_claim(e: Env, admin: Address, did: String, claim_id: u32, oracle_signature: Bytes) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, VERIFIER_ROLE, admin) {
+            panic!("not authorized");
+        }
         
         let mut did_doc = get_did_document(&e, &did);
         let mut claim = None;
@@ -183,8 +198,7 @@ impl IdentityRegistryContract {
         
         // Only controller, delegate, or admin can revoke
         if caller != did_doc.controller {
-            let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
-            if caller != admin {
+            if !Self::has_role(&e, ADMIN_ROLE, caller.clone()) {
                 check_delegation(&e, &did, &caller, &String::from_str(&e, "revoke_claim"));
             }
         }
@@ -234,9 +248,11 @@ impl IdentityRegistryContract {
     }
 
     /// Add reputation score for event attendance
-    pub fn add_event_attendance(e: Env, did: String, event_id: String, score: u32) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn add_event_attendance(e: Env, admin: Address, did: String, event_id: String, score: u32) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, VERIFIER_ROLE, admin) {
+            panic!("not authorized");
+        }
         
         let mut did_doc = get_did_document(&e, &did);
         
@@ -393,20 +409,60 @@ impl IdentityRegistryContract {
     }
 
     /// Admin functions
-    pub fn pause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn pause(e: Env, admin: Address) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &true);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "paused"), admin),
+            (),
+        );
     }
 
-    pub fn unpause(e: Env) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn unpause(e: Env, admin: Address) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "unpaused"), admin),
+            (),
+        );
     }
 
     pub fn get_total_dids(e: Env) -> u32 {
         e.storage().instance().get(&DataKey::TotalDIDs).unwrap_or(0)
+    }
+
+    // --- ROLE MANAGEMENT ---
+    pub fn grant_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().set(&key, &true);
+    }
+
+    pub fn revoke_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().remove(&key);
+    }
+
+    pub fn has_role(e: &Env, role: Symbol, address: Address) -> bool {
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().has(&key)
     }
 }
 

@@ -11,6 +11,7 @@ pub enum DataKey {
     TotalShares,
     UpgradeTimelock,
     Version,
+    Role(Symbol, Address),
 }
 
 #[contracttype]

@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Bytes, String, Vec, BytesN};
+use soroban_sdk::{contracttype, Address, Bytes, String, Vec, BytesN, Symbol};
 
 #[derive(Clone)]
 #[contracttype]
@@ -12,6 +12,7 @@ pub enum DataKey {
     Delegation(String, Address),              // Delegation - delegations for a DID
     Revocation(String, u32),                  // Revocation - revoked claims
     EventAttendance(String, String),          // u64 - event attendance timestamps
+    Role(Symbol, Address),                    // Role management
 }
 
 #[derive(Clone)]

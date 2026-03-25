@@ -48,6 +48,11 @@ export class EventsController {
     };
   }
 
+  @Get('search')
+  async searchEvents(@Query() query: EventQueryDto): Promise<{ events: any[]; total: number }> {
+    return await this.eventsService.searchEvents(query);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<EventResponseDto> {
     const event = await this.eventsService.findOne(id);

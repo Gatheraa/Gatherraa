@@ -156,6 +156,10 @@ export class EventQueryDto {
   organizerId?: string;
 
   @IsOptional()
+  @IsString()
+  organizerName?: string;
+
+  @IsOptional()
   @IsEnum(EventStatus)
   status?: EventStatus;
 

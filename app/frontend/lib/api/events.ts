@@ -1,20 +1,58 @@
 import { apiGet, apiPost, apiPatch, apiDelete } from './client';
 
+export interface EventFilters {
+  organizerId?: string;
+  organizerName?: string;
+  status?: string;
+  type?: string;
+  category?: string;
+  isPublic?: boolean;
+  startDate?: string;
+  endDate?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  location?: string;
+  isFeatured?: boolean;
+  searchQuery?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+}
+
 export interface Event {
   id: string;
-  contractAddress: string;
-  name: string;
-  description: string | null;
-  startTime: string;
-  endTime: string | null;
+  title: string;
+  description?: string;
+  type: string;
+  category: string;
+  startDate: string;
+  endDate?: string;
+  location: string;
   organizerId: string;
-  ratingSummary?: {
-    averageRating: number;
-    totalReviews: number;
-    ratingDistribution: Record<number, number>;
+  organizerName: string;
+  price?: number;
+  capacity: number;
+  isFeatured: boolean;
+  registeredCount: number;
+  attendanceCount: number;
+  status: string;
+  isPublic: boolean;
+  imageUrl?: string;
+  tags?: string[];
+  latitude?: number;
+  longitude?: number;
+  statistics?: {
+    views?: number;
+    shares?: number;
+    favorites?: number;
+    avgRating?: number;
   };
+  isDeleted: boolean;
+  version: number;
   createdAt: string;
   updatedAt: string;
+  lastActivityAt?: string;
 }
 
 export interface CreateEventDto {
@@ -40,9 +78,40 @@ export interface EventListResponse {
   limit: number;
 }
 
+export interface EventFilters {
+  organizerId?: string;
+  status?: string;
+  type?: string;
+  category?: string;
+  isPublic?: boolean;
+  startDate?: string;
+  endDate?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  location?: string;
+  isFeatured?: boolean;
+  searchQuery?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+}
+
 export const eventsApi = {
   getEvents: async (page: number = 1, limit: number = 20): Promise<EventListResponse> => {
     return apiGet<EventListResponse>(`/events?page=${page}&limit=${limit}`);
+  },
+
+  searchEvents: async (filters: EventFilters): Promise<{ events: Event[]; total: number }> => {
+    const params = new URLSearchParams();
+    
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, value.toString());
+      }
+    });
+
+    return apiGet<{ events: Event[]; total: number }>(`/events/search?${params.toString()}`);
   },
 
   getEvent: async (id: string): Promise<Event> => {

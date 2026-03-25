@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Calendar, MapPin, Users, Star, ArrowRight } from 'lucide-react';
-import { eventsApi, Event } from '../../lib/api/events';
+import { eventsApi, Event, EventFilters } from '../../lib/api/events';
+import FilterPanel from '../../components/events/FilterPanel';
 
 export default function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -12,30 +13,44 @@ export default function EventsPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [filters, setFilters] = useState<EventFilters>({});
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const limit = 12;
 
   useEffect(() => {
     loadEvents();
-  }, [page]);
+  }, [page, filters]);
 
   const loadEvents = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await eventsApi.getEvents(page, limit);
+      const searchFilters: EventFilters = {
+        ...filters,
+        limit,
+        offset: (page - 1) * limit,
+      };
+
+      const response = await eventsApi.searchEvents(searchFilters);
       if (page === 1) {
-        setEvents(response.data);
+        setEvents(response.events);
       } else {
-        setEvents((prev) => [...prev, ...response.data]);
+        setEvents((prev) => [...prev, ...response.events]);
       }
       setTotal(response.total);
-      setHasMore(response.data.length === limit && events.length + response.data.length < response.total);
+      setHasMore(response.events.length === limit && events.length + response.events.length < response.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load events');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFiltersChange = (newFilters: EventFilters) => {
+    setFilters(newFilters);
+    setPage(1); // Reset to first page when filters change
+    setEvents([]); // Clear current events
   };
 
   const formatDate = (dateString: string) => {
@@ -122,6 +137,14 @@ export default function EventsPage() {
           </p>
         </div>
 
+        {/* Filter Panel */}
+        <FilterPanel
+          filters={filters}
+          onFiltersChange={handleFiltersChange}
+          isOpen={isFilterPanelOpen}
+          onToggle={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+        />
+
         {/* Events Count */}
         {total > 0 && (
           <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">
@@ -137,7 +160,7 @@ export default function EventsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => {
-              const status = getEventStatus(event.startTime, event.endTime);
+              const status = getEventStatus(event.startDate, event.endDate);
               return (
                 <Link
                   key={event.id}
@@ -152,14 +175,11 @@ export default function EventsPage() {
                       >
                         {status.label}
                       </span>
-                      {event.ratingSummary && event.ratingSummary.totalReviews > 0 && (
+                      {event.statistics && event.statistics.avgRating && (
                         <div className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
                           <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                           <span className="font-medium">
-                            {event.ratingSummary.averageRating.toFixed(1)}
-                          </span>
-                          <span className="text-xs">
-                            ({event.ratingSummary.totalReviews})
+                            {event.statistics.avgRating.toFixed(1)}
                           </span>
                         </div>
                       )}
@@ -167,7 +187,7 @@ export default function EventsPage() {
 
                     {/* Event Title */}
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {event.name}
+                      {event.title}
                     </h2>
 
                     {/* Description */}
@@ -181,12 +201,18 @@ export default function EventsPage() {
                     <div className="space-y-2 mb-4">
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Calendar className="w-4 h-4" />
-                        <span>{formatDateRange(event.startTime, event.endTime)}</span>
+                        <span>{formatDateRange(event.startDate, event.endDate)}</span>
                       </div>
-                      {event.ratingSummary && event.ratingSummary.totalReviews > 0 && (
+                      {event.registeredCount > 0 && (
                         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                           <Users className="w-4 h-4" />
-                          <span>{event.ratingSummary.totalReviews} reviews</span>
+                          <span>{event.registeredCount} registered</span>
+                        </div>
+                      )}
+                      {event.location && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                          <MapPin className="w-4 h-4" />
+                          <span>{event.location}</span>
                         </div>
                       )}
                     </div>

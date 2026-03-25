@@ -31,6 +31,12 @@ impl GovernanceContract {
         Self::set_category_settings(&env, 1, 500, 50, 50);   // FeeAdjustment
         Self::set_category_settings(&env, 2, 100, 50, 30);   // ParameterUpdate
         Self::set_category_settings(&env, 3, 2000, 66, 20);  // Emergency
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(&env, "initialized"), admin),
+            (token, timelock_duration, emergency_address),
+        );
     }
 
     pub fn set_category_settings(env: &Env, category_id: u32, quorum: i128, threshold: u32, period: u32) {
@@ -40,6 +46,12 @@ impl GovernanceContract {
             voting_period: period,
         };
         env.storage().instance().set(&DataKey::CategorySettings(category_id), &settings);
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(env, "category_settings_updated"), category_id),
+            (quorum, threshold, period),
+        );
     }
 
     pub fn create_proposal(
@@ -89,6 +101,12 @@ impl GovernanceContract {
 
         env.storage().persistent().set(&DataKey::Proposal(count), &proposal);
         env.storage().instance().set(&DataKey::ProposalCount, &count);
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(&env, "proposal_created"), proposer),
+            (count, category_id),
+        );
 
         count
     }
@@ -165,16 +183,34 @@ impl GovernanceContract {
         }
 
         env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(&env, "vote_cast"), voter),
+            (proposal_id, support, total_power),
+        );
     }
 
     pub fn delegate(env: Env, delegator: Address, delegatee: Address) {
         delegator.require_auth();
-        env.storage().persistent().set(&DataKey::UserDelegation(delegator), &delegatee);
+        env.storage().persistent().set(&DataKey::UserDelegation(delegator.clone()), &delegatee.clone());
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(&env, "delegation_updated"), delegator),
+            delegatee,
+        );
     }
 
     pub fn revoke_delegation(env: Env, delegator: Address) {
         delegator.require_auth();
-        env.storage().persistent().remove(&DataKey::UserDelegation(delegator));
+        env.storage().persistent().remove(&DataKey::UserDelegation(delegator.clone()));
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(&env, "delegation_revoked"),),
+            delegator,
+        );
     }
 
     pub fn queue(env: Env, proposal_id: u32) {
@@ -215,6 +251,12 @@ impl GovernanceContract {
         }
 
         env.storage().persistent().set(&DataKey::Proposal(proposal_id), &proposal);
+
+        // Emit event
+        env.events().publish(
+            (Symbol::new(&env, "proposal_queued"), proposal_id),
+            proposal.eta,
+        );
     }
 
     pub fn execute(env: Env, proposal_id: u32) {

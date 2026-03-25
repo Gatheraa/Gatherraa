@@ -128,3 +128,43 @@ fn test_upgrade_flow() {
     // but the test checks it was successfully scheduled before this).
     // client.execute_upgrade(&new_wasm_hash);
 }
+
+#[test]
+fn test_gas_profiling() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let admin = Address::generate(&env);
+    let user1 = Address::generate(&env);
+
+    // Create token
+    let token = create_token_contract(&env, &admin);
+    let token_admin = token::StellarAssetClient::new(&env, &token.address);
+    token_admin.mint(&user1, &1_000_000);
+
+    let contract_id = env.register(StakingContract, ());
+    let client = StakingContractClient::new(&env, &contract_id);
+
+    // Initialize
+    client.initialize(&admin, &token.address, &token.address, &10);
+    client.set_tier(&1, &1000, &150);
+
+    let lock_duration = 30 * 24 * 60 * 60;
+    
+    // Profile multiple operations to demonstrate storage optimization
+    for i in 0..5 {
+        let stake_amount = 1000 + (i as i128 * 100);
+        client.stake(&user1, &stake_amount, &lock_duration, &1);
+        
+        // Advance time
+        let mut ledger = env.ledger().get();
+        ledger.timestamp += 100;
+        env.ledger().set(ledger);
+        
+        // Claim and compound to test multiple storage reads
+        client.claim(&user1, &true);
+    }
+    
+    // Final unstake to test storage read optimization
+    client.unstake(&user1, &500);
+}

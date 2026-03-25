@@ -9,4 +9,5 @@ pub enum DataKey {
     OrganizerEvents(Address), // Mapping from an organizer Address to Vec<Address> of event contracts
     UpgradeTimelock,
     Version,
+    Role(soroban_sdk::Symbol, Address),
 }

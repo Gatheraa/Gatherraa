@@ -32,6 +32,7 @@ pub enum DataKey {
     PurchaseCommitment(Address),  // Stores a buyer's purchase commitment
     FrontRunMonitor(Address),     // Tracks suspicious activity per address
     MinRevealDelay,               // Global minimum delay (ledgers) between commit and reveal
+    Role(Symbol, Address),
 }
 
 #[contracttype]
