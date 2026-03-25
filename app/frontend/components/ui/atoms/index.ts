@@ -4,6 +4,8 @@ export { Badge } from './Badge';
 export type { BadgeProps, BadgeVariant } from './Badge';
 export { Input } from './Input';
 export type { InputProps } from './Input';
+export { SearchInput } from './SearchInput';
+export type { SearchInputProps } from './SearchInput';
 export { Skeleton } from './Skeleton';
 export type { SkeletonProps } from './Skeleton';
 export { Spinner } from './Spinner';
