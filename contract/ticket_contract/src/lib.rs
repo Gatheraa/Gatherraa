@@ -12,7 +12,7 @@ use stellar_tokens::non_fungible::{Base, NonFungibleToken};
 mod storage_types;
 use storage_types::{
     AllocationConfig, AllocationStrategyType, AntiSnipingConfig, DataKey, EventInfo, PricingConfig,
-    PricingStrategy, Ticket, Tier, VRFState,
+    PricingStrategy, PurchaseCommitment, FrontRunMonitor, Ticket, Tier, VRFState,
 };
 
 mod oracle;
@@ -36,6 +36,15 @@ use entropy::{EntropyManager, EntropySource, EntropyState};
 const PRICE_INCREASE_BPS: i128 = 500; // 5% increase per tier threshold
 const EARLY_BIRD_DISCOUNT_BPS: i128 = 1000; // 10% discount max
 const ORACLE_PRECISION: i128 = 10000; // Assuming oracle returns multiplier in bps (e.g. 10000 = 1x)
+
+/// Default minimum ledger delay between commit and reveal (5 ledgers ≈ 25 seconds)
+const DEFAULT_MIN_REVEAL_DELAY: u32 = 5;
+/// Monitoring window size in ledgers (approximately 5 minutes)
+const MONITOR_WINDOW_LEDGERS: u32 = 60;
+/// Maximum commits allowed per monitoring window before flagging
+const MAX_COMMITS_PER_WINDOW: u32 = 10;
+/// Maximum failed reveals before temporarily blocking an address
+const MAX_FAILED_REVEALS: u32 = 5;
 
 #[contract]
 pub struct SoulboundTicketContract;
@@ -811,6 +820,280 @@ impl SoulboundTicketContract {
     // Get current contract version
     pub fn version(e: &Env) -> u32 {
         e.storage().instance().get(&DataKey::Version).unwrap_or(1)
+    }
+
+    // ==================== FRONT-RUNNING MITIGATION ====================
+
+    /// Set the minimum ledger delay between commit and reveal (admin only).
+    /// A higher value increases security but also increases the wait time for buyers.
+    pub fn set_min_reveal_delay(e: &Env, delay_ledgers: u32) {
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        admin.require_auth();
+        if delay_ledgers == 0 {
+            panic!("delay must be > 0");
+        }
+        e.storage().instance().set(&DataKey::MinRevealDelay, &delay_ledgers);
+    }
+
+    /// Phase 1 of front-running-resistant purchase: commit.
+    ///
+    /// The buyer submits a hash of their purchase intent without revealing
+    /// the actual parameters. This prevents observers from front-running
+    /// because they cannot see which tier or price the buyer is targeting.
+    ///
+    /// `commitment_hash` = SHA-256(buyer || tier_symbol || max_price || nonce)
+    ///
+    /// The buyer must call `reveal_purchase` after a minimum delay to
+    /// complete the purchase.
+    pub fn commit_purchase(
+        e: &Env,
+        buyer: Address,
+        commitment_hash: BytesN<32>,
+        tier_symbol: Symbol,
+    ) {
+        buyer.require_auth();
+
+        // Check if the buyer is temporarily blocked by the monitor
+        Self::check_front_run_monitor(e, &buyer);
+
+        // Prevent overwriting an existing unrevealed commitment
+        let commit_key = DataKey::PurchaseCommitment(buyer.clone());
+        if let Some(existing) = e.storage().persistent().get::<_, PurchaseCommitment>(&commit_key) {
+            if !existing.revealed {
+                panic!("active commitment already exists; reveal or wait for expiry");
+            }
+        }
+
+        // Verify the tier exists and is active
+        let tier_key = DataKey::Tier(tier_symbol.clone());
+        let tier: Tier = e
+            .storage()
+            .persistent()
+            .get(&tier_key)
+            .unwrap_or_else(|| panic!("Tier not found"));
+        if !tier.active {
+            panic!("Tier is not active");
+        }
+        if tier.minted >= tier.max_supply {
+            panic!("Tier sold out");
+        }
+
+        // Store the commitment
+        let commitment = PurchaseCommitment {
+            commitment_hash,
+            commit_ledger: e.ledger().sequence(),
+            tier_symbol: tier_symbol.clone(),
+            revealed: false,
+        };
+        e.storage().persistent().set(&commit_key, &commitment);
+
+        // Update the monitoring counters
+        Self::update_front_run_monitor(e, &buyer, false);
+
+        e.events().publish(
+            (Symbol::new(e, "purchase_committed"),),
+            (buyer, tier_symbol),
+        );
+    }
+
+    /// Phase 2 of front-running-resistant purchase: reveal and execute.
+    ///
+    /// The buyer reveals the original parameters that produce the commitment
+    /// hash. The contract verifies the hash matches, enforces a minimum
+    /// ledger delay, and checks that the current dynamic price does not
+    /// exceed `max_price` (slippage protection).
+    pub fn reveal_purchase(
+        e: &Env,
+        buyer: Address,
+        payment_token: Address,
+        tier_symbol: Symbol,
+        max_price: i128,
+        nonce: u32,
+    ) {
+        buyer.require_auth();
+
+        // Check if the buyer is temporarily blocked
+        Self::check_front_run_monitor(e, &buyer);
+
+        // Load the commitment
+        let commit_key = DataKey::PurchaseCommitment(buyer.clone());
+        let mut commitment: PurchaseCommitment = e
+            .storage()
+            .persistent()
+            .get(&commit_key)
+            .unwrap_or_else(|| panic!("No commitment found; call commit_purchase first"));
+
+        if commitment.revealed {
+            panic!("Commitment already revealed");
+        }
+
+        // Enforce minimum delay between commit and reveal
+        let min_delay: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::MinRevealDelay)
+            .unwrap_or(DEFAULT_MIN_REVEAL_DELAY);
+        let current_ledger = e.ledger().sequence();
+        if current_ledger < commitment.commit_ledger + min_delay {
+            // Record as failed reveal attempt for monitoring
+            Self::update_front_run_monitor(e, &buyer, true);
+            panic!("Reveal too early; minimum delay not met");
+        }
+
+        // Verify the commitment hash matches the revealed parameters
+        // Reconstruct: SHA-256(buyer || tier_symbol || max_price || nonce)
+        let mut preimage = soroban_sdk::Vec::new(e);
+        preimage.push_back(buyer.to_val());
+        preimage.push_back(tier_symbol.to_val());
+        preimage.push_back(soroban_sdk::IntoVal::into_val(&max_price, e));
+        preimage.push_back(soroban_sdk::IntoVal::into_val(&nonce, e));
+        let computed_hash = e.crypto().sha256(&preimage.to_bytes());
+        if computed_hash != commitment.commitment_hash {
+            // Record as failed reveal for monitoring
+            Self::update_front_run_monitor(e, &buyer, true);
+            panic!("Invalid commitment: hash mismatch");
+        }
+
+        // Verify tier matches the commitment
+        if tier_symbol != commitment.tier_symbol {
+            Self::update_front_run_monitor(e, &buyer, true);
+            panic!("Tier mismatch with commitment");
+        }
+
+        // Get current dynamic price and enforce slippage protection
+        let current_price = Self::get_ticket_price(e, tier_symbol.clone());
+        if current_price > max_price {
+            Self::update_front_run_monitor(e, &buyer, true);
+            panic!("Price slippage exceeded: current price is higher than max_price");
+        }
+
+        // Mark commitment as revealed
+        commitment.revealed = true;
+        e.storage().persistent().set(&commit_key, &commitment);
+
+        // Execute the actual purchase logic (same as the original purchase)
+        let key = DataKey::Tier(tier_symbol.clone());
+        let mut tier: Tier = e
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| panic!("Tier not found"));
+
+        if !tier.active {
+            panic!("Tier is not active");
+        }
+        if tier.minted >= tier.max_supply {
+            panic!("Tier sold out");
+        }
+
+        // Process payment at the current price (which is <= max_price)
+        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+        let token_client = token::Client::new(e, &payment_token);
+        token_client.transfer(&buyer, &admin, &current_price);
+
+        // Mint Token
+        let mut counter: u32 = e
+            .storage()
+            .instance()
+            .get(&DataKey::TokenIdCounter)
+            .unwrap();
+        counter = counter.checked_add(1).expect("Counter overflow");
+        let token_id = counter;
+        e.storage()
+            .instance()
+            .set(&DataKey::TokenIdCounter, &counter);
+
+        Base::sequential_mint(e, &buyer);
+
+        let ticket = Ticket {
+            tier_symbol: tier_symbol.clone(),
+            purchase_time: e.ledger().timestamp(),
+            price_paid: current_price,
+            is_valid: true,
+        };
+        e.storage()
+            .persistent()
+            .set(&DataKey::Ticket(token_id), &ticket);
+
+        tier.minted = tier.minted.checked_add(1).expect("Supply overflow");
+        tier.current_price = current_price;
+        e.storage().persistent().set(&key, &tier);
+
+        // Update pricing config last update time
+        let mut config: PricingConfig =
+            e.storage().instance().get(&DataKey::PricingConfig).unwrap();
+        config.last_update_time = e.ledger().timestamp();
+        e.storage().instance().set(&DataKey::PricingConfig, &config);
+
+        e.events().publish(
+            (Symbol::new(e, "purchase_revealed"),),
+            (buyer, tier_symbol, current_price),
+        );
+    }
+
+    /// Check if an address is temporarily blocked by the front-running monitor.
+    fn check_front_run_monitor(e: &Env, address: &Address) {
+        let monitor_key = DataKey::FrontRunMonitor(address.clone());
+        if let Some(monitor) = e.storage().persistent().get::<_, FrontRunMonitor>(&monitor_key) {
+            if monitor.is_blocked {
+                // Check if the block window has expired
+                let current_ledger = e.ledger().sequence();
+                if current_ledger < monitor.window_start_ledger + MONITOR_WINDOW_LEDGERS * 2 {
+                    panic!("Address temporarily blocked due to suspicious activity");
+                }
+                // Block expired, reset
+                let reset = FrontRunMonitor {
+                    commit_count: 0,
+                    failed_reveals: 0,
+                    window_start_ledger: current_ledger,
+                    is_blocked: false,
+                };
+                e.storage().persistent().set(&monitor_key, &reset);
+            }
+        }
+    }
+
+    /// Update the front-running monitor for an address.
+    /// `is_failed_reveal` indicates whether this was a failed reveal attempt.
+    fn update_front_run_monitor(e: &Env, address: &Address, is_failed_reveal: bool) {
+        let monitor_key = DataKey::FrontRunMonitor(address.clone());
+        let current_ledger = e.ledger().sequence();
+        let mut monitor: FrontRunMonitor = e
+            .storage()
+            .persistent()
+            .get(&monitor_key)
+            .unwrap_or(FrontRunMonitor {
+                commit_count: 0,
+                failed_reveals: 0,
+                window_start_ledger: current_ledger,
+                is_blocked: false,
+            });
+
+        // Reset window if it has expired
+        if current_ledger > monitor.window_start_ledger + MONITOR_WINDOW_LEDGERS {
+            monitor.commit_count = 0;
+            monitor.failed_reveals = 0;
+            monitor.window_start_ledger = current_ledger;
+        }
+
+        if is_failed_reveal {
+            monitor.failed_reveals += 1;
+        } else {
+            monitor.commit_count += 1;
+        }
+
+        // Block address if thresholds exceeded
+        if monitor.failed_reveals >= MAX_FAILED_REVEALS
+            || monitor.commit_count >= MAX_COMMITS_PER_WINDOW
+        {
+            monitor.is_blocked = true;
+            e.events().publish(
+                (Symbol::new(e, "suspicious_activity"),),
+                address.clone(),
+            );
+        }
+
+        e.storage().persistent().set(&monitor_key, &monitor);
     }
 }
 

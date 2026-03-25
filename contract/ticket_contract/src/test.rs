@@ -738,3 +738,162 @@ fn test_enhanced_vrf_and_entropy() {
     }
 }
 
+// ============================================================================
+// FRONT-RUNNING MITIGATION TESTS
+// ============================================================================
+
+#[test]
+fn test_commit_reveal_purchase_flow() {
+    let e = Env::default();
+    e.mock_all_auths();
+
+    let admin = Address::generate(&e);
+    let buyer = Address::generate(&e);
+    let payment_token = e.register_stellar_asset_contract(admin.clone());
+    let client = create_contract(&e, &admin);
+
+    let tier_sym = Symbol::new(&e, "VIP");
+    let base_price = 1000_i128;
+    client.add_tier(
+        &tier_sym,
+        &String::from_str(&e, "VIP Ticket"),
+        &base_price,
+        &10,
+        &PricingStrategy::Standard,
+    );
+
+    // 1. Prepare commitment
+    let max_price = 1100_i128; // 10% slippage tolerance
+    let nonce = 12345u32;
+    
+    // Hash: SHA-256(buyer || tier_symbol || max_price || nonce)
+    let mut preimage = soroban_sdk::Vec::new(&e);
+    preimage.push_back(buyer.to_val());
+    preimage.push_back(tier_sym.to_val());
+    preimage.push_back(soroban_sdk::IntoVal::into_val(&max_price, &e));
+    preimage.push_back(soroban_sdk::IntoVal::into_val(&nonce, &e));
+    let commitment_hash = e.crypto().sha256(&preimage.to_bytes());
+
+    // 2. Commit Purchase
+    client.commit_purchase(&buyer, &commitment_hash, &tier_sym);
+
+    // 3. Try to reveal immediately (should fail due to delay)
+    // Default min delay is 5 ledgers.
+    let reveal_res = client.try_reveal_purchase(&buyer, &payment_token, &tier_sym, &max_price, &nonce);
+    assert!(reveal_res.is_err(), "Reveal should fail before delay");
+
+    // 4. Advance Ledger Sequence
+    let mut ledger = e.ledger().get();
+    ledger.sequence += 6;
+    e.ledger().set(ledger);
+
+    // 5. Reveal and Finish Purchase
+    // Give buyer some tokens first
+    let token_client = token::StellarAssetClient::new(&e, &payment_token);
+    token_client.mint(&buyer, &2000_i128);
+
+    client.reveal_purchase(&buyer, &payment_token, &tier_sym, &max_price, &nonce);
+
+    // 6. Verify Results
+    assert_eq!(client.balance(&buyer), 1);
+    let ticket = client.get_ticket(&1);
+    assert_eq!(ticket.price_paid, base_price);
+}
+
+#[test]
+#[should_panic(expected = "Invalid commitment: hash mismatch")]
+fn test_reveal_with_wrong_price() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
+    let buyer = Address::generate(&e);
+    let client = create_contract(&e, &admin);
+    let tier_sym = Symbol::new(&e, "VIP");
+    client.add_tier(&tier_sym, &String::from_str(&e, "VIP"), &1000, &10, &PricingStrategy::Standard);
+
+    let max_price = 1100_i128;
+    let nonce = 12345u32;
+    
+    let mut preimage = soroban_sdk::Vec::new(&e);
+    preimage.push_back(buyer.to_val());
+    preimage.push_back(tier_sym.to_val());
+    preimage.push_back(soroban_sdk::IntoVal::into_val(&max_price, &e));
+    preimage.push_back(soroban_sdk::IntoVal::into_val(&nonce, &e));
+    let commitment_hash = e.crypto().sha256(&preimage.to_bytes());
+
+    client.commit_purchase(&buyer, &commitment_hash, &tier_sym);
+
+    // Advance ledger
+    let mut ledger = e.ledger().get();
+    ledger.sequence += 6;
+    e.ledger().set(ledger);
+
+    // Try to reveal with DIFFERENT price (1101 instead of 1100)
+    client.reveal_purchase(&buyer, &Address::generate(&e), &tier_sym, &1101_i128, &nonce);
+}
+
+#[test]
+#[should_panic(expected = "Price slippage exceeded")]
+fn test_price_slippage_protection() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
+    let buyer = Address::generate(&e);
+    let payment_token = e.register_stellar_asset_contract(admin.clone());
+    let client = create_contract(&e, &admin);
+    let tier_sym = Symbol::new(&e, "VIP");
+    
+    // Low supply to trigger rapid price increase
+    client.add_tier(&tier_sym, &String::from_str(&e, "VIP"), &1000, &5, &PricingStrategy::Standard);
+
+    let max_price = 1010_i128; // Strict slippage
+    let nonce = 12345u32;
+    
+    let mut preimage = soroban_sdk::Vec::new(&e);
+    preimage.push_back(buyer.to_val());
+    preimage.push_back(tier_sym.to_val());
+    preimage.push_back(soroban_sdk::IntoVal::into_val(&max_price, &e));
+    preimage.push_back(soroban_sdk::IntoVal::into_val(&nonce, &e));
+    let commitment_hash = e.crypto().sha256(&preimage.to_bytes());
+
+    client.commit_purchase(&buyer, &commitment_hash, &tier_sym);
+
+    // Now, some other user buys 4 tickets to push the price up
+    // 5 total tickets, threshold is 5/5 = 1.
+    // 4 mints = 4 thresholds = 20% increase. New price: 1200.
+    client.batch_mint(&Address::generate(&e), &tier_sym, &4);
+    assert_eq!(client.get_ticket_price(&tier_sym), 1200);
+
+    // Advance ledger
+    let mut ledger = e.ledger().get();
+    ledger.sequence += 6;
+    e.ledger().set(ledger);
+
+    // Reveal should fail because current price (1200) > max_price (1010)
+    client.reveal_purchase(&buyer, &payment_token, &tier_sym, &max_price, &nonce);
+}
+
+#[test]
+#[should_panic(expected = "Address temporarily blocked")]
+fn test_front_run_monitor_blocking() {
+    let e = Env::default();
+    e.mock_all_auths();
+    let admin = Address::generate(&e);
+    let buyer = Address::generate(&e);
+    let client = create_contract(&e, &admin);
+    let tier_sym = Symbol::new(&e, "VIP");
+    client.add_tier(&tier_sym, &String::from_str(&e, "VIP"), &1000, &10, &PricingStrategy::Standard);
+
+    // Commit once
+    let hash = BytesN::from_array(&e, &[0u8; 32]);
+    client.commit_purchase(&buyer, &hash, &tier_sym);
+
+    // Fail reveal 5 times (max failed reveals is 5)
+    for _ in 0..5 {
+        let _ = client.try_reveal_purchase(&buyer, &Address::generate(&e), &tier_sym, &1000, &0);
+    }
+
+    // Next commit/reveal should fail because blocked
+    client.commit_purchase(&buyer, &hash, &tier_sym);
+}
+

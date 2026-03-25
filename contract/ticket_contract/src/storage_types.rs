@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Bytes, String, Symbol};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Symbol};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -28,6 +28,10 @@ pub enum DataKey {
     EntropyProviders(Symbol), // List of providers for a tier
     VRFPublicKey, // Public key for verifying off-chain VRF proofs
     VRFProof(Symbol), // Latest verified VRF proof for a tier
+    // Front-running mitigation keys
+    PurchaseCommitment(Address),  // Stores a buyer's purchase commitment
+    FrontRunMonitor(Address),     // Tracks suspicious activity per address
+    MinRevealDelay,               // Global minimum delay (ledgers) between commit and reveal
 }
 
 #[contracttype]
@@ -126,6 +130,37 @@ pub struct VRFState {
     pub batch_nonce: u32,
     pub finalization_ledger: u32,
 }
+/// Stores a buyer's purchase commitment for the commit-reveal scheme.
+/// The buyer first commits a hash of (buyer, tier_symbol, max_price, nonce),
+/// then reveals those values after a minimum delay to complete the purchase.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PurchaseCommitment {
+    /// SHA-256 hash of (buyer, tier_symbol, max_price, nonce)
+    pub commitment_hash: BytesN<32>,
+    /// Ledger sequence number when the commitment was made
+    pub commit_ledger: u32,
+    /// Tier the buyer intends to purchase
+    pub tier_symbol: Symbol,
+    /// Whether this commitment has already been revealed / consumed
+    pub revealed: bool,
+}
+
+/// Tracks per-address activity to detect suspicious transaction patterns
+/// such as repeated failed reveals or abnormally high commit frequency.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontRunMonitor {
+    /// Number of commits in the current monitoring window
+    pub commit_count: u32,
+    /// Number of failed or expired reveals
+    pub failed_reveals: u32,
+    /// Ledger sequence at which the current monitoring window started
+    pub window_start_ledger: u32,
+    /// Whether the address is temporarily blocked
+    pub is_blocked: bool,
+}
+
 #[soroban_sdk::contracterror]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -146,4 +181,12 @@ pub enum TicketError {
     TimelockNotExpired = 14,
     InvalidVersion = 15,
     ArithmeticError = 16,
+    // Front-running mitigation errors
+    CommitmentNotFound = 17,
+    CommitmentAlreadyRevealed = 18,
+    RevealTooEarly = 19,
+    InvalidCommitment = 20,
+    PriceSlippageExceeded = 21,
+    AddressBlocked = 22,
+    CommitmentAlreadyExists = 23,
 }
