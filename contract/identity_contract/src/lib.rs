@@ -40,6 +40,12 @@ impl IdentityRegistryContract {
         e.storage().persistent().set(&key, &true);
 
         extend_instance(&e);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "initialized"), admin),
+            (),
+        );
     }
 
     /// Create a new DID for a user
@@ -409,6 +415,12 @@ impl IdentityRegistryContract {
             panic!("not authorized");
         }
         e.storage().instance().set(&DataKey::Paused, &true);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "paused"), admin),
+            (),
+        );
     }
 
     pub fn unpause(e: Env, admin: Address) {
@@ -417,6 +429,12 @@ impl IdentityRegistryContract {
             panic!("not authorized");
         }
         e.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "unpaused"), admin),
+            (),
+        );
     }
 
     pub fn get_total_dids(e: Env) -> u32 {

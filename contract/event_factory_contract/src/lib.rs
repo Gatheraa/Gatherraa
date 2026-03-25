@@ -31,6 +31,11 @@ impl EventFactoryContract {
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::Version, &1u32);
 
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "initialized"), admin),
+            event_wasm_hash,
+        );
         // Grant initial roles
         let key = DataKey::Role(ADMIN_ROLE, admin);
         e.storage().persistent().set(&key, &true);
@@ -42,6 +47,12 @@ impl EventFactoryContract {
             panic!("not authorized");
         }
         e.storage().instance().set(&DataKey::Paused, &true);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "paused"), admin),
+            (),
+        );
     }
 
     pub fn unpause(e: Env, admin: Address) {
@@ -50,6 +61,12 @@ impl EventFactoryContract {
             panic!("not authorized");
         }
         e.storage().instance().set(&DataKey::Paused, &false);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "unpaused"), admin),
+            (),
+        );
     }
 
     pub fn update_wasm_hash(e: Env, admin: Address, new_wasm_hash: BytesN<32>) {
@@ -60,6 +77,12 @@ impl EventFactoryContract {
         e.storage()
             .instance()
             .set(&DataKey::EventWasmHash, &new_wasm_hash);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "wasm_hash_updated"), admin),
+            new_wasm_hash,
+        );
     }
 
     pub fn create_event(

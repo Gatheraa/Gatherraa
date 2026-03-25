@@ -94,13 +94,26 @@ impl SoulboundTicketContract {
         e.storage().persistent().set(&key, &true);
 
         // Init Token Metadata via OpenZeppelin Base
-        Base::set_metadata(e, uri, name, symbol);
+        Base::set_metadata(e, uri.clone(), name.clone(), symbol.clone());
         ownable::set_owner(e, &admin);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "initialized"), admin),
+            (name, symbol, uri, start_time, refund_cutoff_time),
+        );
     }
 
     // Set Pricing Config
     pub fn set_pricing_config(e: &Env, admin: Address, config: PricingConfig) {
         admin.require_auth();
+        e.storage().instance().set(&DataKey::PricingConfig, &config.clone());
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "pricing_config_updated"), admin),
+            config,
+        );
         if !Self::has_role(e, ADMIN_ROLE, admin) {
             panic!("not authorized");
         }
@@ -113,14 +126,26 @@ impl SoulboundTicketContract {
     pub fn set_vrf_public_key(e: &Env, public_key: BytesN<32>) {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
-        e.storage().instance().set(&DataKey::VRFPublicKey, &public_key);
+        e.storage().instance().set(&DataKey::VRFPublicKey, &public_key.clone());
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "vrf_pub_key_updated"), admin),
+            public_key,
+        );
     }
 
     /// Add an authorized entropy provider
     pub fn add_entropy_provider(e: &Env, provider: Address) {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
-        e.storage().instance().set(&DataKey::EntropyProvider(provider), &true);
+        e.storage().instance().set(&DataKey::EntropyProvider(provider.clone()), &true);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "entropy_provider_added"), admin),
+            provider,
+        );
     }
 
     /// Submit an entropy seed for a specific tier
@@ -135,9 +160,15 @@ impl SoulboundTicketContract {
         
         let mut providers: Vec<Address> = e.storage().persistent().get(&DataKey::EntropyProviders(tier_symbol.clone())).unwrap_or(Vec::new(e));
         if !providers.contains(&provider) {
-            providers.push_back(provider).unwrap();
-            e.storage().persistent().set(&DataKey::EntropyProviders(tier_symbol), &providers);
+            providers.push_back(provider.clone()).unwrap();
+            e.storage().persistent().set(&DataKey::EntropyProviders(tier_symbol.clone()), &providers);
         }
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "entropy_seed_submitted"), provider),
+            tier_symbol,
+        );
     }
 
     /// Submit an Ed25519 VRF proof (signature) for a tier
@@ -149,7 +180,13 @@ impl SoulboundTicketContract {
         if VRFEngine::verify_signature_vrf(e, &public_key, &seed, &signature) {
             // We store the signature as the proof of randomness. 
             // The actual entropy used will be the hash of this signature.
-            e.storage().persistent().set(&DataKey::VRFProof(tier_symbol), &signature);
+            e.storage().persistent().set(&DataKey::VRFProof(tier_symbol.clone()), &signature.clone());
+
+            // Emit event
+            e.events().publish(
+                (Symbol::new(&e, "vrf_proof_submitted"), tier_symbol),
+                signature,
+            );
         } else {
             panic!("Invalid VRF proof: verification failed against registered public key");
         }
@@ -211,7 +248,13 @@ impl SoulboundTicketContract {
 
         e.storage()
             .persistent()
-            .set(&DataKey::AntiSnipingConfig(tier_symbol), &anti_sniping);
+            .set(&DataKey::AntiSnipingConfig(tier_symbol.clone()), &anti_sniping);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "lottery_initialized"), admin),
+            (tier_symbol, strategy_type, total_allocations, finalization_ledger),
+        );
     }
 
     /// Register as participant in lottery
@@ -271,6 +314,12 @@ impl SoulboundTicketContract {
         e.storage()
             .persistent()
             .set(&count_key, count.saturating_add(1));
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "lottery_entry_registered"), participant),
+            tier_symbol,
+        );
     }
 
     /// Generate batch randomness for lottery finalization
@@ -337,6 +386,12 @@ impl SoulboundTicketContract {
         };
 
         e.storage().persistent().set(&DataKey::VRFState, &vrf_state);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "lottery_randomness_generated"), admin),
+            (tier_symbol.clone(), randomness_hash),
+        );
 
         randomness_outputs
     }
@@ -418,6 +473,12 @@ impl SoulboundTicketContract {
         state.allocated_count = (results.len() as u32).min(state.total_allocations);
         state.allocation_complete = true;
         e.storage().persistent().set(&state_key, &state);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "lottery_allocation_executed"), admin),
+            (tier_symbol, state.allocated_count),
+        );
     }
 
     /// Verify a randomness proof
@@ -467,6 +528,12 @@ impl SoulboundTicketContract {
             e.storage().instance().get(&DataKey::PricingConfig).unwrap();
         config.oracle_reference_price = new_reference_price;
         e.storage().instance().set(&DataKey::PricingConfig, &config);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "oracle_ref_updated"), admin),
+            new_reference_price,
+        );
     }
 
     // Emergency freeze toggle
@@ -479,6 +546,12 @@ impl SoulboundTicketContract {
             e.storage().instance().get(&DataKey::PricingConfig).unwrap();
         config.is_frozen = freeze;
         e.storage().instance().set(&DataKey::PricingConfig, &config);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "emergency_freeze"), admin),
+            freeze,
+        );
     }
 
     // Add a new ticket tier
@@ -512,6 +585,12 @@ impl SoulboundTicketContract {
         };
 
         e.storage().persistent().set(&key, &tier);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "tier_added"), admin),
+            (tier_symbol, base_price, max_supply),
+        );
     }
 
     /// Fetch the current external price multiplier using the real DIA oracle.
@@ -648,6 +727,12 @@ impl SoulboundTicketContract {
 
         tier.minted = tier.minted.checked_add(amount).expect("Supply overflow");
         e.storage().persistent().set(&key, &tier);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "batch_minted"), admin),
+            (to, tier_symbol, amount),
+        );
     }
 
     // Purchase a ticket
@@ -708,6 +793,12 @@ impl SoulboundTicketContract {
             e.storage().instance().get(&DataKey::PricingConfig).unwrap();
         config.last_update_time = e.ledger().timestamp();
         e.storage().instance().set(&DataKey::PricingConfig, &config);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "ticket_purchased"), buyer),
+            (tier_symbol, token_id, price),
+        );
     }
 
     // Refund a ticket
@@ -744,6 +835,12 @@ impl SoulboundTicketContract {
             .persistent()
             .set(&DataKey::Ticket(token_id), &ticket);
         Base::burn(e, &owner, token_id);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "ticket_refunded"), owner),
+            (token_id, ticket.price_paid),
+        );
     }
 
     // Ticket Validation
