@@ -178,6 +178,12 @@ export class BookingItem {
     @Column('decimal', { precision: 10, scale: 2 })
     finalPrice: number;
 
+    @Column({ type: 'datetime', nullable: true })
+    checkedInAt: Date | null;
+
+    @Column({ type: 'datetime', nullable: true })
+    checkedOutAt: Date | null;
+
     @CreateDateColumn()
     createdAt: Date;
 }

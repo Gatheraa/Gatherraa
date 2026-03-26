@@ -61,7 +61,7 @@ impl EntropyManager {
             .unwrap();
         combined.extend_from_array(&timestamp_bytes).unwrap();
 
-        soroban_sdk::crypto::sha256(&combined)
+        e.crypto().sha256(&combined)
     }
 
     /// Generate entropy from multiple sources for maximum security
@@ -88,7 +88,7 @@ impl EntropyManager {
         combined.extend_from_array(&counter.to_le_bytes()).unwrap();
 
         // Combine all sources
-        soroban_sdk::crypto::sha256(&combined)
+        e.crypto().sha256(&combined)
     }
 
     /// Verify entropy freshness (hasn't been used before)
@@ -123,7 +123,7 @@ impl EntropyManager {
                 .unwrap();
         }
 
-        soroban_sdk::crypto::sha256(&combined)
+        e.crypto().sha256(&combined)
     }
 
     /// Validate entropy has sufficient entropy bits (non-trivial randomness)

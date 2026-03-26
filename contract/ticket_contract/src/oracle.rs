@@ -19,6 +19,33 @@ pub const DEFAULT_STALENESS_SECONDS: u64 = 86_400;
 /// DIA oracle returns prices with 8 decimal places: 1.0 == 100_000_000
 pub const DIA_ORACLE_DECIMALS: i128 = 100_000_000;
 
+/// Validates that an address points to a deployed contract
+pub fn validate_contract_address(e: &Env, address: &Address) -> Result<(), &'static str> {
+    // Check if the address is a contract by attempting to get its instance
+    match e.try_invoke_contract::<Val>(address, &symbol_short!("__constructor"), Vec::new(e)) {
+        Ok(_) => Ok(()),
+        Err(_) => Err("invalid contract address"),
+    }
+}
+
+// --------------------------------------------------------------------------
+// DIA Oracle client
+//
+// DIA exposes a single function:
+//   get_value(key: soroban_sdk::String) -> (i128, u64)
+//
+// We define the trait using `contractclient` so the SDK generates a typed
+// client struct (`DiaOraclePriceClient`) for us automatically at compile time.
+// --------------------------------------------------------------------------
+
+/// Trait mirroring the on-chain DIA Oracle public interface.
+/// `contractclient` generates `DiaOraclePriceClient` from this.
+#[contractclient(name = "DiaOraclePriceClient")]
+pub trait DiaOracleInterface {
+    /// Returns (price_8decimals, unix_timestamp).
+    fn get_value(env: Env, pair: String) -> (i128, u64);
+}
+
 // --------------------------------------------------------------------------
 // DIA Oracle client
 //
@@ -82,6 +109,11 @@ pub fn fetch_primary_oracle_price(
     pair: String,
     max_age_seconds: u64,
 ) -> OracleResult {
+    // Validate oracle contract address
+    if let Err(err) = validate_contract_address(e, oracle_address) {
+        panic!("oracle address validation failed: {}", err);
+    }
+
     let client = DiaOraclePriceClient::new(e, oracle_address);
     let (raw_price, timestamp) = client.get_value(&pair);
 
@@ -101,6 +133,11 @@ pub fn fetch_primary_oracle_price(
 /// Fetch a spot price from the DEX router at `dex_address` for `pair`.
 /// This is the fallback when the primary oracle is unavailable or stale.
 pub fn fetch_dex_price(e: &Env, dex_address: &Address, pair: String) -> OracleResult {
+    // Validate DEX contract address
+    if let Err(err) = validate_contract_address(e, dex_address) {
+        panic!("dex address validation failed: {}", err);
+    }
+
     let client = DexPriceRouterClient::new(e, dex_address);
     let raw_price = client.get_spot_price(&pair);
 
@@ -123,6 +160,15 @@ pub fn fetch_price_with_fallback(
     pair: String,
     max_age_seconds: u64,
 ) -> Option<OracleResult> {
+    // Validate addresses
+    if let Err(err) = validate_contract_address(e, oracle_address) {
+        // Log validation failure but continue to fallback
+        e.events().publish((symbol_short!("oracle_validation_failed"),), err);
+    }
+    if let Err(err) = validate_contract_address(e, dex_address) {
+        e.events().publish((symbol_short!("dex_validation_failed"),), err);
+    }
+
     // --- Primary oracle ---
     let client = DiaOraclePriceClient::new(e, oracle_address);
     let oracle_result = client.try_get_value(&pair);
@@ -131,13 +177,19 @@ pub fn fetch_price_with_fallback(
         let now = e.ledger().timestamp();
         // Accept if fresh enough
         if now <= timestamp || (now - timestamp) <= max_age_seconds {
+            // Log successful oracle call
+            e.events().publish((symbol_short!("oracle_call_success"),), true);
             return Some(OracleResult {
                 price: raw_price,
                 timestamp,
                 from_primary: true,
             });
         }
-        // else fall through to DEX fallback
+        // Log stale price
+        e.events().publish((symbol_short!("oracle_price_stale"),), timestamp);
+    } else {
+        // Log oracle call failure
+        e.events().publish((symbol_short!("oracle_call_failed"),), true);
     }
 
     // --- DEX fallback ---
@@ -145,14 +197,20 @@ pub fn fetch_price_with_fallback(
     let dex_result = dex_client.try_get_spot_price(&pair);
 
     if let Ok(Ok(raw_price)) = dex_result {
+        // Log successful DEX call
+        e.events().publish((symbol_short!("dex_call_success"),), true);
         return Some(OracleResult {
             price: raw_price,
             timestamp: e.ledger().timestamp(),
             from_primary: false,
         });
+    } else {
+        // Log DEX call failure
+        e.events().publish((symbol_short!("dex_call_failed"),), true);
     }
 
     // Both unavailable
+    e.events().publish((symbol_short!("price_fetch_failed"),), pair);
     None
 }
 

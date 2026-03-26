@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+"use client";
+
+import React, { useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 
 interface TableColumn {
   key: string;
@@ -18,22 +20,22 @@ interface ReusableTableProps {
 const PAGE_SIZE = 5;
 
 const ReusableTable: React.FC<ReusableTableProps> = ({ columns, data }) => {
-  const [sortKey, setSortKey] = useState<string>('');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKey, setSortKey] = useState<string>("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(0);
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
     } else {
       setSortKey(key);
-      setSortDir('asc');
+      setSortDir("asc");
     }
   };
 
   const sortedData = [...data].sort((a, b) => {
-    if (a[sortKey] < b[sortKey]) return sortDir === 'asc' ? -1 : 1;
-    if (a[sortKey] > b[sortKey]) return sortDir === 'asc' ? 1 : -1;
+    if (a[sortKey] < b[sortKey]) return sortDir === "asc" ? -1 : 1;
+    if (a[sortKey] > b[sortKey]) return sortDir === "asc" ? 1 : -1;
     return 0;
   });
 
@@ -53,7 +55,10 @@ const ReusableTable: React.FC<ReusableTableProps> = ({ columns, data }) => {
               >
                 {col.label}
                 <motion.span
-                  animate={{ rotate: sortKey === col.key ? (sortDir === 'asc' ? 0 : 180) : 0 }}
+                  animate={{
+                    rotate:
+                      sortKey === col.key ? (sortDir === "asc" ? 0 : 180) : 0,
+                  }}
                   transition={{ duration: 0.3 }}
                   className="inline-block ml-2"
                 >
@@ -74,7 +79,7 @@ const ReusableTable: React.FC<ReusableTableProps> = ({ columns, data }) => {
               <motion.tr
                 key={index}
                 whileHover={{ scale: 1.02 }}
-                transition={{ type: 'spring', stiffness: 300 }}
+                transition={{ type: "spring", stiffness: 300 }}
                 className="hover:bg-gray-100"
               >
                 {columns.map((col) => (

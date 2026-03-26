@@ -22,6 +22,9 @@ export enum JobType {
   SCHEDULED_TASK = 'scheduled-task',
   NOTIFICATION = 'notification',
   ANALYTICS = 'analytics',
+  WAITLIST_NOTIFICATION = 'waitlist-notification',
+  WAITLIST_EXPIRY = 'waitlist-expiry',
+  WAITLIST_INVITE = 'waitlist-invite',
 }
 
 export enum QueueName {
@@ -32,6 +35,9 @@ export enum QueueName {
   NOTIFICATIONS = 'notifications',
   ANALYTICS = 'analytics',
   DEAD_LETTER = 'dead-letter',
+  WAITLIST_NOTIFICATIONS = 'waitlist:notifications',
+  WAITLIST_EXPIRY = 'waitlist:expiry',
+  WAITLIST_INVITE = 'waitlist:invite',
 }
 
 /**
@@ -50,7 +56,10 @@ export class TaskQueueService {
     @InjectQueue('notifications') private notificationQueue: Queue,
     @InjectQueue('analytics') private analyticsQueue: Queue,
     @InjectQueue('dead-letter') private deadLetterQueue: Queue,
-  ) {}
+    @InjectQueue('waitlist:notifications') private waitlistNotifQueue: Queue,
+    @InjectQueue('waitlist:expiry') private waitlistExpiryQueue: Queue,
+    @InjectQueue('waitlist:invite') private waitlistInviteQueue: Queue,
+  ) { }
 
   /**
    * Get queue by name
@@ -71,6 +80,12 @@ export class TaskQueueService {
         return this.analyticsQueue;
       case QueueName.DEAD_LETTER:
         return this.deadLetterQueue;
+      case QueueName.WAITLIST_NOTIFICATIONS:
+        return this.waitlistNotifQueue;
+      case QueueName.WAITLIST_EXPIRY:
+        return this.waitlistExpiryQueue;
+      case QueueName.WAITLIST_INVITE:
+        return this.waitlistInviteQueue;
       default:
         throw new Error(`Unknown queue: ${queueName}`);
     }
@@ -87,14 +102,14 @@ export class TaskQueueService {
     options?: JobOptions,
   ): Promise<Job> {
     const jobId = options?.deduplicationKey || `email-${uuid()}`;
-    
+
     this.logger.log(
       `Enqueuing email job: ${jobId}`,
       { to: data.to, subject: data.subject },
     );
 
     try {
-      const job = await this.emailQueue.add(data, {
+      const job = await this.emailQueue.add('send-email', data, {
         jobId,
         attempts: options?.attempts || 3,
         backoff: options?.backoff || {
@@ -136,7 +151,7 @@ export class TaskQueueService {
     });
 
     try {
-      const job = await this.imageQueue.add(data, {
+      const job = await this.imageQueue.add('process-image', data, {
         jobId,
         attempts: options?.attempts || 3,
         backoff: options?.backoff || {
@@ -181,7 +196,7 @@ export class TaskQueueService {
     );
 
     try {
-      const job = await this.blockchainQueue.add(data, {
+      const job = await this.blockchainQueue.add('blockchain-event', data, {
         jobId,
         attempts: options?.attempts || 5,
         backoff: options?.backoff || {
@@ -224,7 +239,7 @@ export class TaskQueueService {
     );
 
     try {
-      const job = await this.scheduledQueue.add(data, {
+      const job = await this.scheduledQueue.add(data.taskName, data, {
         jobId,
         repeat: {
           pattern: cronPattern,
@@ -265,7 +280,7 @@ export class TaskQueueService {
     const jobId = options?.deduplicationKey || `notif-${uuid()}`;
 
     try {
-      const job = await this.notificationQueue.add(data, {
+      const job = await this.notificationQueue.add(data.type, data, {
         jobId,
         attempts: options?.attempts || 2,
         backoff: options?.backoff || {
@@ -301,7 +316,7 @@ export class TaskQueueService {
     const jobId = options?.deduplicationKey || `analytics-${uuid()}`;
 
     try {
-      const job = await this.analyticsQueue.add(data, {
+      const job = await this.analyticsQueue.add(data.event, data, {
         jobId,
         attempts: options?.attempts || 2,
         backoff: options?.backoff || {
@@ -334,6 +349,7 @@ export class TaskQueueService {
 
     try {
       await this.deadLetterQueue.add(
+        'dead-letter-job',
         {
           originalJobId: job.id,
           originalQueueName: job.queueName || 'unknown',
@@ -353,13 +369,27 @@ export class TaskQueueService {
   }
 
   /**
+   * Enqueue waitlist expiry scan job
+   */
+  async enqueueWaitlistExpiryScan(): Promise<void> {
+    try {
+      await this.waitlistExpiryQueue.add('scan-expiries', {}, {
+        jobId: `scan-expiries-${new Date().toISOString().split('T')[0]}`,
+        removeOnComplete: true,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to enqueue waitlist expiry scan: ${error.message}`);
+    }
+  }
+
+  /**
    * Get job status
    */
   async getJobStatus(queueName: QueueName, jobId: string) {
     try {
       const queue = this.getQueue(queueName);
       const job = await queue.getJob(jobId);
-      
+
       if (!job) {
         return null;
       }
@@ -367,7 +397,7 @@ export class TaskQueueService {
       return {
         id: job.id,
         name: job.name,
-        progress: job.progress(),
+        progress: typeof job.progress === 'function' ? job.progress() : job.progress,
         status: await job.getState(),
         data: job.data,
         attempts: job.attemptsMade,
@@ -389,7 +419,6 @@ export class TaskQueueService {
     try {
       const queue = this.getQueue(queueName);
       const counts = await queue.getJobCounts();
-      const priorities = await queue.getCountByState();
 
       return {
         queueName,
@@ -411,7 +440,7 @@ export class TaskQueueService {
    * Get all queue statistics
    */
   async getAllQueueStats() {
-    const stats = [];
+    const stats: any[] = [];
     for (const queueName of Object.values(QueueName)) {
       try {
         stats.push(await this.getQueueStats(queueName as QueueName));

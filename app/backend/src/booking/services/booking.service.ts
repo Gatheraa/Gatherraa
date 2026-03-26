@@ -3,6 +3,8 @@ import {
     BadRequestException,
     NotFoundException,
     ConflictException,
+    Inject,
+    forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
@@ -11,6 +13,7 @@ import { Booking, BookingItem, BookingStatus } from '../entities/booking.entity'
 import { SeatService } from './seat.service';
 import { PricingService } from './pricing.service';
 import { CartService } from './cart.service';
+import { WaitlistService } from '../../waitlist/services/waitlist.service';
 import {
     CreateBookingDto,
     ApplyPromoCodeDto,
@@ -29,6 +32,8 @@ export class BookingService {
         private readonly seatService: SeatService,
         private readonly pricingService: PricingService,
         private readonly cartService: CartService,
+        @Inject(forwardRef(() => WaitlistService))
+        private readonly waitlistService: WaitlistService,
     ) { }
 
     /**
@@ -163,9 +168,11 @@ export class BookingService {
         // Update booking status
         booking.status = BookingStatus.CONFIRMED;
         booking.confirmedAt = new Date();
-        booking.reservationExpiresAt = null;
-
         const saved = await this.bookingRepository.save(booking);
+
+        // Waitlist hook: track conversion
+        await this.waitlistService.handleSuccessfulBooking(booking.eventId, userId);
+
         return this.toResponseDto(saved);
     }
 
@@ -207,9 +214,11 @@ export class BookingService {
         booking.status = BookingStatus.CANCELLED;
         booking.cancelledAt = new Date();
         booking.cancellationReason = reason || null;
-        booking.reservationExpiresAt = null;
-
         const saved = await this.bookingRepository.save(booking);
+
+        // Waitlist hook: process released tickets
+        await this.waitlistService.processReleasedTickets(booking.eventId, seatIds.length);
+
         return this.toResponseDto(saved);
     }
 
@@ -311,6 +320,9 @@ export class BookingService {
         booking.status = BookingStatus.EXPIRED;
         booking.reservationExpiresAt = null;
         await this.bookingRepository.save(booking);
+
+        // Waitlist hook: process released tickets
+        await this.waitlistService.processReleasedTickets(booking.eventId, seatIds.length);
     }
 
     /**

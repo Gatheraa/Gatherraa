@@ -12,11 +12,15 @@ import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { UpdateSocialLinksDto } from './dto/update-social-links.dto';
 import { randomBytes } from 'crypto';
 
+import { WebhookService } from 'src/webhooks/services/webhook.service';
+import { WebhookEventType } from 'src/webhooks/constants/webhook.constants';
+
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    private readonly webhookService: WebhookService,
   ) {}
 
   /* ======================================================
@@ -26,7 +30,12 @@ export class UsersService {
   async create(createUserDto: CreateUserDto): Promise<User> {
     const user = this.usersRepository.create(createUserDto);
     user.profileCompletion = this.calculateCompletion(user);
-    return this.usersRepository.save(user);
+    const savedUser = await this.usersRepository.save(user);
+    
+    // Trigger webhook
+    await this.webhookService.trigger(WebhookEventType.USER_CREATED, savedUser);
+    
+    return savedUser;
   }
 
   /* ======================================================

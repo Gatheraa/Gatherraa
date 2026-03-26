@@ -21,7 +21,8 @@
     "dexie-react-hooks": "^1.1.7",
     "ethers": "^6.16.0",
     "lucide-react": "^0.469.0",
-    "next": "16.1.6",
+    "motion": "^12.38.0",
+    "next": "^15.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
@@ -30,7 +31,13 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^15.1.7",
+    "@lhci/cli": "^0.14.0",
+    "@next/bundle-analyzer": "^15.3.0",
+    "@storybook/addon-a11y": "^8.4.7",
+    "@storybook/addon-essentials": "^8.4.7",
+    "@storybook/nextjs": "^8.4.7",
+    "@storybook/react": "^8.4.7",
+    "@storybook/test": "^8.4.7",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -38,16 +45,10 @@
     "cross-env": "^7.0.3",
     "depcheck": "^1.4.7",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "^15.3.0",
     "lighthouse": "^12.4.0",
-    "@lhci/cli": "^0.14.0",
+    "storybook": "^8.4.7",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "@storybook/addon-a11y": "^8.4.7",
-    "@storybook/addon-essentials": "^8.4.7",
-    "@storybook/nextjs": "^8.4.7",
-    "@storybook/react": "^8.4.7",
-    "@storybook/test": "^8.4.7",
-    "storybook": "^8.4.7"
+    "typescript": "^5"
   }
 }

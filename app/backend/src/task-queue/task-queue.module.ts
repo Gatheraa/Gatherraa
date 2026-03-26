@@ -3,17 +3,22 @@
 
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TaskQueueService } from './services/task-queue.service';
 import { EmailProcessor } from './processors/email.processor';
 import { ImageProcessor } from './processors/image.processor';
 import { BlockchainProcessor } from './processors/blockchain.processor';
 import { ScheduledTaskProcessor } from './processors/scheduled-task.processor';
+import { WaitlistNotificationProcessor } from './processors/waitlist-notification.processor';
+import { WaitlistExpiryProcessor } from './processors/waitlist-expiry.processor';
+import { WaitlistInviteProcessor } from './processors/waitlist-invite.processor';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { TaskQueueController } from './task-queue.controller';
 
 @Module({
   imports: [
     BullModule.forRootAsync({
+      imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         connection: {
@@ -48,6 +53,9 @@ import { TaskQueueController } from './task-queue.controller';
       { name: 'notifications' },
       { name: 'analytics' },
       { name: 'dead-letter' },
+      { name: 'waitlist:notifications' },
+      { name: 'waitlist:expiry' },
+      { name: 'waitlist:invite' },
     ),
   ],
   providers: [
@@ -56,8 +64,11 @@ import { TaskQueueController } from './task-queue.controller';
     ImageProcessor,
     BlockchainProcessor,
     ScheduledTaskProcessor,
+    WaitlistNotificationProcessor,
+    WaitlistExpiryProcessor,
+    WaitlistInviteProcessor,
   ],
   controllers: [TaskQueueController],
   exports: [TaskQueueService, BullModule],
 })
-export class TaskQueueModule {}
+export class TaskQueueModule { }

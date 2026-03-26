@@ -7,11 +7,14 @@ mod storage_types;
 use storage_types::{DataKey, DIDDocument, Claim, Credential, Delegation, Revocation, IdentityError};
 
 use soroban_sdk::{
-    contract, contractimpl, vec, Address, Bytes, BytesN, Env, String, Symbol, Vec, crypto,
+    contract, contractimpl, symbol_short, vec, Address, Bytes, BytesN, Env, String, Symbol, Vec, crypto,
 };
 
 #[contract]
 pub struct IdentityRegistryContract;
+
+const ADMIN_ROLE: Symbol = symbol_short!("ADMIN");
+const VERIFIER_ROLE: Symbol = symbol_short!("VERIFIER");
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
@@ -29,9 +32,13 @@ impl IdentityRegistryContract {
             return Err(IdentityError::AlreadyInitialized);
         }
         
-        e.storage().instance().set(&DataKey::Admin, &admin);
         e.storage().instance().set(&DataKey::Paused, &false);
         e.storage().instance().set(&DataKey::TotalDIDs, &0u32);
+
+        // Grant initial roles
+        let key = DataKey::Role(ADMIN_ROLE, admin);
+        e.storage().persistent().set(&key, &true);
+
         extend_instance(&e);
         Ok(())
     }
@@ -117,7 +124,8 @@ impl IdentityRegistryContract {
         did_doc.updated = e.ledger().timestamp();
         
         e.storage().persistent().set(&DataKey::DID(did.clone()), &did_doc);
-        e.storage().instance().set(&DataKey::NextClaimId, &(claim_id + 1));
+        let next_claim_id = claim_id.checked_add(1).expect("Claim ID overflow");
+        e.storage().instance().set(&DataKey::NextClaimId, &next_claim_id);
         
         extend_persistent(&e, &DataKey::DID(did.clone()));
         
@@ -135,6 +143,9 @@ impl IdentityRegistryContract {
     pub fn verify_claim(e: Env, did: String, claim_id: u32, oracle_signature: Bytes) -> Result<(), IdentityError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, VERIFIER_ROLE, admin) {
+            panic!("not authorized");
+        }
         
         let mut did_doc = get_did_document(&e, &did)?;
         let mut claim = None;
@@ -241,11 +252,15 @@ impl IdentityRegistryContract {
     pub fn add_event_attendance(e: Env, did: String, event_id: String, score: u32) -> Result<(), IdentityError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, VERIFIER_ROLE, admin) {
+            panic!("not authorized");
+        }
         
         let mut did_doc = get_did_document(&e, &did)?;
         
         // Add attendance score
-        did_doc.reputation_score += score.min(EVENT_ATTENDANCE_SCORE);
+        let increment = score.min(EVENT_ATTENDANCE_SCORE);
+        did_doc.reputation_score = did_doc.reputation_score.checked_add(increment).expect("Reputation overflow");
         did_doc.updated = e.ledger().timestamp();
         
         e.storage().persistent().set(&DataKey::DID(did.clone()), &did_doc);
@@ -401,6 +416,9 @@ impl IdentityRegistryContract {
     pub fn pause(e: Env) -> Result<(), IdentityError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &true);
         Ok(())
     }
@@ -408,12 +426,39 @@ impl IdentityRegistryContract {
     pub fn unpause(e: Env) -> Result<(), IdentityError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(IdentityError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &false);
         Ok(())
     }
 
     pub fn get_total_dids(e: Env) -> u32 {
         e.storage().instance().get(&DataKey::TotalDIDs).unwrap_or(0)
+    }
+
+    // --- ROLE MANAGEMENT ---
+    pub fn grant_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().set(&key, &true);
+    }
+
+    pub fn revoke_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().remove(&key);
+    }
+
+    pub fn has_role(e: &Env, role: Symbol, address: Address) -> bool {
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().has(&key)
     }
 }
 

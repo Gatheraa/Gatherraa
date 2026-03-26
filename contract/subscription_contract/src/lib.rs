@@ -60,7 +60,8 @@ impl SubscriptionContract {
         };
 
         env.storage().persistent().set(&DataKey::SubscriptionPlan(plan_id), &plan);
-        env.storage().instance().set(&DataKey::NextPlanId, &(plan_id + 1));
+        let val_next_plan_id = plan_id.checked_add(1).expect("ID overflow");
+        env.storage().instance().set(&DataKey::NextPlanId, &val_next_plan_id);
 
         Ok(plan_id)
     }
@@ -118,7 +119,8 @@ impl SubscriptionContract {
 
         let subscription_id: u64 = env.storage().instance().get(&DataKey::NextSubscriptionId).unwrap();
         let current_time = env.ledger().timestamp();
-        let end_date = current_time + (plan.duration_days as u64 * 86400);
+        let duration_seconds = (plan.duration_days as u64).checked_mul(86400).expect("Time overflow");
+        let end_date = current_time.checked_add(duration_seconds).expect("Time overflow");
 
         let subscription = UserSubscription {
             subscription_id,
@@ -134,7 +136,8 @@ impl SubscriptionContract {
         };
 
         env.storage().persistent().set(&DataKey::UserSubscription(user.clone()), &subscription);
-        env.storage().instance().set(&DataKey::NextSubscriptionId, &(subscription_id + 1));
+        let next_sub_id = subscription_id.checked_add(1).expect("ID overflow");
+        env.storage().instance().set(&DataKey::NextSubscriptionId, &next_sub_id);
 
         events::emit_subscription_created(
             &env,
@@ -170,7 +173,8 @@ impl SubscriptionContract {
         subscription::process_subscription_payment(&env, &user, &plan);
 
         let current_time = env.ledger().timestamp();
-        subscription.end_date = current_time + (plan.duration_days as u64 * 86400);
+        let duration_seconds = (plan.duration_days as u64).checked_mul(86400).expect("Time overflow");
+        subscription.end_date = current_time.checked_add(duration_seconds).expect("Time overflow");
         subscription.last_payment_date = current_time;
         subscription.status = SubscriptionStatus::Active;
 
@@ -247,7 +251,8 @@ impl SubscriptionContract {
         }
 
         let current_time = env.ledger().timestamp();
-        let remaining_days = ((subscription.end_date - current_time) / 86400) as u32;
+        let remaining_time = subscription.end_date.checked_sub(current_time).expect("Time error");
+        let remaining_days = (remaining_time.checked_div(86400).expect("Time error")) as u32;
 
         let paused_data = PausedSubscriptionData {
             paused_at: current_time,
@@ -291,7 +296,8 @@ impl SubscriptionContract {
             .expect("Paused data not found");
 
         let current_time = env.ledger().timestamp();
-        let new_end_date = current_time + (paused_data.remaining_days as u64 * 86400);
+        let remaining_seconds = (paused_data.remaining_days as u64).checked_mul(86400).expect("Time overflow");
+        let new_end_date = current_time.checked_add(remaining_seconds).expect("Time overflow");
 
         subscription.status = SubscriptionStatus::Active;
         subscription.end_date = new_end_date;
@@ -522,7 +528,8 @@ impl SubscriptionContract {
 
         let subscription_id: u64 = env.storage().instance().get(&DataKey::NextSubscriptionId).unwrap();
         let current_time = env.ledger().timestamp();
-        let end_date = current_time + (plan.duration_days as u64 * 86400);
+        let duration_seconds = (plan.duration_days as u64).checked_mul(86400).expect("Time overflow");
+        let end_date = current_time.checked_add(duration_seconds).expect("Time overflow");
 
         let subscription = UserSubscription {
             subscription_id,
@@ -541,7 +548,8 @@ impl SubscriptionContract {
 
         env.storage().persistent().set(&DataKey::UserSubscription(user.clone()), &subscription);
         env.storage().persistent().set(&DataKey::GiftedSubscription(gift_id), &gift);
-        env.storage().instance().set(&DataKey::NextSubscriptionId, &(subscription_id + 1));
+        let next_sub_id = subscription_id.checked_add(1).expect("ID overflow");
+        env.storage().instance().set(&DataKey::NextSubscriptionId, &next_sub_id);
 
         events::emit_subscription_created(
             &env,
@@ -583,7 +591,8 @@ impl SubscriptionContract {
 
         if subscription.status == SubscriptionStatus::Active && current_time > subscription.end_date {
             let grace_period_days: u32 = env.storage().instance().get(&DataKey::GracePeriod).unwrap();
-            let grace_period_end = subscription.end_date + (grace_period_days as u64 * 86400);
+            let grace_period_seconds = (grace_period_days as u64).checked_mul(86400).expect("Time overflow");
+            let grace_period_end = subscription.end_date.checked_add(grace_period_seconds).expect("Time overflow");
 
             if current_time <= grace_period_end {
                 subscription.status = SubscriptionStatus::GracePeriod;

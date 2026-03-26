@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { Booking, BookingItem, Seat } from './entities/booking.entity';
@@ -8,12 +8,14 @@ import { SeatService } from './services/seat.service';
 import { PricingService } from './services/pricing.service';
 import { BookingController } from './controllers/booking.controller';
 import { CouponsModule } from '../coupons/coupons.module';
+import { WaitlistModule } from '../waitlist/waitlist.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Booking, BookingItem, Seat]),
         ConfigModule,
         CouponsModule,
+        forwardRef(() => WaitlistModule),
     ],
     controllers: [BookingController],
     providers: [BookingService, CartService, SeatService, PricingService],

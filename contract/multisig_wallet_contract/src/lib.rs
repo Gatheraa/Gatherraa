@@ -1,4 +1,9 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -10,10 +15,17 @@ use storage_types::{DataKey, WalletConfig, Signer, Role, Transaction, Transactio
 use soroban_sdk::{
     contract, contractimpl, symbol_short, vec, map, Address, BytesN, Env, IntoVal, String, Symbol, Vec, Map, U256,
 };
+use gathera_common::{
+    require_admin, is_paused, set_paused, read_version, write_version
+};
 
 #[contract]
 pub struct MultisigWalletContract;
 
+/// The Multisig Wallet Contract provides M-of-N signature governance for managing funds and executing transactions.
+///
+/// Features include daily spending limits, timelocks for large transactions, batch operations,
+/// role-based access control for signers, and emergency freeze capabilities.
 #[contractimpl]
 impl MultisigWalletContract {
     // Initialize the wallet
@@ -25,21 +37,20 @@ impl MultisigWalletContract {
         // Validate config
         Self::validate_config(&config)?;
 
-        e.storage().instance().set(&DataKey::Admin, &admin);
-        e.storage().instance().set(&DataKey::WalletConfig, &config);
-        e.storage().instance().set(&DataKey::Paused, &false);
-        e.storage().instance().set(&DataKey::Version, &1u32);
-        e.storage().instance().set(&DataKey::Frozen, &false);
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::WalletConfig, &config);
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage().instance().set(&DataKey::Version, &1u32);
+        env.storage().instance().set(&DataKey::Frozen, &false);
         
         // Initialize timelock queue
         let timelock_queue = TimelockQueue {
-            pending: Vec::new(&e),
-            ready: Vec::new(&e),
-            executed: Vec::new(&e),
+            pending: Vec::new(&env),
+            ready: Vec::new(&env),
+            executed: Vec::new(&env),
         };
-        e.storage().instance().set(&DataKey::TimelockQueue, &timelock_queue);
+        env.storage().instance().set(&DataKey::TimelockQueue, &timelock_queue);
         
-        // Add initial signers as owners
         for signer_address in initial_signers.iter() {
             Self::add_signer_internal(&e, signer_address.clone(), Role::Owner, 1)?;
         }
@@ -70,7 +81,7 @@ impl MultisigWalletContract {
         }
 
         signers.remove(signer_index);
-        e.storage().persistent().set(&DataKey::Signers, &signers);
+        env.storage().persistent().set(&DataKey::Signers, &signers);
 
         e.events().publish(
             (symbol_short!("sig_rem"), signer_address.clone()),
@@ -79,9 +90,24 @@ impl MultisigWalletContract {
         Ok(())
     }
 
-    // Propose a transaction
+    /// Proposes a new transaction for the wallet.
+    ///
+    /// # Arguments
+    /// * `env` - The current contract environment.
+    /// * `to` - Destination address for the transfer.
+    /// * `token` - Token address to be used.
+    /// * `amount` - Amount of tokens to transfer.
+    /// * `data` - Optional data for a contract call.
+    /// * `proposer` - The address proposing the transaction (must be a signer).
+    /// * `nonce` - Replay protection nonce.
+    ///
+    /// # Returns
+    /// The unique ID of the proposed transaction.
+    ///
+    /// # Errors
+    /// Returns [MultisigError::NonceUsed] if the nonce is invalid.
     pub fn propose_transaction(
-        e: Env,
+        env: Env,
         to: Address,
         token: Address,
         amount: i128,
@@ -104,18 +130,15 @@ impl MultisigWalletContract {
         // Validate nonce
         Self::validate_nonce(&e, &proposer, nonce)?;
 
-        // Validate proposer is active signer
-        Self::validate_signer(&e, &proposer)?;
+        Self::validate_signer(&env, &proposer)?;
 
-        // Generate transaction ID
-        let transaction_id = Self::generate_transaction_id(&e, &to, &token, amount, &proposer, nonce);
+        let transaction_id = Self::generate_transaction_id(&env, &to, &token, amount, &proposer, nonce);
 
         let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig)
             .ok_or(MultisigError::NotInitialized)?;
         
-        // Check if timelock is required
         let timelock_until = if amount >= config.timelock_threshold {
-            e.ledger().timestamp() + config.timelock_duration
+            env.ledger().timestamp().checked_add(config.timelock_duration).expect("Time overflow")
         } else {
             0
         };
@@ -127,26 +150,23 @@ impl MultisigWalletContract {
             amount,
             data: data.clone(),
             proposer: proposer.clone(),
-            signatures: Vec::new(&e),
+            signatures: Vec::new(&env),
             status: TransactionStatus::Proposed,
-            created_at: e.ledger().timestamp(),
-            expires_at: e.ledger().timestamp() + config.transaction_expiry,
+            created_at: env.ledger().timestamp(),
+            expires_at: env.ledger().timestamp().checked_add(config.transaction_expiry).expect("Time overflow"),
             timelock_until,
             batch_id: None,
         };
 
-        // Store transaction
-        e.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
+        env.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
 
-        // Add to timelock queue if needed
         if timelock_until > 0 {
-            let mut queue: TimelockQueue = e.storage().instance().get(&DataKey::TimelockQueue).unwrap();
+            let mut queue: TimelockQueue = env.storage().instance().get(&DataKey::TimelockQueue).unwrap();
             queue.pending.push_back(transaction_id.clone());
-            e.storage().instance().set(&DataKey::TimelockQueue, &queue);
+            env.storage().instance().set(&DataKey::TimelockQueue, &queue);
         }
 
-        // Mark nonce as used
-        Self::use_nonce(&e, &proposer, nonce);
+        Self::use_nonce(&env, &proposer, nonce);
 
         e.events().publish(
             (symbol_short!("tx_prop"), transaction_id.clone()),
@@ -172,7 +192,7 @@ impl MultisigWalletContract {
         }
 
         // Validate signer
-        Self::validate_signer(&e, &signer)?;
+        Self::validate_signer(&env, &signer)?;
 
         // Check if already signed
         if transaction.signatures.contains(&signer) {
@@ -219,7 +239,7 @@ impl MultisigWalletContract {
         }
 
         // Check daily spending limit
-        Self::check_daily_spending(&e, &transaction)?;
+        Self::check_daily_spending(&env, &transaction)?;
 
         // Execute transaction
         let token_client = soroban_sdk::token::Client::new(&e, &transaction.token);
@@ -227,10 +247,10 @@ impl MultisigWalletContract {
 
         // Update transaction status
         transaction.status = TransactionStatus::Executed;
-        e.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
+        env.storage().instance().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
 
         // Update daily spending
-        Self::update_daily_spending(&e, &transaction);
+        Self::update_daily_spending(&env, &transaction);
 
         // Update timelock queue
         if transaction.timelock_until > 0 {
@@ -252,7 +272,7 @@ impl MultisigWalletContract {
 
     // Propose a batch transaction
     pub fn propose_batch(
-        e: Env,
+        env: Env,
         transactions: Vec<BytesN<32>>,
         proposer: Address,
         nonce: u64,
@@ -270,10 +290,10 @@ impl MultisigWalletContract {
         proposer.require_auth();
 
         // Validate nonce
-        Self::validate_nonce(&e, &proposer, nonce)?;
+        Self::validate_nonce(&env, &proposer, nonce)?;
 
         // Validate proposer is active signer
-        Self::validate_signer(&e, &proposer)?;
+        Self::validate_signer(&env, &proposer)?;
 
         // Validate batch size
         let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).ok_or(MultisigError::NotInitialized)?;
@@ -296,30 +316,30 @@ impl MultisigWalletContract {
         }
 
         // Generate batch ID
-        let batch_id = Self::generate_batch_id(&e, &transactions, &proposer, nonce);
+        let batch_id = Self::generate_batch_id(&env, &transactions, &proposer, nonce);
 
         let batch = Batch {
             id: batch_id.clone(),
             transactions: transactions.clone(),
             proposer: proposer.clone(),
-            signatures: Vec::new(&e),
+            signatures: Vec::new(&env),
             status: BatchStatus::Proposed,
-            created_at: e.ledger().timestamp(),
-            expires_at: e.ledger().timestamp() + config.transaction_expiry,
+            created_at: env.ledger().timestamp(),
+            expires_at: env.ledger().timestamp().checked_add(config.transaction_expiry).expect("Time overflow"),
         };
 
         // Store batch
-        e.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
+        env.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
 
         // Update transactions to reference batch
         for tx_id in transactions.iter() {
-            let mut tx: Transaction = e.storage().instance().get(&DataKey::Transaction(tx_id.clone())).unwrap();
+            let mut tx: Transaction = env.storage().instance().get(&DataKey::Transaction(tx_id.clone())).unwrap();
             tx.batch_id = Some(batch_id.clone());
-            e.storage().instance().set(&DataKey::Transaction(tx_id.clone()), &tx);
+            env.storage().instance().set(&DataKey::Transaction(tx_id.clone()), &tx);
         }
 
         // Mark nonce as used
-        Self::use_nonce(&e, &proposer, nonce);
+        Self::use_nonce(&env, &proposer, nonce);
 
         e.events().publish(
             (symbol_short!("bat_prop"), batch_id.clone()),
@@ -345,7 +365,7 @@ impl MultisigWalletContract {
         }
 
         // Validate signer
-        Self::validate_signer(&e, &signer)?;
+        Self::validate_signer(&env, &signer)?;
 
         // Check if already signed
         if batch.signatures.contains(&signer) {
@@ -402,7 +422,7 @@ impl MultisigWalletContract {
         }
 
         batch.status = BatchStatus::Executed;
-        e.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
+        env.storage().instance().set(&DataKey::Batch(batch_id.clone()), &batch);
 
         e.events().publish(
             (symbol_short!("bat_exec"), batch_id.clone()),
@@ -480,12 +500,12 @@ impl MultisigWalletContract {
     }
 
     // View functions
-    pub fn get_config(e: Env) -> WalletConfig {
-        e.storage().instance().get(&DataKey::WalletConfig).unwrap()
+    pub fn get_config(env: Env) -> WalletConfig {
+        env.storage().instance().get(&DataKey::WalletConfig).unwrap()
     }
 
-    pub fn get_signers(e: Env) -> Vec<Signer> {
-        e.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(&e))
+    pub fn get_signers(env: Env) -> Vec<Signer> {
+        env.storage().persistent().get(&DataKey::Signers).unwrap_or(Vec::new(&env))
     }
 
     pub fn get_transaction(e: Env, transaction_id: BytesN<32>) -> Result<Transaction, MultisigError> {
@@ -498,22 +518,22 @@ impl MultisigWalletContract {
             .ok_or(MultisigError::BatchNotFound)
     }
 
-    pub fn get_daily_spending(e: Env) -> DailySpending {
-        let today = Self::get_today_timestamp(&e);
-        e.storage().persistent().get(&DataKey::DailySpending(today))
+    pub fn get_daily_spending(env: Env) -> DailySpending {
+        let today = Self::get_today_timestamp(&env);
+        env.storage().persistent().get(&DataKey::DailySpending(today))
             .unwrap_or(DailySpending {
                 date: today,
                 spent: 0,
-                limit: Self::get_config(e).daily_spending_limit,
+                limit: Self::get_config(env).daily_spending_limit,
             })
     }
 
-    pub fn is_frozen(e: Env) -> bool {
-        e.storage().instance().get(&DataKey::Frozen).unwrap_or(false)
+    pub fn is_frozen(env: Env) -> bool {
+        env.storage().instance().get(&DataKey::Frozen).unwrap_or(false)
     }
 
-    pub fn version(e: Env) -> u32 {
-        e.storage().instance().get(&DataKey::Version).unwrap_or(1)
+    pub fn version(env: Env) -> u32 {
+        read_version(&env)
     }
 
     // Helper functions
@@ -545,13 +565,13 @@ impl MultisigWalletContract {
             role,
             weight,
             daily_spent: 0,
-            last_spending_reset: e.ledger().timestamp(),
+            last_spending_reset: env.ledger().timestamp(),
             active: true,
-            added_at: e.ledger().timestamp(),
+            added_at: env.ledger().timestamp(),
         };
 
         signers.push_back(signer);
-        e.storage().persistent().set(&DataKey::Signers, &signers);
+        env.storage().persistent().set(&DataKey::Signers, &signers);
 
         e.events().publish(
             (symbol_short!("sig_add"), signer_address.clone()),
@@ -619,16 +639,17 @@ impl MultisigWalletContract {
 
     fn check_daily_spending(e: &Env, transaction: &Transaction) -> Result<(), MultisigError> {
         let today = Self::get_today_timestamp(e);
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
+        let config: WalletConfig = env.storage().instance().get(&DataKey::WalletConfig).unwrap();
         
-        let mut daily_spending: DailySpending = e.storage().persistent().get(&DataKey::DailySpending(today))
+        let mut daily_spending: DailySpending = env.storage().persistent().get(&DataKey::DailySpending(today))
             .unwrap_or(DailySpending {
                 date: today,
                 spent: 0,
                 limit: config.daily_spending_limit,
             });
         
-        if daily_spending.spent + transaction.amount > daily_spending.limit {
+        let total_spent_today = daily_spending.spent.checked_add(transaction.amount).expect("Spending overflow");
+        if total_spent_today > daily_spending.limit {
             return Err(MultisigError::DailySpendingLimitExceeded);
         }
         
@@ -637,21 +658,21 @@ impl MultisigWalletContract {
 
     fn update_daily_spending(e: &Env, transaction: &Transaction) {
         let today = Self::get_today_timestamp(e);
-        let config: WalletConfig = e.storage().instance().get(&DataKey::WalletConfig).unwrap();
+        let config: WalletConfig = env.storage().instance().get(&DataKey::WalletConfig).unwrap();
         
-        let mut daily_spending: DailySpending = e.storage().persistent().get(&DataKey::DailySpending(today))
+        let mut daily_spending: DailySpending = env.storage().persistent().get(&DataKey::DailySpending(today))
             .unwrap_or(DailySpending {
                 date: today,
                 spent: 0,
                 limit: config.daily_spending_limit,
             });
         
-        daily_spending.spent += transaction.amount;
-        e.storage().persistent().set(&DataKey::DailySpending(today), &daily_spending);
+        daily_spending.spent = daily_spending.spent.checked_add(transaction.amount).expect("Spending overflow");
+        env.storage().persistent().set(&DataKey::DailySpending(today), &daily_spending);
     }
 
     fn get_today_timestamp(e: &Env) -> u64 {
-        let current_time = e.ledger().timestamp();
+        let current_time = env.ledger().timestamp();
         (current_time / 86400) * 86400 // Round down to start of day
     }
 
@@ -662,9 +683,9 @@ impl MultisigWalletContract {
         data.push_back(amount.into_val(e));
         data.push_back(proposer.to_val());
         data.push_back(nonce.into_val(e));
-        data.push_back(e.ledger().timestamp().to_val());
+        data.push_back(env.ledger().timestamp().to_val());
         
-        e.crypto().sha256(&data.to_bytes())
+        env.crypto().sha256(&data.to_bytes())
     }
 
     fn generate_batch_id(e: &Env, transactions: &Vec<BytesN<32>>, proposer: &Address, nonce: u64) -> BytesN<32> {
@@ -672,12 +693,12 @@ impl MultisigWalletContract {
         data.push_back(transactions.len().into_val(e));
         data.push_back(proposer.to_val());
         data.push_back(nonce.into_val(e));
-        data.push_back(e.ledger().timestamp().to_val());
+        data.push_back(env.ledger().timestamp().to_val());
         
         for tx_id in transactions.iter() {
             data.push_back(tx_id.to_val());
         }
         
-        e.crypto().sha256(&data.to_bytes())
+        env.crypto().sha256(&data.to_bytes())
     }
 }

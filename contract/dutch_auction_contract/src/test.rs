@@ -582,3 +582,14 @@ fn test_end_auction() {
     let active_auctions = DutchAuctionContract::get_active_auctions(env.clone());
     assert!(!active_auctions.contains(&auction_id));
 }
+#[test]
+#[should_panic(expected = "Arithmetic overflow")]
+fn test_overflow_protection() {
+    // Test a case that would overflow without checked math
+    // initial_price * e^(-decay_constant * time_elapsed / 100000)
+    // In our implementation:
+    // decay_factor = initial_price * decay_constant / 100000
+    // decay_numerator = decay_factor * time_elapsed
+    // If we use i128::MAX and large decay/time, it will overflow.
+    DutchAuctionContract::calculate_price(i128::MAX, 1, u32::MAX, u64::MAX);
+}

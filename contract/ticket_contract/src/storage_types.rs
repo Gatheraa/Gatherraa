@@ -22,6 +22,16 @@ pub enum DataKey {
     AntiSnipingConfig(Symbol),
     UpgradeTimelock,
     Version,
+    // Multi-source entropy keys
+    EntropyProvider(Address),
+    EntropySeed(Address, Symbol), // Seed from provider for specific tier
+    EntropyProviders(Symbol), // List of providers for a tier
+    VRFPublicKey, // Public key for verifying off-chain VRF proofs
+    VRFProof(Symbol), // Latest verified VRF proof for a tier
+    ContractConfig, // Proxy contract configuration
+    TokenName,
+    TokenSymbol,
+    TokenURI,
 }
 
 #[contracttype]
@@ -119,4 +129,35 @@ pub struct VRFState {
     pub randomness_hash: Bytes,
     pub batch_nonce: u32,
     pub finalization_ledger: u32,
+}
+#[soroban_sdk::contracterror]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u32)]
+pub enum TicketError {
+    AlreadyInitialized = 1,
+    Unauthorized = 2,
+    TierNotFound = 3,
+    TierAlreadyExists = 4,
+    TierSoldOut = 5,
+    TierNotActive = 6,
+    InsufficientBalance = 7,
+    InvalidAmount = 8,
+    RefundWindowClosed = 9,
+    TicketInvalid = 10,
+    NotTicketOwner = 11,
+    UpgradeNotScheduled = 12,
+    UpgradeHashMismatch = 13,
+    TimelockNotExpired = 14,
+    InvalidVersion = 15,
+    ArithmeticError = 16,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TicketContractConfig {
+    pub admin: Address,
+    pub pricing_contract: Address,
+    pub allocation_contract: Address,
+    pub vrf_contract: Address,
+    pub commitment_contract: Address,
 }

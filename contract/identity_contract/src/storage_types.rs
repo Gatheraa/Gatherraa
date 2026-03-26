@@ -35,6 +35,7 @@ pub enum DataKey {
     Delegation(String, Address),              // Delegation - delegations for a DID
     Revocation(String, u32),                  // Revocation - revoked claims
     EventAttendance(String, String),          // u64 - event attendance timestamps
+    Role(Symbol, Address),                    // Role management
 }
 
 #[derive(Clone)]

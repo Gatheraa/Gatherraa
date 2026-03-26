@@ -13,6 +13,10 @@ use soroban_sdk::{
 #[contract]
 pub struct EventFactoryContract;
 
+const ADMIN_ROLE: Symbol = symbol_short!("ADMIN");
+const MOD_ROLE: Symbol = symbol_short!("MOD");
+const PAUSER_ROLE: Symbol = symbol_short!("PAUSER");
+
 #[contractimpl]
 impl EventFactoryContract {
     pub fn initialize(e: Env, admin: Address, event_wasm_hash: BytesN<32>) -> Result<(), EventFactoryError> {
@@ -32,6 +36,9 @@ impl EventFactoryContract {
     pub fn pause(e: Env) -> Result<(), EventFactoryError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, PAUSER_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &true);
         Ok(())
     }
@@ -39,16 +46,27 @@ impl EventFactoryContract {
     pub fn unpause(e: Env) -> Result<(), EventFactoryError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin.clone()) && !Self::has_role(&e, PAUSER_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage().instance().set(&DataKey::Paused, &false);
         Ok(())
     }
 
-    pub fn update_wasm_hash(e: Env, new_wasm_hash: BytesN<32>) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn update_wasm_hash(e: Env, admin: Address, new_wasm_hash: BytesN<32>) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
         e.storage()
             .instance()
             .set(&DataKey::EventWasmHash, &new_wasm_hash);
+
+        // Emit event
+        e.events().publish(
+            (Symbol::new(&e, "wasm_hash_updated"), admin),
+            new_wasm_hash,
+        );
     }
 
     pub fn create_event(
@@ -74,9 +92,10 @@ impl EventFactoryContract {
             .instance()
             .get(&symbol_short!("nonce"))
             .unwrap_or(0);
+        let next_nonce = counter.checked_add(1).expect("Nonce overflow");
         e.storage()
             .instance()
-            .set(&symbol_short!("nonce"), &(counter + 1));
+            .set(&symbol_short!("nonce"), &next_nonce);
 
         let mut salt_bytes = [0u8; 32];
         let counter_bytes = counter.to_be_bytes();
@@ -91,7 +110,7 @@ impl EventFactoryContract {
 
         // Max length for symbol_short is 9, initialize is 10.
         // Use soroban_sdk::Symbol::new(&e, "initialize")
-        e.invoke_contract::<()>(
+        match e.try_invoke_contract::<()>(
             &event_contract_id,
             &soroban_sdk::Symbol::new(&e, "initialize"),
             vec![
@@ -103,7 +122,15 @@ impl EventFactoryContract {
                 start_time.into_val(&e),
                 refund_cutoff_time.into_val(&e),
             ],
-        );
+        ) {
+            Ok(Ok(())) => {
+                e.events().publish((symbol_short!("contract_init_success"), event_contract_id.clone()), true);
+            },
+            _ => {
+                e.events().publish((symbol_short!("contract_init_failed"), event_contract_id.clone()), true);
+                panic!("failed to initialize event contract");
+            }
+        }
 
         let key = DataKey::OrganizerEvents(organizer.clone());
         let mut events: Vec<Address> = e
@@ -163,6 +190,9 @@ impl EventFactoryContract {
     pub fn schedule_upgrade(e: Env, new_wasm_hash: BytesN<32>, unlock_time: u64) -> Result<(), EventFactoryError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         if e.ledger().timestamp() >= unlock_time {
             return Err(EventFactoryError::InvalidUnlockTime);
@@ -184,6 +214,9 @@ impl EventFactoryContract {
     pub fn cancel_upgrade(e: Env) -> Result<(), EventFactoryError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         e.storage().instance().remove(&DataKey::UpgradeTimelock);
         e.events()
@@ -195,6 +228,9 @@ impl EventFactoryContract {
     pub fn execute_upgrade(e: Env, new_wasm_hash: BytesN<32>) -> Result<(), EventFactoryError> {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).ok_or(EventFactoryError::NotInitialized)?;
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         let (scheduled_hash, unlock_time): (BytesN<32>, u64) = e
             .storage()
@@ -222,9 +258,11 @@ impl EventFactoryContract {
     }
 
     // Execute a state migration after an upgrade.
-    pub fn migrate_state(e: Env, new_version: u32) {
-        let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
+    pub fn migrate_state(e: Env, admin: Address, new_version: u32) {
         admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
 
         let current_version: u32 = e.storage().instance().get(&DataKey::Version).unwrap_or(1);
         if new_version <= current_version {
@@ -243,5 +281,29 @@ impl EventFactoryContract {
     // Get current contract version
     pub fn version(e: Env) -> u32 {
         e.storage().instance().get(&DataKey::Version).unwrap_or(1)
+    }
+
+    // --- ROLE MANAGEMENT ---
+    pub fn grant_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().set(&key, &true);
+    }
+
+    pub fn revoke_role(e: Env, admin: Address, role: Symbol, address: Address) {
+        admin.require_auth();
+        if !Self::has_role(&e, ADMIN_ROLE, admin) {
+            panic!("not authorized");
+        }
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().remove(&key);
+    }
+
+    pub fn has_role(e: &Env, role: Symbol, address: Address) -> bool {
+        let key = DataKey::Role(role, address);
+        e.storage().persistent().has(&key)
     }
 }

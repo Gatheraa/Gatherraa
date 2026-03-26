@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    "contracts",
+    "escrow_contract",
+    "dutch_auction_contract",
+    "cross_contract_contract", 
+    "multisig_wallet_contract",
+    "zk_ticket_contract",
+    "event_factory_contract",
+    "governance_contract",
+    "identity_contract",
+    "subscription_contract",
+    "ticket_contract",
+    "whitelist_contract",
+    "feature_flag_contract",
+    "iteration_optimization_contract",
+    "storage_initialization_contract",
+    "storage_optimization_contract",
+    "vrf_contract",
+]
+
+[profile.release]
+opt-level = "z"
+debug = 0
+strip = "symbols"
+debug-assertions = false
+overflow-checks = true
+lto = true
+panic = "abort"
+codegen-units = 1

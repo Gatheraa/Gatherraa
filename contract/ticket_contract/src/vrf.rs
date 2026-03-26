@@ -1,7 +1,7 @@
 /// Verifiable Random Function (VRF) module for fair ticket allocation
 /// Implements cryptographic randomness using Soroban's native primitives
 /// for high-demand event ticket allocation with transparency and verifiability
-use soroban_sdk::{contracttype, Address, Bytes, Env, Symbol, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, Symbol, Vec};
 
 /// VRF Configuration parameters
 #[contracttype]
@@ -88,10 +88,10 @@ impl VRFEngine {
         combined.extend_from_array(&nonce_bytes).unwrap();
 
         // Generate output hash using SHA256
-        let output = soroban_sdk::crypto::sha256(&combined);
+        let output = e.crypto().sha256(&combined);
 
         // Create proof containing the input hash and ledger info
-        let input_hash = soroban_sdk::crypto::sha256(&input);
+        let input_hash = e.crypto().sha256(&input);
         let proof = VRFProof {
             output: output.clone(),
             proof: Self::generate_proof_bytes(e, &input, ledger_sequence, nonce),
@@ -100,6 +100,72 @@ impl VRFEngine {
         };
 
         (output, proof)
+    }
+
+    /// Verify an actual cryptographic VRF proof (Ed25519 Signature)
+    /// This allows a trusted off-chain provider to provide verifiable randomness
+    pub fn verify_signature_vrf(
+        e: &Env,
+        public_key: &BytesN<32>,
+        seed: &Bytes,
+        signature: &BytesN<64>,
+    ) -> bool {
+        // In a proper VRF, the signature is the proof.
+        // We verify that the signature is valid for the given seed and public key.
+        // If valid, the hash of the signature can be used as the random output.
+        match e.crypto().ed25519_verify(public_key, seed, signature) {
+            () => true,
+        }
+    }
+
+    /// Mix multiple entropy sources from different providers
+    pub fn mix_entropy_sources(e: &Env, sources: Vec<Bytes>) -> Bytes {
+        let mut combined = Vec::new(e);
+        
+        // Add ledger-native entropy first
+        combined.extend_from_array(&e.ledger().hash().to_array::<32>().unwrap_or([0u8; 32])).unwrap();
+        
+        for source in sources {
+            let hash = e.crypto().sha256(&source);
+            combined.extend_from_array(&hash.to_array::<32>().unwrap_or([0u8; 32])).unwrap();
+        }
+
+        e.crypto().sha256(&combined)
+    }
+
+    /// Validate randomness quality - check for minimum entropy length and non-zero values
+    pub fn validate_randomness_quality(e: &Env, values: &Vec<RandomnessOutput>) -> bool {
+        if values.is_empty() {
+            return false;
+        }
+
+        let mut all_zeros = true;
+        let mut total_set_bits: u32 = 0;
+        let mut seen = Vec::new(e);
+
+        for val in values.iter() {
+            if val.value != 0 {
+                all_zeros = false;
+            }
+            
+            // Hamming weight of the 128-bit value (basic bit-density check)
+            total_set_bits += val.value.count_ones();
+            
+            // Basic duplicate check (limited by gas/batch size) - first 50 values
+            if seen.len() < 50 {
+                if seen.contains(&val.value) {
+                    return false; // Found duplicate in sample
+                }
+                seen.push_back(val.value).unwrap();
+            }
+        }
+
+        // Must have at least one non-zero and reasonable average bit-density
+        // If we have 10 values, we expect ~640 set bits (average 64 per 128 bit value)
+        // A threshold of ~5% bit density (6 bits per value) is a reasonable safety floor
+        let min_set_bits = values.len() * 6;
+        
+        !all_zeros && total_set_bits >= min_set_bits
     }
 
     /// Generate batch randomness for multiple selections
@@ -160,7 +226,7 @@ impl VRFEngine {
         }
 
         // Verify input hash
-        let computed_input_hash = soroban_sdk::crypto::sha256(&original_input);
+        let computed_input_hash = e.crypto().sha256(&original_input);
         if computed_input_hash != proof.input_hash {
             return false;
         }
@@ -191,7 +257,7 @@ impl VRFEngine {
         proof_vec.extend_from_array(&nonce.to_le_bytes()).unwrap();
 
         // Hash to create proof
-        soroban_sdk::crypto::sha256(&proof_vec)
+        e.crypto().sha256(&proof_vec)
     }
 
     /// Compute hash of multiple random values for batch verification
@@ -210,7 +276,7 @@ impl VRFEngine {
                 .unwrap();
         }
 
-        soroban_sdk::crypto::sha256(&combined)
+        e.crypto().sha256(&combined)
     }
 
     /// Anti-sniping: Time-based lock to prevent last-second randomness observation

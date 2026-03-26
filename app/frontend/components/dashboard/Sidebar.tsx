@@ -129,14 +129,14 @@ export function Sidebar({
 
   return (
     <aside
-      className={`flex flex-col bg-surface border-r border-border-default transition-all duration-300 ease-out ${
+      className={`flex flex-col bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-zinc-800 transition-all duration-300 ease-out ${
         isExpanded ? 'w-64' : 'w-16'
       } ${className}`}
       aria-label="Sidebar"
       role="navigation"
     >
       {/* Header */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-border-default">
+      <div className="flex items-center justify-between h-16 px-4 border-b border-zinc-200 dark:border-zinc-800">
         <div
           className={`flex items-center gap-2 overflow-hidden transition-all duration-300 ${
             isExpanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
@@ -145,11 +145,11 @@ export function Sidebar({
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-sm">G</span>
           </div>
-          <span className="font-semibold text-text-primary whitespace-nowrap">Gatherraa</span>
+          <span className="font-semibold text-zinc-900 dark:text-zinc-50 whitespace-nowrap">Gatherraa</span>
         </div>
         <button
           onClick={toggleExpanded}
-          className={`p-1.5 rounded-md hover:bg-surface-elevated transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+          className={`p-1.5 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
             !isExpanded ? 'mx-auto' : ''
           }`}
           aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -169,12 +169,12 @@ export function Sidebar({
           <div key={section.id} className="mb-4">
             {/* Section Title */}
             {section.title && isExpanded && (
-              <h3 className="px-3 mb-2 text-xs font-semibold text-text-muted uppercase tracking-wider">
+              <h3 className="px-3 mb-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
                 {section.title}
               </h3>
             )}
             {!isExpanded && section.title && (
-              <div className="h-px mx-2 mb-2 bg-border-muted" />
+              <div className="h-px mx-2 mb-2 bg-zinc-200 dark:bg-zinc-800" />
             )}
 
             {/* Section Items */}
@@ -194,7 +194,7 @@ export function Sidebar({
                       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                         isActive
                           ? 'bg-primary text-white shadow-md'
-                          : 'text-text-secondary hover:bg-surface-elevated hover:text-text-primary'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:text-zinc-900 dark:hover:text-zinc-50'
                       } ${
                         isHovered && !isActive
                           ? 'transform scale-[1.02] translate-x-1'
@@ -256,12 +256,12 @@ export function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className={`p-4 border-t border-border-default transition-all duration-300 ${
+      <div className={`p-4 border-t border-zinc-200 dark:border-zinc-800 transition-all duration-300 ${
         isExpanded ? 'opacity-100' : 'opacity-0 pointer-events-none h-0 p-0 overflow-hidden'
       }`}>
-        <div className="p-3 rounded-lg bg-surface-elevated">
-          <p className="text-sm font-medium text-text-primary">Need help?</p>
-          <p className="text-xs text-text-muted mt-1">Check our documentation</p>
+        <div className="p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900">
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-50">Need help?</p>
+          <p className="text-xs text-zinc-500 mt-1">Check our documentation</p>
         </div>
       </div>
     </aside>
