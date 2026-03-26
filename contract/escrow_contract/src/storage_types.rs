@@ -111,32 +111,57 @@ pub struct RevenueSplitConfig {
 }
 
 // Custom errors
+/// Standard error set for the Escrow Contract ecosystem.
 #[soroban_sdk::contracterror]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum EscrowError {
-    AlreadyInitialized = 1,
-    NotInitialized = 2,
-    Unauthorized = 3,
-    InsufficientBalance = 4,
-    InvalidAmount = 5,
-    InvalidToken = 6,
-    EscrowNotFound = 7,
-    InvalidStatus = 8,
-    DisputeActive = 9,
-    NoDispute = 10,
-    DisputeTimeout = 11,
-    InvalidPercentage = 12,
-    InvalidMilestone = 13,
-    MilestoneAlreadyReleased = 14,
-    InvalidTime = 15,
-    ContractPaused = 16,
-    TransferFailed = 17,
-    InvalidAddress = 18,
-    AmountTooLow = 19,
-    AmountTooHigh = 20,
-    ReferralNotFound = 21,
-    DuplicateReferral = 22,
-    EmergencyWithdrawalNotAvailable = 23,
-    ArithmeticError = 24,
+    /// Contract is already initialized.
+    AlreadyInitialized = 600,
+    /// Contract is not yet initialized.
+    NotInitialized = 601,
+    /// Caller is not authorized for this operation.
+    Unauthorized = 602,
+    /// Insufficient account balance for the transaction.
+    InsufficientBalance = 603,
+    /// Provided amount is invalid (e.g., negative).
+    InvalidAmount = 604,
+    /// Provided token address is invalid or not a contract.
+    InvalidToken = 605,
+    /// Escrow record not found in storage.
+    EscrowNotFound = 606,
+    /// Escrow status does not allow the requested operation.
+    InvalidStatus = 607,
+    /// An active dispute prevents the requested operation.
+    DisputeActive = 608,
+    /// No active dispute found for the given escrow.
+    NoDispute = 609,
+    /// The dispute resolution timeout has not yet expired.
+    DisputeTimeout = 610,
+    /// Provided percentage value is invalid (e.g., exceeds 100%).
+    InvalidPercentage = 611,
+    /// Specified milestone does not exist.
+    InvalidMilestone = 612,
+    /// Milestone has already been successfully released.
+    MilestoneAlreadyReleased = 613,
+    /// Provided time parameter is invalid.
+    InvalidTime = 614,
+    /// Contract is currently paused by admin.
+    ContractPaused = 615,
+    /// External token transfer operation failed.
+    TransferFailed = 616,
+    /// Provided address is invalid.
+    InvalidAddress = 617,
+    /// Amount is below the minimum required threshold.
+    AmountTooLow = 618,
+    /// Amount exceeds the maximum allowed threshold.
+    AmountTooHigh = 619,
+    /// Referral record not found.
+    ReferralNotFound = 620,
+    /// Referral has already been recorded for this user/escrow.
+    DuplicateReferral = 621,
+    /// Emergency withdrawal delay has not yet passed.
+    EmergencyWithdrawalNotAvailable = 622,
+    /// Internal arithmetic operation resulted in overflow/underflow.
+    ArithmeticError = 623,
 }

@@ -2,6 +2,7 @@ use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, BytesN, 
 
 use crate::storage::{StorageCache, *};
 use crate::types::{Config, DataKey, Tier, UserInfo};
+use crate::error::StakingError;
 use gathera_common::{
     validate_address, validate_token_address,
     set_reentrancy_guard, remove_reentrancy_guard,
@@ -24,10 +25,10 @@ impl StakingContract {
         staking_token: Address,
         reward_token: Address,
         reward_rate: i128,
-    ) {
+    ) -> Result<(), StakingError> {
         // Prevent re-initialization
         if env.storage().instance().has(&crate::types::DataKey::Config) {
-            panic!("already initialized");
+            return Err(StakingError::AlreadyInitialized);
         }
 
         // Validate addresses
@@ -46,7 +47,7 @@ impl StakingContract {
         env.storage().instance().set(&DataKey::Version, &1u32);
 
         // Grant initial admin role
-        write_role(&env, ADMIN_ROLE, admin);
+        write_role(&env, ADMIN_ROLE, admin.clone());
 
         extend_instance(&env);
 
@@ -55,12 +56,13 @@ impl StakingContract {
             (Symbol::new(&env, "initialized"), admin),
             (staking_token, reward_token, reward_rate),
         );
+        Ok(())
     }
 
-    pub fn set_tier(env: Env, admin: Address, tier_id: u32, min_amount: i128, reward_multiplier: u32) {
+    pub fn set_tier(env: Env, admin: Address, tier_id: u32, min_amount: i128, reward_multiplier: u32) -> Result<(), StakingError> {
         admin.require_auth();
         if !has_role(&env, ADMIN_ROLE, admin) {
-            panic!("not authorized");
+            return Err(StakingError::Unauthorized);
         }
 
         let tier = Tier {
@@ -75,16 +77,17 @@ impl StakingContract {
             (Symbol::new(&env, "tier_set"), tier_id),
             (min_amount, reward_multiplier),
         );
+        Ok(())
     }
 
-    pub fn stake(env: Env, user: Address, amount: i128, lock_duration: u64, tier_id: u32) {
+    pub fn stake(env: Env, user: Address, amount: i128, lock_duration: u64, tier_id: u32) -> Result<(), StakingError> {
         // Reentrancy protection
         set_reentrancy_guard(&env);
 
         user.require_auth();
         if amount <= 0 {
             remove_reentrancy_guard(&env);
-            panic!("amount must be > 0");
+            return Err(StakingError::AmountMustBePositive);
         }
 
         update_reward(&env, Some(&user));
@@ -110,7 +113,7 @@ impl StakingContract {
             _ => {
                 remove_reentrancy_guard(&env);
                 env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
-                panic!("token transfer failed");
+                return Err(StakingError::InsufficientBalance);
             }
         }
 
@@ -130,7 +133,7 @@ impl StakingContract {
         // Verify tier (using cached tier)
         if user_info.amount < tier.min_amount {
             remove_reentrancy_guard(&env);
-            panic!("insufficient amount for tier");
+            return Err(StakingError::InsufficientAmountForTier);
         }
 
         // Boosting for long-term stakers: extra multiplier based on duration
@@ -163,9 +166,10 @@ impl StakingContract {
             (Symbol::new(&env, "staked"), user),
             (amount, lock_duration, tier_id),
         );
+        Ok(())
     }
 
-    pub fn claim(env: Env, user: Address, compound: bool) {
+    pub fn claim(env: Env, user: Address, compound: bool) -> Result<(), StakingError> {
         // Reentrancy protection
         set_reentrancy_guard(&env);
 
@@ -176,7 +180,7 @@ impl StakingContract {
         let config = read_config(&env);
         let mut total_shares = read_total_shares(&env);
 
-        let mut user_info = read_user_info(&env, &user).expect("user not found");
+        let mut user_info = read_user_info(&env, &user).ok_or(StakingError::UserNotFound)?;
         let reward = user_info.rewards;
 
         if reward > 0 {
@@ -187,14 +191,12 @@ impl StakingContract {
 
             if compound {
                 // To compound, we would stake the reward. But reward token and staking token might differ.
-                // Assuming they are the same for compounding to work seamlessly, or they trade them if we had a dex.
                 if config.staking_token != config.reward_token {
                     remove_reentrancy_guard(&env);
-                    panic!("cannot compound: reward token differs from staking token");
+                    return Err(StakingError::RewardTokenDiffers);
                 }
 
                 // Keep the reward in contract, just update shares and total shares
-                // Cache tier read
                 let tier = read_tier(&env, user_info.tier_id).unwrap_or(Tier {
                     min_amount: 0,
                     reward_multiplier: 100,
@@ -220,7 +222,7 @@ impl StakingContract {
                     _ => {
                         remove_reentrancy_guard(&env);
                         env.events().publish((symbol_short!("claim_transfer_failed"),), reward);
-                        panic!("reward transfer failed");
+                        return Err(StakingError::InsufficientBalance);
                     }
                 }
             }
@@ -234,16 +236,17 @@ impl StakingContract {
             (Symbol::new(&env, "claimed"), user),
             (reward, if compound { 1u32 } else { 0u32 }),
         );
+        Ok(())
     }
 
-    pub fn unstake(env: Env, user: Address, amount: i128) {
+    pub fn unstake(env: Env, user: Address, amount: i128) -> Result<(), StakingError> {
         // Reentrancy protection
         set_reentrancy_guard(&env);
 
         user.require_auth();
         if amount <= 0 {
             remove_reentrancy_guard(&env);
-            panic!("amount must be > 0");
+            return Err(StakingError::AmountMustBePositive);
         }
 
         update_reward(&env, Some(&user));
@@ -252,10 +255,10 @@ impl StakingContract {
         let config = read_config(&env);
         let mut total_shares = read_total_shares(&env);
 
-        let mut user_info = read_user_info(&env, &user).expect("user not found");
+        let mut user_info = read_user_info(&env, &user).ok_or(StakingError::UserNotFound)?;
         if user_info.amount < amount {
             remove_reentrancy_guard(&env);
-            panic!("insufficient balance");
+            return Err(StakingError::InsufficientBalance);
         }
 
         let mut actual_amount = amount;
@@ -266,7 +269,6 @@ impl StakingContract {
             // Apply 20% penalty
             let penalty = (amount * 20) / 100;
             actual_amount = amount - penalty;
-            // Penalty remains in contract or burned, here we just don't send it to the user.
         }
 
         user_info.amount -= amount;
@@ -306,7 +308,7 @@ impl StakingContract {
             _ => {
                 remove_reentrancy_guard(&env);
                 env.events().publish((symbol_short!("unstake_transfer_failed"),), actual_amount);
-                panic!("unstake transfer failed");
+                return Err(StakingError::InsufficientBalance);
             }
         }
 
@@ -318,12 +320,13 @@ impl StakingContract {
             (Symbol::new(&env, "unstaked"), user),
             (amount, actual_amount),
         );
+        Ok(())
     }
 
-    pub fn slash(env: Env, admin: Address, user: Address, amount: i128) {
+    pub fn slash(env: Env, admin: Address, user: Address, amount: i128) -> Result<(), StakingError> {
         admin.require_auth();
         if !has_role(&env, ADMIN_ROLE, admin) {
-            panic!("not authorized");
+            return Err(StakingError::Unauthorized);
         }
 
         update_reward(&env, Some(&user));
@@ -331,14 +334,13 @@ impl StakingContract {
         // Cache frequently accessed storage values
         let mut total_shares = read_total_shares(&env);
 
-        let mut user_info = read_user_info(&env, &user).expect("user not found");
+        let mut user_info = read_user_info(&env, &user).ok_or(StakingError::UserNotFound)?;
         if user_info.amount < amount {
-            panic!("slash amount exceeds balance");
+            return Err(StakingError::SlashingAmountExceedsBalance);
         }
 
         user_info.amount -= amount;
 
-        // Cache tier reads to avoid redundant storage access
         let tier = read_tier(&env, user_info.tier_id).unwrap_or(Tier {
             min_amount: 0,
             reward_multiplier: 100,
@@ -364,7 +366,6 @@ impl StakingContract {
         total_shares -= diff_shares;
         write_total_shares(&env, total_shares);
 
-        // Slashed tokens stay in contract or could be burned.
         extend_instance(&env);
 
         // Emit event
@@ -372,16 +373,16 @@ impl StakingContract {
             (Symbol::new(&env, "slashed"), user),
             amount,
         );
+        Ok(())
     }
 
-    pub fn emergency_withdraw(env: Env, user: Address) {
+    pub fn emergency_withdraw(env: Env, user: Address) -> Result<(), StakingError> {
         user.require_auth();
 
-        // Skips reward update! Just get funds out minus 20% penalty.
-        let user_info = read_user_info(&env, &user).expect("user not found");
+        let user_info = read_user_info(&env, &user).ok_or(StakingError::UserNotFound)?;
         let amount = user_info.amount;
         if amount == 0 {
-            panic!("no balance");
+            return Err(StakingError::InsufficientBalance);
         }
 
         let penalty = (amount * 20) / 100;
@@ -413,42 +414,39 @@ impl StakingContract {
             (Symbol::new(&env, "emergency_withdrawn"), user),
             (amount, actual_amount),
         );
+        Ok(())
     }
 
-    // Schedule an upgrade with a timelock (e.g., 24 hours).
-    pub fn schedule_upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>, unlock_time: u64) {
+    pub fn schedule_upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>, unlock_time: u64) -> Result<(), StakingError> {
         admin.require_auth();
         schedule_upgrade(&env, new_wasm_hash, unlock_time);
+        Ok(())
     }
 
-    // Cancel a scheduled upgrade. (Rollback mechanism before execution)
-    pub fn cancel_upgrade(env: Env, admin: Address) {
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), StakingError> {
         admin.require_auth();
         env.storage().instance().remove(&DataKey::UpgradeTimelock);
         env.events()
             .publish((Symbol::new(&env, "UpgradeCancelled"),), ());
+        Ok(())
     }
 
-    // Execute the scheduled upgrade.
-    pub fn execute_upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) {
+    pub fn execute_upgrade(env: Env, admin: Address, new_wasm_hash: BytesN<32>) -> Result<(), StakingError> {
         admin.require_auth();
         execute_upgrade(&env, new_wasm_hash);
+        Ok(())
     }
 
-    // Execute a state migration after an upgrade.
-    pub fn migrate_state(env: Env, admin: Address, new_version: u32) {
+    pub fn migrate_state(env: Env, admin: Address, new_version: u32) -> Result<(), StakingError> {
         admin.require_auth();
         if !has_role(&env, ADMIN_ROLE, admin) {
-            panic!("not authorized");
+            return Err(StakingError::Unauthorized);
         }
 
         let current_version: u32 = env.storage().instance().get(&DataKey::Version).unwrap_or(1);
         if new_version <= current_version {
-            panic!("new_version must be > current_version");
+            return Err(StakingError::NewVersionMustBeGreater);
         }
-
-        // State migration logic goes here...
-        // e.g., if current_version < 2 { migrate_v1_to_v2(&env); }
 
         env.storage()
             .instance()
@@ -458,26 +456,29 @@ impl StakingContract {
             (current_version, new_version),
         );
         extend_instance(&env);
+        Ok(())
     }
 
     pub fn version(env: Env) -> u32 {
         read_version(&env)
     }
 
-    pub fn grant_role(env: Env, admin: Address, role: Symbol, address: Address) {
+    pub fn grant_role(env: Env, admin: Address, role: Symbol, address: Address) -> Result<(), StakingError> {
         admin.require_auth();
         if !has_role(&env, ADMIN_ROLE, admin) {
-            panic!("not authorized");
+            return Err(StakingError::Unauthorized);
         }
         write_role(&env, role, address);
+        Ok(())
     }
 
-    pub fn revoke_role(env: Env, admin: Address, role: Symbol, address: Address) {
+    pub fn revoke_role(env: Env, admin: Address, role: Symbol, address: Address) -> Result<(), StakingError> {
         admin.require_auth();
         if !has_role(&env, ADMIN_ROLE, admin) {
-            panic!("not authorized");
+            return Err(StakingError::Unauthorized);
         }
         remove_role(&env, role, address);
+        Ok(())
     }
 
     pub fn has_role(env: Env, role: Symbol, address: Address) -> bool {

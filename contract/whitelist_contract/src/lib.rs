@@ -3,23 +3,26 @@ use gathera_common::{validate_address, validate_token_address};
 
 mod merkle;
 mod storage;
+mod error;
 
 #[cfg(test)]
 mod test;
 
 use crate::storage::{Campaign, DataKey};
+use crate::error::WhitelistError;
 
 #[contract]
 pub struct WhitelistContract;
 
 #[contractimpl]
 impl WhitelistContract {
-    pub fn init(env: Env, admin: Address) {
+    pub fn init(env: Env, admin: Address) -> Result<(), WhitelistError> {
         if env.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(WhitelistError::AlreadyInitialized);
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::CampaignCount, &0u32);
+        Ok(())
     }
 
     pub fn create_campaign(
@@ -29,13 +32,13 @@ impl WhitelistContract {
         root: BytesN<32>,
         deadline: u64,
         total_amount: i128,
-    ) -> u32 {
+    ) -> Result<u32, WhitelistError> {
         admin.require_auth();
         validate_address(&env, &admin);
         validate_token_address(&env, &token);
         
         let mut count: u32 = env.storage().instance().get(&DataKey::CampaignCount).unwrap_or(0);
-        count = count.checked_add(1).expect("Campaign count overflow");
+        count = count.checked_add(1).ok_or(WhitelistError::ArithmeticOverflow)?;
         
         let campaign = Campaign {
             admin,
@@ -55,27 +58,29 @@ impl WhitelistContract {
         env.storage().persistent().set(&DataKey::Campaign(count), &campaign);
         env.storage().instance().set(&DataKey::CampaignCount, &count);
         
-        count
+        Ok(count)
     }
 
-    pub fn update_root(env: Env, campaign_id: u32, new_root: BytesN<32>) {
-        let mut campaign: Campaign = env.storage().persistent().get(&DataKey::Campaign(campaign_id)).expect("campaign not found");
+    pub fn update_root(env: Env, campaign_id: u32, new_root: BytesN<32>) -> Result<(), WhitelistError> {
+        let mut campaign: Campaign = env.storage().persistent().get(&DataKey::Campaign(campaign_id)).ok_or(WhitelistError::CampaignNotFound)?;
         campaign.admin.require_auth();
         
         campaign.root = new_root;
         env.storage().persistent().set(&DataKey::Campaign(campaign_id), &campaign);
+        Ok(())
     }
 
-    pub fn batch_update_roots(env: Env, campaign_ids: Vec<u32>, new_roots: Vec<BytesN<32>>) {
+    pub fn batch_update_roots(env: Env, campaign_ids: Vec<u32>, new_roots: Vec<BytesN<32>>) -> Result<(), WhitelistError> {
         if campaign_ids.len() != new_roots.len() {
-            panic!("mismatched lengths");
+            return Err(WhitelistError::MismatchedLengths);
         }
 
         for i in 0..campaign_ids.len() {
             let id = campaign_ids.get(i).unwrap();
             let root = new_roots.get(i).unwrap();
-            Self::update_root(env.clone(), id, root);
+            Self::update_root(env.clone(), id, root)?;
         }
+        Ok(())
     }
 
     pub fn delegate_claim(env: Env, campaign_id: u32, delegator: Address, delegatee: Address) {
@@ -90,7 +95,7 @@ impl WhitelistContract {
         amount: i128,
         proof: Vec<BytesN<32>>,
         recipient: Option<Address>,
-    ) {
+    ) -> Result<(), WhitelistError> {
         claimant.require_auth();
         Self::internal_claim(env, campaign_id, claimant, amount, proof, recipient)
     }
@@ -103,15 +108,15 @@ impl WhitelistContract {
         amount: i128,
         proof: Vec<BytesN<32>>,
         recipient: Option<Address>,
-    ) {
+    ) -> Result<(), WhitelistError> {
         delegatee.require_auth();
         
         let stored_delegatee: Address = env.storage().persistent()
             .get(&DataKey::Delegate(campaign_id, delegator.clone()))
-            .expect("no delegation found for this claimant");
+            .ok_or(WhitelistError::NoDelegationFound)?;
             
         if stored_delegatee != delegatee {
-            panic!("unauthorized delegate");
+            return Err(WhitelistError::UnauthorizedDelegate);
         }
 
         Self::internal_claim(env, campaign_id, delegator, amount, proof, recipient)
@@ -124,29 +129,29 @@ impl WhitelistContract {
         amount: i128,
         proof: Vec<BytesN<32>>,
         recipient: Option<Address>,
-    ) {
-        let mut campaign: Campaign = env.storage().persistent().get(&DataKey::Campaign(campaign_id)).expect("campaign not found");
+    ) -> Result<(), WhitelistError> {
+        let mut campaign: Campaign = env.storage().persistent().get(&DataKey::Campaign(campaign_id)).ok_or(WhitelistError::CampaignNotFound)?;
         
         if !campaign.is_active {
-            panic!("campaign inactive");
+            return Err(WhitelistError::CampaignInactive);
         }
         if env.ledger().timestamp() > campaign.deadline {
-            panic!("campaign expired");
+            return Err(WhitelistError::CampaignExpired);
         }
         if env.storage().persistent().has(&DataKey::Claimed(campaign_id, claimant.clone())) {
-            panic!("already claimed");
+            return Err(WhitelistError::AlreadyClaimed);
         }
 
         // Verify Merkle Proof
         let leaf = Self::hash_leaf(&env, &claimant, amount);
         if !merkle::verify(&env, campaign.root.clone(), leaf, proof) {
-            panic!("invalid proof");
+            return Err(WhitelistError::InvalidProof);
         }
 
         // Update state
-        campaign.claimed_amount = campaign.claimed_amount.checked_add(amount).expect("Arithmetic overflow");
+        campaign.claimed_amount = campaign.claimed_amount.checked_add(amount).ok_or(WhitelistError::ArithmeticOverflow)?;
         if campaign.claimed_amount > campaign.total_amount {
-            panic!("insufficient funds in campaign");
+            return Err(WhitelistError::InsufficientFundsInCampaign);
         }
 
         env.storage().persistent().set(&DataKey::Claimed(campaign_id, claimant.clone()), &true);
@@ -156,17 +161,18 @@ impl WhitelistContract {
         let destination = recipient.unwrap_or(claimant.clone());
         let token_client = token::Client::new(&env, &campaign.token);
         token_client.transfer(&env.current_contract_address(), &destination, &amount);
+        Ok(())
     }
 
-    pub fn refund(env: Env, campaign_id: u32) {
-        let mut campaign: Campaign = env.storage().persistent().get(&DataKey::Campaign(campaign_id)).expect("campaign not found");
+    pub fn refund(env: Env, campaign_id: u32) -> Result<(), WhitelistError> {
+        let mut campaign: Campaign = env.storage().persistent().get(&DataKey::Campaign(campaign_id)).ok_or(WhitelistError::CampaignNotFound)?;
         campaign.admin.require_auth();
 
         if env.ledger().timestamp() <= campaign.deadline {
-            panic!("campaign not yet finished");
+            return Err(WhitelistError::CampaignNotYetFinished);
         }
         if campaign.refunded {
-            panic!("already refunded");
+            return Err(WhitelistError::AlreadyRefunded);
         }
 
         let remaining = campaign.total_amount.checked_sub(campaign.claimed_amount).expect("Arithmetic overflow");
@@ -178,6 +184,7 @@ impl WhitelistContract {
         campaign.refunded = true;
         campaign.is_active = false;
         env.storage().persistent().set(&DataKey::Campaign(campaign_id), &campaign);
+        Ok(())
     }
 
     pub fn get_campaign(env: Env, campaign_id: u32) -> Campaign {

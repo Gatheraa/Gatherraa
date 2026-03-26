@@ -112,40 +112,71 @@ pub struct NonceManager {
     pub used_nonces: Map<Address, u64>,
 }
 
-// Custom errors
+/// Standard error set for the Multisig Wallet Contract ecosystem.
 #[soroban_sdk::contracterror]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum MultisigError {
-    AlreadyInitialized = 1,
-    NotInitialized = 2,
-    Unauthorized = 3,
-    InvalidSignature = 4,
-    InsufficientSignatures = 5,
-    InvalidSigner = 6,
-    SignerNotActive = 7,
-    InvalidAmount = 8,
-    InsufficientBalance = 9,
-    TransactionNotFound = 10,
-    InvalidTransaction = 11,
-    TransactionExpired = 12,
-    TransactionAlreadyExecuted = 13,
-    DailySpendingLimitExceeded = 14,
-    TimelockNotExpired = 15,
-    BatchSizeExceeded = 16,
-    InvalidBatch = 17,
-    WalletFrozen = 18,
-    InvalidRole = 19,
-    DuplicateSigner = 20,
-    InvalidMOfN = 21,
-    InvalidThreshold = 22,
-    NonceUsed = 23,
-    InvalidNonce = 24,
-    TransferFailed = 25,
-    ContractPaused = 26,
-    InvalidAddress = 27,
-    InvalidToken = 28,
-    InvalidData = 29,
-    EmergencyFreezeActive = 30,
-    ArithmeticError = 31,
+    /// Contract is already initialized.
+    AlreadyInitialized = 400,
+    /// Contract is not yet initialized.
+    NotInitialized = 401,
+    /// Caller is not authorized for this operation.
+    Unauthorized = 402,
+    /// Provided signature is invalid.
+    InvalidSignature = 403,
+    /// Number of signatures is below the required threshold (m).
+    InsufficientSignatures = 404,
+    /// Signer address provided is not registered or valid.
+    InvalidSigner = 405,
+    /// Specified signer is currently inactive.
+    SignerNotActive = 406,
+    /// Provided amount parameter is invalid.
+    InvalidAmount = 407,
+    /// Wallet has insufficient balance for the transaction.
+    InsufficientBalance = 408,
+    /// Specified transaction ID was not found.
+    TransactionNotFound = 409,
+    /// Transaction parameters or status are invalid for this operation.
+    InvalidTransaction = 410,
+    /// Transaction has passed its mandatory expiry time.
+    TransactionExpired = 411,
+    /// Transaction has already been executed.
+    TransactionAlreadyExecuted = 412,
+    /// Operation would exceed the wallet's daily spending limit.
+    DailySpendingLimitExceeded = 413,
+    /// Timelock for this transaction has not yet expired.
+    TimelockNotExpired = 414,
+    /// Number of transactions in the batch exceeds the maximum allowed.
+    BatchSizeExceeded = 415,
+    /// Batch parameters or status are invalid.
+    InvalidBatch = 416,
+    /// Wallet is currently frozen by admin.
+    WalletFrozen = 417,
+    /// Specified role is invalid or not applicable.
+    InvalidRole = 418,
+    /// Signer address already exists in the wallet.
+    DuplicateSigner = 419,
+    /// Provided M-of-N configuration is invalid (e.g., m > n).
+    InvalidMOfN = 420,
+    /// Provided threshold value is invalid.
+    InvalidThreshold = 421,
+    /// Nonce has already been used.
+    NonceUsed = 422,
+    /// Provided nonce is invalid (e.g., lower than expected).
+    InvalidNonce = 423,
+    /// External token transfer operation failed.
+    TransferFailed = 424,
+    /// Contract is currently paused by admin.
+    ContractPaused = 425,
+    /// Provided address parameter is invalid.
+    InvalidAddress = 426,
+    /// Provided token address is invalid.
+    InvalidToken = 427,
+    /// Provided transaction data is invalid or malformed.
+    InvalidData = 428,
+    /// Operation is blocked because emergency freeze is currently active.
+    EmergencyFreezeActive = 429,
+    /// Internal arithmetic operation resulted in overflow/underflow.
+    ArithmeticError = 430,
 }

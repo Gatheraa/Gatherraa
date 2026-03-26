@@ -91,41 +91,73 @@ pub struct CommitReveal {
     pub revealed: bool,
 }
 
-// Custom errors
+/// Standard error set for the Dutch Auction Contract ecosystem.
 #[soroban_sdk::contracterror]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum DutchAuctionError {
-    AlreadyInitialized = 1,
-    NotInitialized = 2,
-    Unauthorized = 3,
-    AuctionNotFound = 4,
-    InvalidAuction = 5,
-    AuctionNotActive = 6,
-    AuctionEnded = 7,
-    InvalidAmount = 8,
-    InsufficientBalance = 9,
-    BelowReservePrice = 10,
-    BelowFloorPrice = 11,
-    InvalidBid = 12,
-    BidTooLow = 13,
-    RateLimitExceeded = 14,
-    InvalidCommitment = 15,
-    CommitmentNotFound = 16,
-    RevealTimeout = 17,
-    AlreadyRevealed = 18,
-    InvalidReveal = 19,
-    NoTicketsAvailable = 20,
-    RefundFailed = 21,
-    TransferFailed = 22,
-    ContractPaused = 23,
-    InvalidTime = 24,
-    InvalidDecayConstant = 25,
-    ConcurrentAuctionLimit = 26,
-    FrontRunningDetected = 27,
-    InvalidTicketIds = 28,
-    DuplicateBid = 29,
-    AuctionCancelled = 30,
-    ExtensionNotApplicable = 31,
-    ArithmeticError = 32,
+    /// Contract is already initialized.
+    AlreadyInitialized = 500,
+    /// Contract is not yet initialized.
+    NotInitialized = 501,
+    /// Caller is not authorized for this operation.
+    Unauthorized = 502,
+    /// Auction record not found in storage.
+    AuctionNotFound = 503,
+    /// Provided auction parameters are invalid.
+    InvalidAuction = 504,
+    /// Auction is not currently in the active status.
+    AuctionNotActive = 505,
+    /// Auction has already concluded.
+    AuctionEnded = 506,
+    /// Provided amount is invalid.
+    InvalidAmount = 507,
+    /// Insufficient account balance for bid/purchase.
+    InsufficientBalance = 508,
+    /// Bid is below the auction's mandatory reserve price.
+    BelowReservePrice = 509,
+    /// Bid is below the currently calculated floor price.
+    BelowFloorPrice = 510,
+    /// Provided bid parameter is invalid.
+    InvalidBid = 511,
+    /// Provided bid does not meet the minimum bid increment requirement.
+    BidTooLow = 512,
+    /// Rate limit for bidding has been exceeded.
+    RateLimitExceeded = 513,
+    /// Commit-reveal commitment is invalid or incorrectly formatted.
+    InvalidCommitment = 514,
+    /// Commitment for reveal was not found.
+    CommitmentNotFound = 515,
+    /// Reveal window has expired.
+    RevealTimeout = 516,
+    /// Bid has already been revealed.
+    AlreadyRevealed = 517,
+    /// Provided reveal parameters do not match the original commitment.
+    InvalidReveal = 518,
+    /// No tickets remain available for purchase.
+    NoTicketsAvailable = 519,
+    /// Automatic refund of unsuccessful bid failed.
+    RefundFailed = 520,
+    /// External token transfer operation failed.
+    TransferFailed = 521,
+    /// Contract is currenty paused by admin.
+    ContractPaused = 522,
+    /// Provided time parameter is invalid.
+    InvalidTime = 523,
+    /// Exponential decay constant is out of valid range.
+    InvalidDecayConstant = 524,
+    /// System-wide limit for concurrent auctions reached.
+    ConcurrentAuctionLimit = 525,
+    /// Potential front-run attempt detected by matching engine.
+    FrontRunningDetected = 526,
+    /// Provided ticket IDs are invalid or already taken.
+    InvalidTicketIds = 527,
+    /// Duplicate bid from the same account detected.
+    DuplicateBid = 528,
+    /// Auction has been cancelled by organizer/admin.
+    AuctionCancelled = 529,
+    /// Requested auction extension is not valid/applicable.
+    ExtensionNotApplicable = 530,
+    /// Internal arithmetic operation resulted in overflow/underflow.
+    ArithmeticError = 531,
 }
