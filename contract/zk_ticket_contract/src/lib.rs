@@ -1,4 +1,9 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -18,76 +23,76 @@ pub struct ZKTicketContract;
 #[contractimpl]
 impl ZKTicketContract {
     // Initialize the contract
-    pub fn initialize(e: Env, admin: Address, circuit_params: CircuitParameters) {
-        if e.storage().instance().has(&DataKey::Admin) {
+    pub fn initialize(env: Env, admin: Address, circuit_params: CircuitParameters) {
+        if env.storage().instance().has(&DataKey::Admin) {
             panic!("already initialized");
         }
 
         // Validate circuit parameters
         Self::validate_circuit_params(&circuit_params);
 
-        e.storage().instance().set(&DataKey::Admin, &admin);
-        e.storage().instance().set(&DataKey::CircuitParams, &circuit_params);
-        e.storage().instance().set(&DataKey::Paused, &false);
-        e.storage().instance().set(&DataKey::Version, &1u32);
+        env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::CircuitParams, &circuit_params);
+        env.storage().instance().set(&DataKey::Paused, &false);
+        env.storage().instance().set(&DataKey::Version, &1u32);
         
         // Initialize revocation list
         let revocation_list = RevocationList {
-            revoked_commitments: Vec::new(&e),
-            revoked_nullifiers: Vec::new(&e),
-            last_updated: e.ledger().timestamp(),
+            revoked_commitments: Vec::new(&env),
+            revoked_nullifiers: Vec::new(&env),
+            last_updated: env.ledger().timestamp(),
         };
-        e.storage().instance().set(&DataKey::RevocationList, &revocation_list);
+        env.storage().instance().set(&DataKey::RevocationList, &revocation_list);
     }
 
     // Create ticket commitment (off-chain preparation)
     pub fn create_ticket_commitment(
-        e: Env,
+        env: Env,
         event_id: Address,
         ticket_hash: BytesN<32>,
         attributes: Vec<ZKAttribute>,
         nullifier: BytesN<32>,
-    ) -> BytesN<32> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<BytesN<32>, ZKTicketError> {
+        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap();
         if paused {
             panic!("contract is paused");
         }
 
         // Validate attributes
-        Self::validate_attributes(&e, &attributes)?;
+        Self::validate_attributes(&env, &attributes)?;
 
         // Calculate commitment
-        let commitment = Self::calculate_commitment(&e, &ticket_hash, &attributes, &nullifier);
+        let commitment = Self::calculate_commitment(&env, &ticket_hash, &attributes, &nullifier);
 
         let ticket_commitment = TicketCommitment {
             commitment: commitment.clone(),
             event_id: event_id.clone(),
             ticket_hash,
-            created_at: e.ledger().timestamp(),
+            created_at: env.ledger().timestamp(),
             nullifier: nullifier.clone(),
-            attributes_hash: Self::calculate_attributes_hash(&e, &attributes),
+            attributes_hash: Self::calculate_attributes_hash(&env, &attributes),
             active: true,
         };
 
         // Store commitment
-        e.storage().instance().set(&DataKey::TicketCommitment(commitment.clone()), &ticket_commitment);
+        env.storage().instance().set(&DataKey::TicketCommitment(commitment.clone()), &ticket_commitment);
 
         // Update event commitments
         let event_key = DataKey::EventCommitments(event_id.clone());
-        let mut event_commits: EventCommitments = e.storage().persistent().get(&event_key)
+        let mut event_commits: EventCommitments = env.storage().persistent().get(&event_key)
             .unwrap_or(EventCommitments {
                 event_id: event_id.clone(),
-                commitments: Vec::new(&e),
+                commitments: Vec::new(&env),
                 total_tickets: 0,
                 active_tickets: 0,
-                created_at: e.ledger().timestamp(),
-                circuit_params: Self::get_circuit_params(e.clone()),
+                created_at: env.ledger().timestamp(),
+                circuit_params: Self::get_circuit_params(env.clone()),
             });
 
         event_commits.commitments.push_back(commitment.clone());
         event_commits.total_tickets = event_commits.total_tickets.checked_add(1).expect("Total tickets overflow");
         event_commits.active_tickets = event_commits.active_tickets.checked_add(1).expect("Active tickets overflow");
-        e.storage().persistent().set(&event_key, &event_commits);
+        env.storage().persistent().set(&event_key, &event_commits);
 
         // Store nullifier info
         let nullifier_info = NullifierInfo {
@@ -96,20 +101,20 @@ impl ZKTicketContract {
             used_at: None,
             proof_id: None,
         };
-        e.storage().instance().set(&DataKey::Nullifier(nullifier.clone()), &nullifier_info);
+        env.storage().instance().set(&DataKey::Nullifier(nullifier.clone()), &nullifier_info);
 
         #[allow(deprecated)]
-        e.events().publish(
+        env.events().publish(
             (symbol_short!("commitment_created"), commitment.clone()),
             (event_id, ticket_hash),
         );
 
-        commitment
+        Ok(commitment)
     }
 
     // Submit and verify ZK proof
     pub fn submit_proof(
-        e: Env,
+        env: Env,
         proof_id: BytesN<32>,
         ticket_commitment: BytesN<32>,
         nullifier: BytesN<32>,
@@ -118,14 +123,14 @@ impl ZKTicketContract {
         attributes: Vec<ZKAttribute>,
         proof_data: Vec<u8>,
         expires_at: u64,
-    ) -> bool {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<bool, ZKTicketError> {
+        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
             panic!("contract is paused");
         }
 
         // Validate commitment exists and is active
-        let commitment: TicketCommitment = e.storage().instance().get(&DataKey::TicketCommitment(ticket_commitment.clone()))
+        let commitment: TicketCommitment = env.storage().instance().get(&DataKey::TicketCommitment(ticket_commitment.clone()))
             .unwrap_or_else(|| panic!("commitment not found"));
 
         if !commitment.active {
@@ -137,7 +142,7 @@ impl ZKTicketContract {
         }
 
         // Check nullifier not used
-        let nullifier_info: NullifierInfo = e.storage().instance().get(&DataKey::Nullifier(nullifier.clone()))
+        let nullifier_info: NullifierInfo = env.storage().instance().get(&DataKey::Nullifier(nullifier.clone()))
             .unwrap_or_else(|| panic!("nullifier not found"));
 
         if nullifier_info.used {
@@ -145,18 +150,18 @@ impl ZKTicketContract {
         }
 
         // Validate proof expiration
-        if e.ledger().timestamp() > expires_at {
+        if env.ledger().timestamp() > expires_at {
             panic!("proof expired");
         }
 
         // Check revocation list
-        let revocation_list: RevocationList = e.storage().instance().get(&DataKey::RevocationList).unwrap();
+        let revocation_list: RevocationList = env.storage().instance().get(&DataKey::RevocationList).unwrap();
         if revocation_list.revoked_commitments.contains(&ticket_commitment) {
             panic!("ticket revoked");
         }
 
         // Verify ZK proof
-        let verification_hash = Self::verify_zk_proof(&e, &proof_data, &attributes, &commitment)?;
+        let verification_hash = Self::verify_zk_proof(&env, &proof_data, &attributes, &commitment)?;
         
         // Create ZK proof record
         let zk_proof = ZKProof {
@@ -168,39 +173,39 @@ impl ZKTicketContract {
             attributes: attributes.clone(),
             proof_data: proof_data.clone(),
             verification_hash,
-            created_at: e.ledger().timestamp(),
-            verified_at: Some(e.ledger().timestamp()),
+            created_at: env.ledger().timestamp(),
+            verified_at: Some(env.ledger().timestamp()),
             expires_at,
             revoked: false,
             batch_id: None,
         };
 
         // Store proof
-        e.storage().instance().set(&DataKey::ZKProof(proof_id.clone()), &zk_proof);
+        env.storage().instance().set(&DataKey::ZKProof(proof_id.clone()), &zk_proof);
 
         // Mark nullifier as used
         let mut updated_nullifier = nullifier_info;
         updated_nullifier.used = true;
-        updated_nullifier.used_at = Some(e.ledger().timestamp());
+        updated_nullifier.used_at = Some(env.ledger().timestamp());
         updated_nullifier.proof_id = Some(proof_id.clone());
-        e.storage().instance().set(&DataKey::Nullifier(nullifier.clone()), &updated_nullifier);
+        env.storage().instance().set(&DataKey::Nullifier(nullifier.clone()), &updated_nullifier);
 
         // Add to user's proofs
         let user_key = DataKey::UserProofs(owner.clone());
-        let mut user_proofs: Vec<BytesN<32>> = e.storage().persistent().get(&user_key).unwrap_or(Vec::new(&e));
+        let mut user_proofs: Vec<BytesN<32>> = env.storage().persistent().get(&user_key).unwrap_or(Vec::new(&env));
         user_proofs.push_back(proof_id.clone());
-        e.storage().persistent().set(&user_key, &user_proofs);
+        env.storage().persistent().set(&user_key, &user_proofs);
 
         // Cache verification result
-        Self::cache_verification_result(&e, &proof_id, true);
+        Self::cache_verification_result(&env, &proof_id, true);
 
         #[allow(deprecated)]
-        e.events().publish(
+        env.events().publish(
             (symbol_short!("proof_verified"), proof_id.clone()),
             (event_id, owner),
         );
 
-        true
+        Ok(true)
     }
 
     // Batch verification for event entry
@@ -243,37 +248,41 @@ impl ZKTicketContract {
 
     // Mobile-friendly proof verification
     pub fn verify_mobile_proof(
-        e: Env,
+        env: Env,
         mobile_device_id: BytesN<32>,
         proof_template: Vec<u8>,
         proof_data: Vec<u8>,
         expires_at: u64,
-    ) -> bool {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+    ) -> Result<bool, ZKTicketError> {
+        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap();
         if paused {
             panic!("contract is paused");
         }
 
         // Validate expiration
-        if e.ledger().timestamp() > expires_at {
+        if env.ledger().timestamp() > expires_at {
             panic!("proof expired");
         }
 
         // Verify mobile proof (simplified verification for mobile devices)
-        let verification_result = Self::verify_mobile_proof_internal(&e, &proof_template, &proof_data)?;
+        let verification_result = Self::verify_mobile_proof_internal(&env, &proof_template, &proof_data)?;
 
         // Update mobile proof data
-        let mobile_data = MobileProofData {
-            mobile_device_id: mobile_device_id.clone(),
-            proof_template: proof_template.clone(),
-            last_used: e.ledger().timestamp(),
-            usage_count: (mobile_data.usage_count).checked_add(1).expect("Usage count overflow"),
-        };
+        let mut mobile_data: MobileProofData = env.storage().temporary().get(&mobile_device_id)
+            .unwrap_or(MobileProofData {
+                mobile_device_id: mobile_device_id.clone(),
+                proof_template: proof_template.clone(),
+                last_used: 0,
+                usage_count: 0,
+            });
+
+        mobile_data.last_used = env.ledger().timestamp();
+        mobile_data.usage_count = mobile_data.usage_count.checked_add(1).expect("Usage count overflow");
 
         // Store mobile data (could be persistent or temporary)
-        e.storage().temporary().set(&mobile_device_id, &mobile_data, 300); // 5 minutes TTL
+        env.storage().temporary().set(&mobile_device_id, &mobile_data, 300); // 5 minutes TTL
 
-        verification_result
+        Ok(verification_result)
     }
 
     // Selective disclosure - reveal specific attributes
@@ -522,29 +531,37 @@ impl ZKTicketContract {
         hash != BytesN::from_array(e, &[0; 32])
     }
 
-    fn verify_single_proof(e: &Env, proof_id: &BytesN<32>) -> bool {
-        let proof: ZKProof = e.storage().instance().get(&DataKey::ZKProof(proof_id.clone()))
-            .unwrap_or_else(|| false);
+    fn verify_single_proof(env: &Env, proof_id: &BytesN<32>) -> bool {
+        let proof_opt: Option<ZKProof> = env.storage().instance().get(&DataKey::ZKProof(proof_id.clone()));
+        if proof_opt.is_none() {
+            return false;
+        }
+        let proof = proof_opt.unwrap();
 
-        if proof.revoked || e.ledger().timestamp() > proof.expires_at {
+        if proof.revoked || env.ledger().timestamp() > proof.expires_at {
             return false;
         }
 
         // Check verification cache
-        let cache_key = Self::generate_cache_key(e, proof_id);
-        if let Some(cached) = e.storage().instance().get(&DataKey::VerificationCache) {
-            let elapsed = e.ledger().timestamp().checked_sub(cached.timestamp).expect("Time error");
-            if cached.cache_key == cache_key && elapsed < 300 { // 5 minute cache
-                return cached.result;
+        let cache_key = Self::generate_cache_key(env, proof_id);
+        if let Some(cached) = env.storage().instance().get(&DataKey::VerificationCache) {
+            let cache_typed: VerificationCache = cached;
+            let elapsed = env.ledger().timestamp().checked_sub(cache_typed.timestamp).expect("Time error");
+            if cache_typed.cache_key == cache_key && elapsed < 300 { // 5 minute cache
+                return cache_typed.result;
             }
         }
 
         // Perform verification
-        let verification_result = Self::verify_zk_proof(e, &proof.proof_data, &proof.attributes, 
-                                                      &e.storage().instance().get(&DataKey::TicketCommitment(proof.ticket_commitment.clone())).unwrap()).is_ok();
+        let commitment_opt: Option<TicketCommitment> = env.storage().instance().get(&DataKey::TicketCommitment(proof.ticket_commitment.clone()));
+        if commitment_opt.is_none() {
+            return false;
+        }
+
+        let verification_result = Self::verify_zk_proof(env, &proof.proof_data, &proof.attributes, &commitment_opt.unwrap()).is_ok();
 
         // Cache result
-        Self::cache_verification_result(e, proof_id, verification_result);
+        Self::cache_verification_result(env, proof_id, verification_result);
 
         verification_result
     }

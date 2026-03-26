@@ -1,3 +1,10 @@
+#![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
+
 use soroban_sdk::{contract, contractimpl, token, Address, BytesN, Env, Vec, IntoVal, xdr::ToXdr, Bytes};
 use gathera_common::{validate_address, validate_token_address};
 
@@ -109,7 +116,7 @@ impl WhitelistContract {
         proof: Vec<BytesN<32>>,
         recipient: Option<Address>,
     ) -> Result<(), WhitelistError> {
-        delegatee.require_auth();
+        delegateenv.require_auth();
         
         let stored_delegatee: Address = env.storage().persistent()
             .get(&DataKey::Delegate(campaign_id, delegator.clone()))
