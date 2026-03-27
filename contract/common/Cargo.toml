@@ -2,10 +2,10 @@
 name = "gathera-common"
 version = "0.1.0"
 edition = "2021"
-description = "Common utilities and shared logic for Gathera smart contracts"
+description = "Common utilities and types for Gatheraa platform contracts"
 
 [lib]
-crate-type = ["rlib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "23.5.2"

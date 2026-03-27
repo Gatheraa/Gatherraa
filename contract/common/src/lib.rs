@@ -8,14 +8,19 @@
 
 pub mod access;
 pub mod error;
+pub mod interfaces;
 pub mod reentrancy;
 pub mod storage;
 pub mod types;
 pub mod upgrade;
 pub mod validation;
 
+// Export traits
+pub use crate::traits::*;
+
 pub use access::*;
 pub use error::*;
+pub use interfaces::*;
 pub use reentrancy::*;
 pub use storage::*;
 pub use types::*;
