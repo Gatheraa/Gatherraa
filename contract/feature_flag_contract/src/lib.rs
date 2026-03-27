@@ -1,4 +1,10 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -9,11 +15,23 @@ use storage_types::{DataKey, FeatureFlag, Environment, SegmentRule, Condition, C
                    RolloutStrategy, AnalyticsData, EnvironmentConfig, KillSwitch, FeatureFlagError};
 
 use soroban_sdk::{
-    contract, contractimpl, symbol_short, vec, map, Address, BytesN, Env, IntoVal, String, Symbol, Vec, Map, U256,
+    contract, contractimpl, symbol_short, map, Address, Env, String, Symbol, Vec, Map,
 };
 
 #[contract]
 pub struct FeatureFlagContract;
+
+// ─── Feature Flag Constants ──────────────────────────────────────────────────────
+
+/// TTL (in ledgers) for temporary analytics data storage.
+/// At a 1-second ledger close, this corresponds to 1 hour of retention.
+const ANALYTICS_TTL_LEDGERS: u32 = 3_600;
+/// Number of seconds in one day, used for time-based rollout calculations.
+const SECONDS_PER_DAY: u64 = 86_400;
+/// Maximum valid rollout percentage (exclusive upper bound = 100%).
+const MAX_ROLLOUT_PERCENTAGE: u32 = 100;
+/// Modulus used to map a hash value to a rollout percentage bucket [0, 100).
+const ROLLOUT_HASH_MODULUS: u32 = 100;
 
 #[contractimpl]
 impl FeatureFlagContract {
@@ -194,7 +212,7 @@ impl FeatureFlagContract {
         let mut cumulative = 0u32;
         for (variant_id, allocation) in test.traffic_allocation.iter() {
             cumulative += allocation;
-            if hash_value % 100 < cumulative {
+            if hash_value % ROLLOUT_HASH_MODULUS < cumulative {
                 return Some(variant_id);
             }
         }
@@ -422,8 +440,8 @@ impl FeatureFlagContract {
         }
     }
 
-    fn validate_flag_inputs(key: &Symbol, rollout_percentage: u32, environment: &Environment) -> Result<(), FeatureFlagError> {
-        if rollout_percentage > 100 {
+    fn validate_flag_inputs(_key: &Symbol, rollout_percentage: u32, _environment: &Environment) -> Result<(), FeatureFlagError> {
+        if rollout_percentage > MAX_ROLLOUT_PERCENTAGE {
             return Err(FeatureFlagError::InvalidPercentage);
         }
 
@@ -432,8 +450,8 @@ impl FeatureFlagContract {
     }
 
     fn validate_ab_test_inputs(
-        id: &Symbol,
-        feature_flag: &Symbol,
+        _id: &Symbol,
+        _feature_flag: &Symbol,
         variants: &Vec<TestVariant>,
         traffic_allocation: &Map<Symbol, u32>,
         start_time: u64,
@@ -447,9 +465,9 @@ impl FeatureFlagContract {
             return Err(FeatureFlagError::InvalidTimeRange);
         }
 
-        // Validate traffic allocation sums to 100
+        // Validate traffic allocation sums to 100%
         let total: u32 = traffic_allocation.iter().map(|(_, allocation)| allocation).sum();
-        if total != 100 {
+        if total != MAX_ROLLOUT_PERCENTAGE {
             return Err(FeatureFlagError::InvalidTrafficAllocation);
         }
 
@@ -457,18 +475,18 @@ impl FeatureFlagContract {
     }
 
     fn validate_percentage(percentage: u32) -> Result<(), FeatureFlagError> {
-        if percentage > 100 {
+        if percentage > MAX_ROLLOUT_PERCENTAGE {
             return Err(FeatureFlagError::InvalidPercentage);
         }
         Ok(())
     }
 
-    fn update_environment_flag_list(e: &Env, environment: &Environment, flag_key: &Symbol) {
+    fn update_environment_flag_list(_e: &Env, _environment: &Environment, _flag_key: &Symbol) {
         // Update environment config to include new flag
         // This would require more complex implementation in practice
     }
 
-    fn evaluate_gradual_rollout(e: &Env, flag: &FeatureFlag, user: &Address, context: &Map<Symbol, soroban_sdk::Val>) -> bool {
+    fn evaluate_gradual_rollout(e: &Env, flag: &FeatureFlag, user: &Address, _context: &Map<Symbol, soroban_sdk::Val>) -> bool {
         // Simple hash-based rollout
         let user_hash = e.crypto().sha256(&user.to_val().to_bytes());
         let hash_value = u32::from_le_bytes([
@@ -478,7 +496,7 @@ impl FeatureFlagContract {
             user_hash.as_bytes()[3],
         ]);
 
-        hash_value % 100 < flag.rollout_percentage
+        hash_value % ROLLOUT_HASH_MODULUS < flag.rollout_percentage
     }
 
     fn evaluate_segmented_rollout(e: &Env, flag: &FeatureFlag, user_segment: &UserSegment) -> bool {
@@ -491,12 +509,12 @@ impl FeatureFlagContract {
         false
     }
 
-    fn evaluate_time_based_rollout(e: &Env, flag: &FeatureFlag, context: &Map<Symbol, soroban_sdk::Val>) -> bool {
+    fn evaluate_time_based_rollout(e: &Env, flag: &FeatureFlag, _context: &Map<Symbol, soroban_sdk::Val>) -> bool {
         // Time-based evaluation logic
         let current_time = e.ledger().timestamp();
         
         // Simple time-based rollout (could be more sophisticated)
-        let time_factor = (current_time % 86400) * 100 / 86400; // Percentage through the day
+        let time_factor = (current_time % SECONDS_PER_DAY) * ROLLOUT_HASH_MODULUS as u64 / SECONDS_PER_DAY; // Percentage through the day
         time_factor <= flag.rollout_percentage
     }
 
@@ -510,7 +528,7 @@ impl FeatureFlagContract {
             user_hash.as_bytes()[3],
         ]);
 
-        hash_value % 100 < flag.rollout_percentage
+        hash_value % ROLLOUT_HASH_MODULUS < flag.rollout_percentage
     }
 
     fn record_analytics(
@@ -533,6 +551,6 @@ impl FeatureFlagContract {
         };
 
         // Store analytics data (in practice, this might use a different storage strategy)
-        e.storage().temporary().set(&symbol_short!("analytics"), &analytics, 3600); // 1 hour TTL
+        e.storage().temporary().set(&symbol_short!("analytics"), &analytics, ANALYTICS_TTL_LEDGERS); // 1 hour TTL
     }
 }

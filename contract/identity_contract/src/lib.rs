@@ -1,4 +1,10 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -7,7 +13,7 @@ mod storage_types;
 use storage_types::{DataKey, DIDDocument, Claim, Credential, Delegation, Revocation};
 
 use soroban_sdk::{
-    contract, contractimpl, symbol_short, vec, Address, Bytes, BytesN, Env, String, Symbol, Vec, crypto,
+    contract, contractimpl, symbol_short, Address, Bytes, BytesN, Env, String, Symbol, Vec,
 };
 
 #[contract]
@@ -492,7 +498,7 @@ fn generate_did(e: &Env, address: &Address) -> String {
 
 fn hex_encode(bytes: &BytesN<32>) -> String {
     // Simplified hex encoding - in practice use proper hex encoding
-    let mut result = String::from_str(&bytes.env(), "0x");
+    let result = String::from_str(bytes.env(), "0x");
     // This is a placeholder - real implementation would convert bytes to hex string
     result
 }
@@ -502,11 +508,10 @@ fn get_did_document(e: &Env, did: &String) -> DIDDocument {
         .unwrap_or_else(|| panic!("DID not found"))
 }
 
-fn get_delegations(e: &Env, did: &String) -> Vec<Delegation> {
-    let mut delegations = Vec::new(&e.env());
+fn get_delegations(_e: &Env, _did: &String) -> Vec<Delegation> {
     // In practice, you'd iterate through storage to find all delegations for a DID
-    // This is a simplified approach
-    delegations
+    // This is a simplified approach - requires full implementation
+    panic!("delegation list not yet implemented")
 }
 
 fn check_delegation(e: &Env, did: &String, delegate: &Address, permission: &String) -> bool {
@@ -534,7 +539,7 @@ fn check_delegation(e: &Env, did: &String, delegate: &Address, permission: &Stri
     panic!("Permission not granted in delegation");
 }
 
-fn verify_oracle_signature(e: &Env, did: &String, claim_id: u32, signature: &Bytes) -> bool {
+fn verify_oracle_signature(_e: &Env, _did: &String, _claim_id: u32, _signature: &Bytes) -> bool {
     // Simplified oracle signature verification
     // In practice, this would verify the signature against the oracle's public key
     // and check that it contains the correct DID and claim_id

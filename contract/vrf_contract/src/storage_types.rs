@@ -1,4 +1,7 @@
 use soroban_sdk::{Address, BytesN, Env, Symbol, Vec, Map, U256};
+use gathera_common::types::{
+    Timestamp, DurationSeconds, ReputationScore, ProviderWeight, TokenAmount,
+};
 
 #[derive(Clone)]
 pub enum DataKey {
@@ -20,8 +23,8 @@ pub struct VRFRequest {
     pub requester: Address,
     pub seed: BytesN<32>,
     pub additional_data: Vec<u8>,
-    pub created_at: u64,
-    pub fulfilled_at: Option<u64>,
+    pub created_at: Timestamp,
+    pub fulfilled_at: Option<Timestamp>,
     pub status: VRFStatus,
     pub proof: Option<VRFProof>,
     pub randomness_output: Option<BytesN<32>>,
@@ -46,7 +49,7 @@ pub struct VRFProof {
     pub s: BytesN<32>,
     pub verification_hash: BytesN<32>,
     pub provider: Address,
-    pub created_at: u64,
+    pub created_at: Timestamp,
 }
 
 #[derive(Clone)]
@@ -54,13 +57,14 @@ pub struct EntropyProvider {
     pub address: Address,
     pub provider_type: ProviderType,
     pub public_key: BytesN<32>,
-    pub reputation_score: u32,
+    pub reputation_score: ReputationScore,
     pub success_count: u32,
     pub failure_count: u32,
-    pub last_used: u64,
+    pub last_used: Timestamp,
     pub active: bool,
-    pub weight: u32,
-    pub fee: i128,
+    pub weight: ProviderWeight,
+    /// Fee charged per VRF request in the smallest token unit.
+    pub fee: TokenAmount,
 }
 
 #[derive(Clone, PartialEq)]
@@ -76,7 +80,7 @@ pub struct RandomnessSeed {
     pub current_seed: BytesN<32>,
     pub previous_seed: BytesN<32>,
     pub block_number: u64,
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
     pub entropy_sources: Vec<EntropySource>,
     pub quality_score: f32,
 }
@@ -85,8 +89,8 @@ pub struct RandomnessSeed {
 pub struct EntropySource {
     pub source_type: SourceType,
     pub value: BytesN<32>,
-    pub weight: u32,
-    pub timestamp: u64,
+    pub weight: ProviderWeight,
+    pub timestamp: Timestamp,
     pub reliability: f32,
 }
 
@@ -108,7 +112,7 @@ pub struct RandomnessValidation {
     pub test_results: Vec<TestResult>,
     pub overall_score: f32,
     pub passed: bool,
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
     pub validator: Address,
 }
 
@@ -124,10 +128,10 @@ pub struct TestResult {
 pub struct QualityMetrics {
     pub total_requests: u32,
     pub successful_requests: u32,
-    pub average_response_time: u64,
+    pub average_response_time: DurationSeconds,
     pub randomness_quality_score: f32,
     pub provider_diversity: f32,
-    pub last_updated: u64,
+    pub last_updated: Timestamp,
 }
 
 #[derive(Clone)]
@@ -135,9 +139,9 @@ pub struct ProviderStats {
     pub provider: Address,
     pub total_requests: u32,
     pub successful_requests: u32,
-    pub average_response_time: u64,
-    pub reputation_history: Vec<u32>,
-    pub last_updated: u64,
+    pub average_response_time: DurationSeconds,
+    pub reputation_history: Vec<ReputationScore>,
+    pub last_updated: Timestamp,
 }
 
 // Custom errors

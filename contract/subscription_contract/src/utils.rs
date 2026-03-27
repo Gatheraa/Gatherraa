@@ -1,13 +1,16 @@
 use soroban_sdk::Env;
 
+/// Number of seconds in one day.
+pub const SECONDS_PER_DAY: u64 = 86_400;
+
 /// Convert days to seconds
 pub fn days_to_seconds(days: u32) -> u64 {
-    days as u64 * 86400
+    days as u64 * SECONDS_PER_DAY
 }
 
 /// Convert seconds to days
 pub fn seconds_to_days(seconds: u64) -> u32 {
-    (seconds / 86400) as u32
+    (seconds / SECONDS_PER_DAY) as u32
 }
 
 /// Get current timestamp

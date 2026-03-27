@@ -8,6 +8,9 @@ import { UpdateIntegrationDto } from '../dto/update-integration.dto';
 import { IntegrationAnalyticsService } from './integration-analytics.service';
 import { IntegrationSecurityService } from './integration-security.service';
 
+// Import time utilities with tolerance
+import { timeService, TIME_TOLERANCE } from '../../common/validators';
+
 @Injectable()
 export class IntegrationService {
   private readonly logger = new Logger(IntegrationService.name);
@@ -202,9 +205,12 @@ export class IntegrationService {
     try {
       const syncResult = await this.performDataSync(integration);
 
-      // Update sync timestamps
-      integration.lastSyncAt = new Date();
-      integration.nextSyncAt = new Date(Date.now() + integration.syncInterval * 60 * 1000);
+      // Update sync timestamps with tolerance
+      const syncTimestamp = await timeService.getCurrentTime();
+      const tolerance = TIME_TOLERANCE.CACHE_INVALIDATION_TOLERANCE;
+      
+      integration.lastSyncAt = new Date(syncTimestamp);
+      integration.nextSyncAt = new Date(syncTimestamp + integration.syncInterval * 60 * 1000);
       await this.integrationRepository.save(integration);
 
       await this.logIntegrationEvent(

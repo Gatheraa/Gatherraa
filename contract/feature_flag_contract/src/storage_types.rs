@@ -1,4 +1,5 @@
 use soroban_sdk::{Address, BytesN, Env, Symbol, Vec, Map, U256};
+use gathera_common::types::Timestamp;
 
 #[derive(Clone)]
 pub enum DataKey {
@@ -23,8 +24,8 @@ pub struct FeatureFlag {
     pub environment: Environment,
     pub segments: Vec<Symbol>,
     pub rules: Vec<SegmentRule>,
-    pub created_at: u64,
-    pub updated_at: u64,
+    pub created_at: Timestamp,
+    pub updated_at: Timestamp,
     pub created_by: Address,
     pub description: String,
     pub tags: Vec<Symbol>,
@@ -76,7 +77,7 @@ pub struct UserSegment {
     pub user: Address,
     pub segments: Vec<Symbol>,
     pub attributes: Map<Symbol, soroban_sdk::Val>,
-    pub last_updated: u64,
+    pub last_updated: Timestamp,
     pub version: u32,
 }
 
@@ -87,8 +88,8 @@ pub struct ABTest {
     pub feature_flag: Symbol,
     pub variants: Vec<TestVariant>,
     pub traffic_allocation: Map<Symbol, u32>,
-    pub start_time: u64,
-    pub end_time: u64,
+    pub start_time: Timestamp,
+    pub end_time: Timestamp,
     pub status: ABTestStatus,
     pub sample_size: u32,
     pub confidence_threshold: u32,
@@ -117,13 +118,13 @@ pub struct RolloutPlan {
     pub stages: Vec<RolloutStage>,
     pub current_stage: u32,
     pub auto_advance: bool,
-    pub created_at: u64,
+    pub created_at: Timestamp,
 }
 
 #[derive(Clone)]
 pub struct RolloutStage {
     pub percentage: u32,
-    pub duration: u64,
+    pub duration: Timestamp,
     pub criteria: Vec<Condition>,
     pub completed: bool,
 }
@@ -143,7 +144,7 @@ pub struct AnalyticsData {
     pub user: Address,
     pub evaluation: bool,
     pub variant: Option<Symbol>,
-    pub timestamp: u64,
+    pub timestamp: Timestamp,
     pub context: Map<Symbol, soroban_sdk::Val>,
     pub environment: Environment,
 }
@@ -161,10 +162,10 @@ pub struct KillSwitch {
     pub flag_key: Symbol,
     pub active: bool,
     pub triggered_by: Address,
-    pub triggered_at: u64,
+    pub triggered_at: Timestamp,
     pub reason: String,
     pub auto_recovery: bool,
-    pub recovery_time: Option<u64>,
+    pub recovery_time: Option<Timestamp>,
 }
 
 // Custom errors

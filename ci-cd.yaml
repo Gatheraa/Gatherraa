@@ -10,6 +10,77 @@ env:
   IMAGE_NAME: gatheraa/backend
 
 jobs:
+  contract-clippy:
+    name: Contract Clippy Lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Run Clippy on all contracts
+        working-directory: contract
+        run: |
+          cargo clippy \
+            --target wasm32-unknown-unknown \
+            --all-targets \
+            --all-features \
+            -- \
+            -D warnings \
+            -D clippy::all \
+            -D clippy::pedantic \
+            -W clippy::nursery \
+            -A clippy::module_name_repetitions \
+            -A clippy::too_many_arguments \
+            -A clippy::cast_possible_truncation
+
+      - name: Run Clippy on contract tests (native)
+        working-directory: contract
+        run: |
+          cargo clippy \
+            --tests \
+            --all-features \
+            -- \
+            -D warnings \
+            -D clippy::all \
+            -D clippy::pedantic \
+            -W clippy::nursery \
+            -A clippy::module_name_repetitions \
+            -A clippy::too_many_arguments \
+            -A clippy::cast_possible_truncation
+
+  contract-fmt:
+    name: Contract Rustfmt Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        working-directory: contract
+        run: cargo fmt --all -- --check
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -43,7 +114,7 @@ jobs:
 
   build-and-push:
     name: Build Docker Image
-    needs: [test, security]
+    needs: [test, security, contract-clippy, contract-fmt]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

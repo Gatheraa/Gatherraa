@@ -1,0 +1,24 @@
+# Clippy configuration for Gatherraa contracts
+# See: https://doc.rust-lang.org/clippy/configuration.html
+
+# Maximum allowed complexity for functions
+cognitive-complexity-threshold = 30
+
+# Maximum number of lines in a function body
+too-many-lines-threshold = 120
+
+# Maximum number of struct fields before triggering a warning
+max-struct-bools = 3
+
+# Minimum number of repeated chars to trigger the lint
+repeated-str-threshold = 3
+
+# Allow large error types since our error types carry context
+large-error-threshold = 256
+
+# Disallow panic! in non-test code (prefer returning Errors)
+# Note: Soroban contracts use panic! for contract errors, so this is set high
+disallowed-macros = []
+
+# Disallow specific methods to encourage better patterns
+disallowed-methods = []

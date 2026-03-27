@@ -11,6 +11,7 @@ soroban-sdk = "23.5.2"
 stellar-access = "0.6.0"
 stellar-macros = "0.6.0"
 stellar-tokens = "0.6.0"
+gathera-common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { version = "23.5.2", features = ["testutils"] }

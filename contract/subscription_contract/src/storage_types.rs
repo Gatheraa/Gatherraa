@@ -1,18 +1,21 @@
 use soroban_sdk::{contracttype, Address, String, Vec};
+use gathera_common::types::{
+    Timestamp, TokenAmount, Percentage, PlanId, SubscriptionId, GiftId, DurationDays,
+};
 
 #[derive(Clone)]
 #[contracttype]
 pub enum DataKey {
     Admin,
     TokenAddress,
-    SubscriptionPlan(u32),
+    SubscriptionPlan(PlanId),
     UserSubscription(Address),
     FamilyPlan(Address),
     GracePeriod,
     NextPlanId,
     NextSubscriptionId,
     PausedSubscription(Address),
-    GiftedSubscription(u64),
+    GiftedSubscription(GiftId),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -35,10 +38,11 @@ pub enum SubscriptionStatus {
 #[derive(Clone)]
 #[contracttype]
 pub struct SubscriptionPlan {
-    pub plan_id: u32,
+    pub plan_id: PlanId,
     pub tier: SubscriptionTier,
-    pub price: i128,
-    pub duration_days: u32,
+    /// Price in the smallest token unit.
+    pub price: TokenAmount,
+    pub duration_days: DurationDays,
     pub category_ids: Vec<u32>,
     pub max_family_members: u32,
     pub is_active: bool,
@@ -47,13 +51,13 @@ pub struct SubscriptionPlan {
 #[derive(Clone)]
 #[contracttype]
 pub struct UserSubscription {
-    pub subscription_id: u64,
+    pub subscription_id: SubscriptionId,
     pub user: Address,
-    pub plan_id: u32,
+    pub plan_id: PlanId,
     pub status: SubscriptionStatus,
-    pub start_date: u64,
-    pub end_date: u64,
-    pub last_payment_date: u64,
+    pub start_date: Timestamp,
+    pub end_date: Timestamp,
+    pub last_payment_date: Timestamp,
     pub auto_renew: bool,
     pub is_family_plan: bool,
     pub family_members: Vec<Address>,
@@ -62,19 +66,19 @@ pub struct UserSubscription {
 #[derive(Clone)]
 #[contracttype]
 pub struct PausedSubscriptionData {
-    pub paused_at: u64,
-    pub remaining_days: u32,
+    pub paused_at: Timestamp,
+    pub remaining_days: DurationDays,
 }
 
 #[derive(Clone)]
 #[contracttype]
 pub struct GiftSubscription {
-    pub gift_id: u64,
+    pub gift_id: GiftId,
     pub from: Address,
     pub to: Address,
-    pub plan_id: u32,
+    pub plan_id: PlanId,
     pub claimed: bool,
-    pub created_at: u64,
+    pub created_at: Timestamp,
 }
 #[soroban_sdk::contracterror]
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]

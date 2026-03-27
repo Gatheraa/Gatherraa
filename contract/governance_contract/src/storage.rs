@@ -1,4 +1,8 @@
 use soroban_sdk::{contracttype, Address, Vec, String};
+use gathera_common::types::{
+    Timestamp, LedgerSequence, TokenAmount, BasisPoints, Percentage,
+    ProposalId, CategoryId,
+};
 
 #[derive(Clone)]
 #[contracttype]
@@ -7,20 +11,23 @@ pub enum DataKey {
     Token,
     TimelockDuration,
     EmergencyAddress,
-    Proposal(u32),
+    Proposal(ProposalId),
     ProposalCount,
-    Vote(u32, Address), // (ProposalID, Voter)
+    Vote(ProposalId, Address), // (ProposalID, Voter)
     UserDelegation(Address), // User -> Delegatee
-    UserVotesRevoked(u32, Address),
-    CategorySettings(u32), // CategoryID -> CategorySettings
+    UserVotesRevoked(ProposalId, Address),
+    CategorySettings(CategoryId), // CategoryID -> CategorySettings
 }
 
 #[derive(Clone)]
 #[contracttype]
 pub struct CategorySettings {
-    pub quorum: i128,      // Minimum votes required for proposal to be valid
-    pub threshold: u32,   // Percentage of 'for' votes needed (e.g. 51, 66)
-    pub voting_period: u32, // Number of blocks/ledgers
+    /// Minimum token votes required for the proposal to be valid.
+    pub quorum: TokenAmount,
+    /// Percentage of 'for' votes needed to pass (e.g. 51, 66).
+    pub threshold: Percentage,
+    /// Voting duration in ledger sequences.
+    pub voting_period: LedgerSequence,
 }
 
 
@@ -28,7 +35,7 @@ pub struct CategorySettings {
 #[contracttype]
 pub enum GovernanceAction {
     Upgrade(String), // New WASM hash
-    FeeChange(u32),  // New fee in basis points
+    FeeChange(BasisPoints),  // New fee in basis points
     ParameterChange(String, u32), // Param name, new value
     EmergencyAction,
 }
@@ -58,17 +65,18 @@ pub enum ProposalStatus {
 #[derive(Clone)]
 #[contracttype]
 pub struct Proposal {
-    pub id: u32,
+    pub id: ProposalId,
     pub proposer: Address,
     pub action: GovernanceAction,
     pub category: ProposalCategory,
     pub description: String,
-    pub start_ledger: u32,
-    pub end_ledger: u32,
-    pub total_votes_for: i128,
-    pub total_votes_against: i128,
+    pub start_ledger: LedgerSequence,
+    pub end_ledger: LedgerSequence,
+    pub total_votes_for: TokenAmount,
+    pub total_votes_against: TokenAmount,
     pub status: ProposalStatus,
-    pub eta: u64, // Estimated time for execution after queuing
+    /// Estimated execution time (Unix seconds) after the proposal is queued.
+    pub eta: Timestamp,
 }
 
 #[derive(Clone)]
@@ -76,7 +84,7 @@ pub struct Proposal {
 pub struct VoteRecord {
     pub voter: Address,
     pub support: bool,
-    pub amount: i128,
+    pub amount: TokenAmount,
     pub is_quadratic: bool,
 }
 #[soroban_sdk::contracterror]

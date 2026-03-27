@@ -1,4 +1,10 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -14,6 +20,14 @@ use soroban_sdk::{
 
 #[contract]
 pub struct StorageInitializationContract;
+
+// ─── Storage Initialization Constants ────────────────────────────────────────────────
+
+/// Maximum number of initialization attempts before the contract gives up.
+const DEFAULT_MAX_RETRY_ATTEMPTS: u32 = 3;
+/// Default initialization timeout in seconds.
+/// After this many seconds, an in-progress initialization is considered stale.
+const DEFAULT_INITIALIZATION_TIMEOUT: u32 = 300;
 
 #[contractimpl]
 impl StorageInitializationContract {
@@ -436,8 +450,8 @@ impl StorageInitializationContract {
                 auto_fix_issues: true,
                 validation_enabled: true,
                 backup_before_fix: true,
-                max_retry_attempts: 3,
-                initialization_timeout: 300,
+                max_retry_attempts: DEFAULT_MAX_RETRY_ATTEMPTS,
+                initialization_timeout: DEFAULT_INITIALIZATION_TIMEOUT,
             },
         }
     }

@@ -1,4 +1,10 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -14,6 +20,23 @@ use soroban_sdk::{
 
 #[contract]
 pub struct VRFContract;
+
+// ─── VRF Contract Constants ────────────────────────────────────────────────────────
+
+/// Initial reputation score assigned to every new entropy provider (100 = perfect).
+const INITIAL_PROVIDER_REPUTATION: u32 = 100;
+/// Initial selection weight assigned to every new entropy provider.
+const INITIAL_PROVIDER_WEIGHT: u32 = 100;
+/// Maximum possible reputation score for an entropy provider.
+const MAX_PROVIDER_REPUTATION: u32 = 100;
+
+// Entropy source weights — relative importance when mixing entropy sources.
+/// Weight given to the block-hash entropy source.
+const ENTROPY_WEIGHT_BLOCK_HASH: u32 = 30;
+/// Weight given to the ledger-timestamp entropy source.
+const ENTROPY_WEIGHT_TIMESTAMP: u32 = 20;
+/// Weight given to the ledger-sequence entropy source.
+const ENTROPY_WEIGHT_LEDGER_SEQUENCE: u32 = 25;
 
 #[contractimpl]
 impl VRFContract {
@@ -57,12 +80,12 @@ impl VRFContract {
             address: provider_address.clone(),
             provider_type,
             public_key,
-            reputation_score: 100, // Start with perfect reputation
+            reputation_score: INITIAL_PROVIDER_REPUTATION, // Start with perfect reputation
             success_count: 0,
             failure_count: 0,
             last_used: 0,
             active: true,
-            weight: 100,
+            weight: INITIAL_PROVIDER_WEIGHT,
             fee,
         };
 
@@ -244,7 +267,7 @@ impl VRFContract {
 
         if success {
             provider_info.success_count += 1;
-            provider_info.reputation_score = (provider_info.reputation_score + 1).min(100);
+            provider_info.reputation_score = (provider_info.reputation_score + 1).min(MAX_PROVIDER_REPUTATION);
         } else {
             provider_info.failure_count += 1;
             provider_info.reputation_score = provider_info.reputation_score.saturating_sub(10);
@@ -324,7 +347,7 @@ impl VRFContract {
         sources.push_back(EntropySource {
             source_type: SourceType::BlockHash,
             value: block_hash,
-            weight: 30,
+            weight: ENTROPY_WEIGHT_BLOCK_HASH,
             timestamp: e.ledger().timestamp(),
             reliability: 0.9,
         });
@@ -335,7 +358,7 @@ impl VRFContract {
         sources.push_back(EntropySource {
             source_type: SourceType::Timestamp,
             value: timestamp_hash,
-            weight: 20,
+            weight: ENTROPY_WEIGHT_TIMESTAMP,
             timestamp: e.ledger().timestamp(),
             reliability: 0.8,
         });
@@ -346,7 +369,7 @@ impl VRFContract {
         sources.push_back(EntropySource {
             source_type: SourceType::LedgerSequence,
             value: sequence_hash,
-            weight: 25,
+            weight: ENTROPY_WEIGHT_LEDGER_SEQUENCE,
             timestamp: e.ledger().timestamp(),
             reliability: 0.9,
         });
@@ -356,7 +379,7 @@ impl VRFContract {
         sources.push_back(EntropySource {
             source_type: SourceType::NetworkEntropy,
             value: network_entropy,
-            weight: 25,
+            weight: ENTROPY_WEIGHT_LEDGER_SEQUENCE, // same weight as ledger sequence
             timestamp: e.ledger().timestamp(),
             reliability: 0.7,
         });

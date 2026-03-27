@@ -1,4 +1,10 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 mod events;
 mod storage_types;
@@ -10,6 +16,7 @@ mod test;
 
 use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
 use storage_types::*;
+use utils::SECONDS_PER_DAY;
 
 pub use subscription::*;
 pub use utils::*;
@@ -118,7 +125,7 @@ impl SubscriptionContract {
 
         let subscription_id: u64 = env.storage().instance().get(&DataKey::NextSubscriptionId).unwrap();
         let current_time = env.ledger().timestamp();
-        let duration_seconds = (plan.duration_days as u64).checked_mul(86400).expect("Time overflow");
+        let duration_seconds = (plan.duration_days as u64).checked_mul(SECONDS_PER_DAY).expect("Time overflow");
         let end_date = current_time.checked_add(duration_seconds).expect("Time overflow");
 
         let subscription = UserSubscription {
@@ -172,7 +179,7 @@ impl SubscriptionContract {
         subscription::process_subscription_payment(&env, &user, &plan);
 
         let current_time = env.ledger().timestamp();
-        let duration_seconds = (plan.duration_days as u64).checked_mul(86400).expect("Time overflow");
+        let duration_seconds = (plan.duration_days as u64).checked_mul(SECONDS_PER_DAY).expect("Time overflow");
         subscription.end_date = current_time.checked_add(duration_seconds).expect("Time overflow");
         subscription.last_payment_date = current_time;
         subscription.status = SubscriptionStatus::Active;
@@ -251,7 +258,7 @@ impl SubscriptionContract {
 
         let current_time = env.ledger().timestamp();
         let remaining_time = subscription.end_date.checked_sub(current_time).expect("Time error");
-        let remaining_days = (remaining_time.checked_div(86400).expect("Time error")) as u32;
+        let remaining_days = (remaining_time.checked_div(SECONDS_PER_DAY).expect("Time error")) as u32;
 
         let paused_data = PausedSubscriptionData {
             paused_at: current_time,
@@ -295,7 +302,7 @@ impl SubscriptionContract {
             .expect("Paused data not found");
 
         let current_time = env.ledger().timestamp();
-        let remaining_seconds = (paused_data.remaining_days as u64).checked_mul(86400).expect("Time overflow");
+        let remaining_seconds = (paused_data.remaining_days as u64).checked_mul(SECONDS_PER_DAY).expect("Time overflow");
         let new_end_date = current_time.checked_add(remaining_seconds).expect("Time overflow");
 
         subscription.status = SubscriptionStatus::Active;
@@ -523,7 +530,7 @@ impl SubscriptionContract {
 
         let subscription_id: u64 = env.storage().instance().get(&DataKey::NextSubscriptionId).unwrap();
         let current_time = env.ledger().timestamp();
-        let duration_seconds = (plan.duration_days as u64).checked_mul(86400).expect("Time overflow");
+        let duration_seconds = (plan.duration_days as u64).checked_mul(SECONDS_PER_DAY).expect("Time overflow");
         let end_date = current_time.checked_add(duration_seconds).expect("Time overflow");
 
         let subscription = UserSubscription {
@@ -586,7 +593,7 @@ impl SubscriptionContract {
 
         if subscription.status == SubscriptionStatus::Active && current_time > subscription.end_date {
             let grace_period_days: u32 = env.storage().instance().get(&DataKey::GracePeriod).unwrap();
-            let grace_period_seconds = (grace_period_days as u64).checked_mul(86400).expect("Time overflow");
+            let grace_period_seconds = (grace_period_days as u64).checked_mul(SECONDS_PER_DAY).expect("Time overflow");
             let grace_period_end = subscription.end_date.checked_add(grace_period_seconds).expect("Time overflow");
 
             if current_time <= grace_period_end {

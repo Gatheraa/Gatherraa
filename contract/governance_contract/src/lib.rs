@@ -1,12 +1,55 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
-use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, String, Vec, token, log};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, String, Symbol, Vec, token};
 
 mod storage;
-use storage::*;
+use storage::{DataKey, Proposal, ProposalStatus, ProposalCategory, CategorySettings, GovernanceAction, VoteRecord};
 
 #[contract]
 pub struct GovernanceContract;
+
+// ─── Governance Category Constants ────────────────────────────────────────────
+
+/// Category index for protocol upgrade proposals.
+const CATEGORY_PROTOCOL_UPGRADE: u32 = 0;
+/// Category index for fee adjustment proposals.
+const CATEGORY_FEE_ADJUSTMENT: u32 = 1;
+/// Category index for parameter update proposals.
+const CATEGORY_PARAMETER_UPDATE: u32 = 2;
+/// Category index for emergency proposals.
+const CATEGORY_EMERGENCY: u32 = 3;
+
+/// Minimum token quorum required for a ProtocolUpgrade proposal to pass.
+const PROTOCOL_UPGRADE_QUORUM: i128 = 1000;
+/// Minimum token quorum required for a FeeAdjustment proposal to pass.
+const FEE_ADJUSTMENT_QUORUM: i128 = 500;
+/// Minimum token quorum required for a ParameterUpdate proposal to pass.
+const PARAMETER_UPDATE_QUORUM: i128 = 100;
+/// Minimum token quorum required for an Emergency proposal to pass.
+const EMERGENCY_QUORUM: i128 = 2000;
+
+/// Approval threshold (percentage) shared by ProtocolUpgrade, FeeAdjustment, and ParameterUpdate.
+const DEFAULT_APPROVAL_THRESHOLD: u32 = 50;
+/// Approval threshold (percentage) required for Emergency proposals.
+const EMERGENCY_APPROVAL_THRESHOLD: u32 = 66;
+
+/// Voting period duration (in ledgers) for ProtocolUpgrade proposals.
+const PROTOCOL_UPGRADE_PERIOD: u32 = 100;
+/// Voting period duration (in ledgers) for FeeAdjustment proposals.
+const FEE_ADJUSTMENT_PERIOD: u32 = 50;
+/// Voting period duration (in ledgers) for ParameterUpdate proposals.
+const PARAMETER_UPDATE_PERIOD: u32 = 30;
+/// Voting period duration (in ledgers) for Emergency proposals.
+const EMERGENCY_PERIOD: u32 = 20;
+
+/// Minimum governance token balance required to submit a proposal.
+const MIN_PROPOSE_POWER: i128 = 100;
 
 #[contractimpl]
 impl GovernanceContract {
@@ -27,10 +70,10 @@ impl GovernanceContract {
         env.storage().instance().set(&DataKey::ProposalCount, &0u32);
 
         // Initialize default categories
-        Self::set_category_settings(&env, 0, 1000, 50, 100); // ProtocolUpgrade
-        Self::set_category_settings(&env, 1, 500, 50, 50);   // FeeAdjustment
-        Self::set_category_settings(&env, 2, 100, 50, 30);   // ParameterUpdate
-        Self::set_category_settings(&env, 3, 2000, 66, 20);  // Emergency
+        Self::set_category_settings(&env, CATEGORY_PROTOCOL_UPGRADE, PROTOCOL_UPGRADE_QUORUM, DEFAULT_APPROVAL_THRESHOLD, PROTOCOL_UPGRADE_PERIOD);
+        Self::set_category_settings(&env, CATEGORY_FEE_ADJUSTMENT, FEE_ADJUSTMENT_QUORUM, DEFAULT_APPROVAL_THRESHOLD, FEE_ADJUSTMENT_PERIOD);
+        Self::set_category_settings(&env, CATEGORY_PARAMETER_UPDATE, PARAMETER_UPDATE_QUORUM, DEFAULT_APPROVAL_THRESHOLD, PARAMETER_UPDATE_PERIOD);
+        Self::set_category_settings(&env, CATEGORY_EMERGENCY, EMERGENCY_QUORUM, EMERGENCY_APPROVAL_THRESHOLD, EMERGENCY_PERIOD);
 
         // Emit event
         env.events().publish(
@@ -67,8 +110,7 @@ impl GovernanceContract {
         let token_client = token::Client::new(&env, &token_addr);
         let balance = token_client.balance(&proposer);
         
-        let min_propose_power = 100; // Hardcoded for now
-        if balance < min_propose_power {
+        if balance < MIN_PROPOSE_POWER {
             panic!("Insufficient tokens to propose");
         }
 

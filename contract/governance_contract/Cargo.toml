@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = "23.5.2"
+gathera-common = { path = "../common" }
 
 [dev-dependencies]
 soroban-sdk = { version = "23.5.2", features = ["testutils"] }

@@ -1,4 +1,10 @@
 #![no_std]
+#![deny(clippy::all)]
+#![deny(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::cast_possible_truncation)]
 
 #[cfg(test)]
 mod test;
@@ -32,10 +38,37 @@ use allocation::{
 mod entropy;
 use entropy::{EntropyManager, EntropySource, EntropyState};
 
+mod proxy;
+mod pricing_engine;
+mod allocation_engine;
+mod upgrade_manager;
+mod core;
+
 // Dynamic pricing constants
-const PRICE_INCREASE_BPS: i128 = 500; // 5% increase per tier threshold
-const EARLY_BIRD_DISCOUNT_BPS: i128 = 1000; // 10% discount max
-const ORACLE_PRECISION: i128 = 10000; // Assuming oracle returns multiplier in bps (e.g. 10000 = 1x)
+/// Basis points increase applied per demand tier threshold (500 bps = 5%).
+const PRICE_INCREASE_BPS: i128 = 500;
+/// Maximum early-bird discount in basis points (1000 bps = 10%).
+const EARLY_BIRD_DISCOUNT_BPS: i128 = 1000;
+/// Basis points uplift applied to the AbTestB floor price (2000 bps = 20%).
+const AB_TEST_B_FLOOR_UPLIFT_BPS: i128 = 2000;
+/// Divisor used to convert basis-point values to a price ratio (10000 bps = 100%).
+const BPS_PRECISION: i128 = 10000;
+
+// Time constants
+/// Number of seconds in one week, used to compute the early-bird purchase window.
+const ONE_WEEK_SECONDS: u64 = 604_800;
+/// Number of seconds in one hour, used as the default oracle price update frequency.
+const ONE_HOUR_SECONDS: u64 = 3_600;
+
+// Rate-limiting constants
+/// Default anti-sniping minimum lock period in ledgers.
+const ANTI_SNIPING_MIN_LOCK_PERIOD: u32 = 10;
+/// Default anti-sniping maximum entries per address.
+const ANTI_SNIPING_MAX_ENTRIES: u32 = 5;
+/// Default rate-limit window duration in seconds (1 hour).
+const DEFAULT_RATE_LIMIT_WINDOW: u64 = 3_600;
+/// Default randomization delay for anti-sniping protection, in ledgers.
+const ANTI_SNIPING_RANDOMIZATION_DELAY: u32 = 3;
 
 /// Default minimum ledger delay between commit and reveal (5 ledgers ≈ 25 seconds)
 const DEFAULT_MIN_REVEAL_DELAY: u32 = 5;
@@ -87,7 +120,7 @@ impl SoulboundTicketContract {
             dex_pool_address: admin.clone(), // Update via set_pricing_config after deployment
             price_floor: 0,
             price_ceiling: i128::MAX,
-            update_frequency: 3600,
+            update_frequency: ONE_HOUR_SECONDS,
             last_update_time: e.ledger().timestamp(),
             is_frozen: false,
             oracle_pair: String::from_str(e, "XLM/USD"),
@@ -249,10 +282,10 @@ impl SoulboundTicketContract {
 
         // Initialize anti-sniping config
         let anti_sniping = AllocAntiSnipingConfig {
-            minimum_lock_period: 10,
-            max_entries_per_address: 5,
-            rate_limit_window: 3600,
-            randomization_delay_ledgers: 3,
+            minimum_lock_period: ANTI_SNIPING_MIN_LOCK_PERIOD,
+            max_entries_per_address: ANTI_SNIPING_MAX_ENTRIES,
+            rate_limit_window: DEFAULT_RATE_LIMIT_WINDOW,
+            randomization_delay_ledgers: ANTI_SNIPING_RANDOMIZATION_DELAY,
         };
 
         e.storage()
@@ -609,10 +642,10 @@ impl SoulboundTicketContract {
     ///  2. Verify that the returned timestamp is within `max_oracle_age_seconds`.
     ///  3. If the oracle is stale or the cross-contract call fails, fall back to
     ///     `DexPriceRouterClient::try_get_spot_price(pair)` on the DEX address.
-    ///  4. If both fail, return `ORACLE_PRECISION` (neutral — no adjustment).
+    ///  4. If both fail, return `BPS_PRECISION` (neutral — no adjustment).
     ///
     /// The raw price (8 decimals, $1.00 == 100_000_000) is converted into a
-    /// `ORACLE_PRECISION`-scaled multiplier using the stored `oracle_reference_price`.
+    /// `BPS_PRECISION`-scaled multiplier using the stored `oracle_reference_price`.
     fn fetch_oracle_multiplier(e: &Env, config: &PricingConfig) -> i128 {
         match fetch_price_with_fallback(
             e,
@@ -624,10 +657,10 @@ impl SoulboundTicketContract {
             Some(result) => oracle_price_to_multiplier(
                 result.price,
                 config.oracle_reference_price,
-                ORACLE_PRECISION,
+                BPS_PRECISION,
             ),
             // Both oracle and DEX unavailable: apply neutral multiplier (no adjustment)
-            None => ORACLE_PRECISION,
+            None => BPS_PRECISION,
         }
     }
 
@@ -650,7 +683,7 @@ impl SoulboundTicketContract {
                 // Demand based: base_price * (1 + (minted / (max_supply / 5)) * 5%)
                 let thresholds_passed = tier.minted / (tier.max_supply.max(1) / 5).max(1);
                 let multiplier = (thresholds_passed as i128).checked_mul(PRICE_INCREASE_BPS).expect("Arithmetic overflow");
-                let increase = price.checked_mul(multiplier).and_then(|v| v.checked_div(10000)).expect("Arithmetic overflow");
+                let increase = price.checked_mul(multiplier).and_then(|v| v.checked_div(BPS_PRECISION)).expect("Arithmetic overflow");
                 price = price.checked_add(increase).expect("Arithmetic overflow");
             }
             PricingStrategy::TimeDecay => {
@@ -659,9 +692,9 @@ impl SoulboundTicketContract {
                 let now = e.ledger().timestamp();
                 // If purchased way before event, apply 10% discount
                 // Assume linear scale from start to event_start_time
-                let start = event_info.start_time.saturating_sub(604800); // 1 week before
+                let start = event_info.start_time.saturating_sub(ONE_WEEK_SECONDS); // 1 week before
                 if now < start {
-                    let discount = price.checked_mul(EARLY_BIRD_DISCOUNT_BPS).and_then(|v| v.checked_div(10000)).expect("Arithmetic overflow");
+                    let discount = price.checked_mul(EARLY_BIRD_DISCOUNT_BPS).and_then(|v| v.checked_div(BPS_PRECISION)).expect("Arithmetic overflow");
                     price = price.checked_sub(discount).expect("Arithmetic overflow");
                 }
             }
@@ -669,19 +702,19 @@ impl SoulboundTicketContract {
                 // High demand sensitivity (10% increase per threshold)
                 let thresholds_passed = tier.minted / (tier.max_supply.max(1) / 5).max(1);
                 let multiplier = (thresholds_passed as i128).checked_mul(PRICE_INCREASE_BPS * 2).expect("Arithmetic overflow");
-                let increase = price.checked_mul(multiplier).and_then(|v| v.checked_div(10000)).expect("Arithmetic overflow");
+                let increase = price.checked_mul(multiplier).and_then(|v| v.checked_div(BPS_PRECISION)).expect("Arithmetic overflow");
                 price = price.checked_add(increase).expect("Arithmetic overflow");
             }
             PricingStrategy::AbTestB => {
                 // Floor starts higher (+20%)
-                let uplift = price.checked_mul(2000).and_then(|v| v.checked_div(10000)).expect("Arithmetic overflow");
+                let uplift = price.checked_mul(AB_TEST_B_FLOOR_UPLIFT_BPS).and_then(|v| v.checked_div(BPS_PRECISION)).expect("Arithmetic overflow");
                 price = price.checked_add(uplift).expect("Arithmetic overflow");
             }
         }
 
         // Apply external Oracle factors using the real DIA oracle integration
         let oracle_multiplier = Self::fetch_oracle_multiplier(e, &config);
-        price = price.checked_mul(oracle_multiplier).and_then(|v| v.checked_div(ORACLE_PRECISION)).expect("Arithmetic overflow");
+        price = price.checked_mul(oracle_multiplier).and_then(|v| v.checked_div(BPS_PRECISION)).expect("Arithmetic overflow");
 
         // Apply bounds
         price = price.max(config.price_floor).min(config.price_ceiling);

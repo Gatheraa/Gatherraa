@@ -1,6 +1,7 @@
 use soroban_sdk::{token, Address, Env};
 
 use crate::storage_types::*;
+use crate::utils::SECONDS_PER_DAY;
 
 /// Process subscription payment using Soroban token
 pub fn process_subscription_payment(env: &Env, user: &Address, plan: &SubscriptionPlan) {
@@ -78,7 +79,7 @@ pub fn calculate_plan_change_amount(
     let old_plan_remaining_value = (old_plan.price * remaining_duration as i128) / total_duration as i128;
     
     // Calculate prorated value of new plan for remaining time
-    let new_plan_prorated_value = (new_plan.price * remaining_duration as i128) / (new_plan.duration_days as i128 * 86400);
+    let new_plan_prorated_value = (new_plan.price * remaining_duration as i128) / (new_plan.duration_days as i128 * SECONDS_PER_DAY as i128);
 
     // Positive means upgrade (user pays), negative means downgrade (user gets refund)
     new_plan_prorated_value - old_plan_remaining_value
@@ -91,7 +92,7 @@ pub fn is_payment_due(env: &Env, subscription: &UserSubscription) -> bool {
     // Check if subscription is about to expire (within 1 day)
     if subscription.auto_renew && subscription.status == SubscriptionStatus::Active {
         let time_until_expiry = subscription.end_date.saturating_sub(current_time);
-        return time_until_expiry <= 86400; // 1 day in seconds
+        return time_until_expiry <= SECONDS_PER_DAY; // 1 day in seconds
     }
     
     false
@@ -117,5 +118,5 @@ pub fn calculate_remaining_days(env: &Env, subscription: &UserSubscription) -> u
     }
 
     let remaining_seconds = subscription.end_date - current_time;
-    (remaining_seconds / 86400) as u32
+    (remaining_seconds / SECONDS_PER_DAY) as u32
 }
