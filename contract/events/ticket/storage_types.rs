@@ -10,7 +10,9 @@ pub enum DataKey {
     EventInfo,
     TokenIdCounter,
     Tier(Symbol),
+    Role(Symbol, Address),
     Ticket(u32),
+    TokenOwner(u32),
     PricingConfig,
     // VRF and Allocation keys
     VRFConfig,

@@ -12,8 +12,6 @@ mod test;
 use soroban_sdk::{
     contract, contractimpl, symbol_short, token, Address, Bytes, BytesN, Env, String, Symbol, Vec,
 };
-use stellar_access::ownable::{self as ownable, Ownable};
-use stellar_tokens::non_fungible::{Base, NonFungibleToken};
 
 mod storage_types;
 use storage_types::{
@@ -126,9 +124,10 @@ impl SoulboundTicketContract {
         let key = DataKey::Role(ADMIN_ROLE, admin.clone());
         e.storage().persistent().set(&key, &true);
 
-        // Init Token Metadata via OpenZeppelin Base
-        Base::set_metadata(e, uri.clone(), name.clone(), symbol.clone());
-        ownable::set_owner(e, &admin);
+        // Store token metadata
+        e.storage().instance().set(&DataKey::TokenName, &name);
+        e.storage().instance().set(&DataKey::TokenSymbol, &symbol);
+        e.storage().instance().set(&DataKey::TokenURI, &uri);
 
         // Emit event
         e.events().publish(
@@ -825,7 +824,8 @@ impl SoulboundTicketContract {
         let token_id = counter;
         e.storage().instance().set(&DataKey::TokenIdCounter, &counter);
 
-        Base::sequential_mint(e, to);
+        // Simple token minting - store ownership mapping
+        e.storage().persistent().set(&DataKey::TokenOwner(token_id), to);
 
         let ticket = Ticket {
             tier_symbol: tier_symbol.clone(),
@@ -871,7 +871,8 @@ impl SoulboundTicketContract {
         e.storage()
             .persistent()
             .set(&DataKey::Ticket(token_id), &ticket);
-        Base::burn(e, &owner, token_id);
+        // Simple token burn - remove ownership mapping
+        e.storage().persistent().remove(&DataKey::TokenOwner(token_id));
 
         // Emit event
         e.events().publish(
@@ -1015,80 +1016,45 @@ impl SoulboundTicketContract {
     }
 }
 
-// Implement SEP-0054 via OpenZeppelin Interface
+// Simple token interface implementation
 #[contractimpl]
-impl NonFungibleToken for SoulboundTicketContract {
-    type ContractType = Base;
-
-    fn balance(e: &Env, owner: Address) -> u32 {
-        Self::ContractType::balance(e, &owner)
+impl SoulboundTicketContract {
+    // Get token owner
+    pub fn owner_of(e: &Env, token_id: u32) -> Address {
+        e.storage()
+            .persistent()
+            .get(&DataKey::TokenOwner(token_id))
+            .unwrap_or_else(|| panic!("Token does not exist"))
     }
 
-    fn owner_of(e: &Env, token_id: u32) -> Address {
-        Self::ContractType::owner_of(e, token_id)
+    // Get token metadata
+    pub fn name(e: &Env) -> String {
+        e.storage()
+            .instance()
+            .get(&DataKey::TokenName)
+            .unwrap_or_else(|| String::from_str(e, "Gatheraa Ticket"))
     }
 
-    // Soulbound restrictions overrides
-    fn transfer(_e: &Env, _from: Address, _to: Address, _token_id: u32) {
+    pub fn symbol(e: &Env) -> String {
+        e.storage()
+            .instance()
+            .get(&DataKey::TokenSymbol)
+            .unwrap_or_else(|| String::from_str(e, "TICKET"))
+    }
+
+    pub fn token_uri(e: &Env, _token_id: u32) -> String {
+        e.storage()
+            .instance()
+            .get(&DataKey::TokenURI)
+            .unwrap_or_else(|| String::from_str(e, ""))
+    }
+
+    // Soulbound restrictions
+    pub fn transfer(_e: &Env, _from: Address, _to: Address, _token_id: u32) {
         panic!("Soulbound: Tickets cannot be transferred");
     }
 
-    fn transfer_from(_e: &Env, _spender: Address, _from: Address, _to: Address, _token_id: u32) {
+    pub fn transfer_from(_e: &Env, _spender: Address, _from: Address, _to: Address, _token_id: u32) {
         panic!("Soulbound: Tickets cannot be transferred");
-    }
-
-    fn approve(
-        _e: &Env,
-        _approver: Address,
-        _approved: Address,
-        _token_id: u32,
-        _live_until_ledger: u32,
-    ) {
-        panic!("Soulbound: Approval disabled for non-transferable tokens");
-    }
-
-    fn approve_for_all(_e: &Env, _owner: Address, _operator: Address, _live_until_ledger: u32) {
-        panic!("Soulbound: Approval disabled for non-transferable tokens");
-    }
-
-    fn get_approved(_e: &Env, _token_id: u32) -> Option<Address> {
-        None
-    }
-
-    fn is_approved_for_all(_e: &Env, _owner: Address, _operator: Address) -> bool {
-        false
-    }
-
-    // Metadata
-    fn name(e: &Env) -> String {
-        Self::ContractType::name(e)
-    }
-
-    fn symbol(e: &Env) -> String {
-        Self::ContractType::symbol(e)
-    }
-
-    fn token_uri(e: &Env, token_id: u32) -> String {
-        Self::ContractType::token_uri(e, token_id)
-    }
-}
-
-// Ownable Utils
-#[contractimpl]
-impl Ownable for SoulboundTicketContract {
-    fn get_owner(e: &Env) -> Option<Address> {
-        ownable::get_owner(e)
-    }
-
-    fn transfer_ownership(e: &Env, new_owner: Address, live_until_ledger: u32) {
-        ownable::transfer_ownership(e, &new_owner, live_until_ledger);
-    }
-
-    fn accept_ownership(e: &Env) {
-        ownable::accept_ownership(e);
-    }
-
-    fn renounce_ownership(e: &Env) {
-        ownable::renounce_ownership(e);
     }
 }
