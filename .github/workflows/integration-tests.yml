@@ -1,0 +1,103 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'tests/integration/**'
+      - 'contract/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'tests/integration/**'
+      - 'contract/**'
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests/integration
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: tests/integration/package.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Compile contracts
+      run: npm run build
+
+    - name: Run integration tests
+      run: npm test
+      timeout-minutes: 30
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: test-results-${{ matrix.node-version }}
+        path: tests/integration/test-results/
+
+  coverage:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests/integration
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+        cache-dependency-path: tests/integration/package.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate coverage report
+      run: npx hardhat coverage
+      timeout-minutes: 30
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: tests/integration/coverage.json
+        flags: integration-tests
+        name: Integration Tests Coverage
+
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tests/integration
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18.x
+        cache: 'npm'
+        cache-dependency-path: tests/integration/package.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run linter
+      run: npx tsc --noEmit
