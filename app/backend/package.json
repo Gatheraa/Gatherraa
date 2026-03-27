@@ -18,6 +18,9 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:property": "jest --testPathPattern=\".*\\.property\\.spec\\.ts$\" --testTimeout=30000",
+    "test:fuzz": "jest --testPathPattern=\".*\\.fuzz\\.spec\\.ts$\" --testTimeout=60000",
+    "test:invariants": "jest --testPathPattern=\".*\\.invariants\\.spec\\.ts$\" --testTimeout=30000",
     "migration:run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts run",
     "migration:revert": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts revert",
     "migration:dry-run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts dry-run",
@@ -111,6 +114,7 @@
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
+    "fast-check": "^3.15.0",
     "globals": "^16.0.0",
     "jest": "^30.0.0",
     "prettier": "^3.4.2",
@@ -138,6 +142,8 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testTimeout": 10000,
+    "setupFilesAfterEnv": ["<rootDir>/test/setup.ts"]
   }
 }
