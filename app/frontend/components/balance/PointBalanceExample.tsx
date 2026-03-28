@@ -198,7 +198,7 @@ export default function PointBalanceExample() {
             </tr>
             <tr className="border-b border-gray-700">
               <td className="py-2">onRefresh</td>
-              <td>() => void</td>
+              <td>{'() => void'}</td>
               <td>undefined</td>
               <td>Refresh callback</td>
             </tr>
