@@ -4,7 +4,15 @@
   "description": "Smart-contract for Gathera — open-source infrastructure for Web3 events and conferences.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "deploy-cross-chain": "npx hardhat run scripts/deploy-cross-chain.ts",
+    "test-cross-chain": "npx hardhat run scripts/test-cross-chain.ts",
+    "deploy:local": "npx hardhat run scripts/deploy-cross-chain.ts --network hardhatMainnet",
+    "deploy:testnet": "npx hardhat run scripts/deploy-cross-chain.ts --network sepolia",
+    "test:local": "npx hardhat run scripts/test-cross-chain.ts --network hardhatMainnet",
+    "test:testnet": "npx hardhat run scripts/test-cross-chain.ts --network sepolia",
+    "compile": "npx hardhat compile",
+    "clean": "npx hardhat clean"
   },
   "repository": {
     "type": "git",
