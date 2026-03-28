@@ -4,6 +4,7 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import type { User } from '../users/entities/user.entity';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -13,6 +14,7 @@ export class AuthController {
   ) {}
 
   @Get('nonce')
+  @RateLimit('AUTH')
   async getNonce(@Req() req: Request) {
     const walletAddress = req.query.wallet as string;
     
@@ -29,6 +31,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @RateLimit('AUTH')
   @HttpCode(HttpStatus.OK)
   async login(
     @Body('message') message: string,
@@ -74,6 +77,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @RateLimit('AUTH')
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: Request,
@@ -134,6 +138,7 @@ export class AuthController {
   }
 
   @Post('link-wallet')
+  @RateLimit('AUTH')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async linkWallet(

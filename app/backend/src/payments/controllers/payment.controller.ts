@@ -9,15 +9,20 @@ import {
   Query,
   UseGuards,
   Req,
+  Res,
+  HttpCode,
+  HttpStatus,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { Request } from 'express';
+import { Request as ExpressRequest } from 'express';
 import { PaymentService } from '../services/payment.service';
 import { StripeService } from '../services/stripe.service';
 import { CryptoPaymentService } from '../services/crypto-payment.service';
 import { ReconciliationService } from '../services/reconciliation.service';
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
 import {
   CreatePaymentDto,
   InitiateStripePaymentDto,
@@ -44,6 +49,7 @@ export class PaymentController {
    * Create a new payment
    */
   @Post()
+  @RateLimit('EXPENSIVE')
   async createPayment(@Body() dto: CreatePaymentDto, @Req() request: Request): Promise<any> {
     const ipAddress = this.getClientIpAddress(request);
     const payment = await this.paymentService.createPayment(dto, ipAddress);
@@ -62,6 +68,7 @@ export class PaymentController {
    * Initiate Stripe payment
    */
   @Post('stripe/initiate')
+  @RateLimit('EXPENSIVE')
   async initiateStripePayment(
     @Body() dto: InitiateStripePaymentDto,
     @Req() request: Request,
@@ -73,6 +80,7 @@ export class PaymentController {
    * Confirm Stripe payment
    */
   @Post('stripe/confirm')
+  @RateLimit('EXPENSIVE')
   async confirmStripePayment(@Body() dto: ConfirmStripePaymentDto): Promise<any> {
     const payment = await this.stripeService.confirmPayment(dto);
 
@@ -88,6 +96,7 @@ export class PaymentController {
    * Initiate crypto payment
    */
   @Post('crypto/initiate')
+  @RateLimit('EXPENSIVE')
   async initiateCryptoPayment(@Body() dto: InitiateCryptoPaymentDto): Promise<any> {
     // Validate wallet address
     if (!this.cryptoPaymentService.isValidAddress(dto.fromAddress, dto.method)) {
@@ -115,6 +124,7 @@ export class PaymentController {
    * Verify crypto payment
    */
   @Post('crypto/verify')
+  @RateLimit('API')
   async verifyCryptoPayment(@Body() dto: VerifyCryptoPaymentDto): Promise<any> {
     const payment = await this.cryptoPaymentService.verifyTransaction(dto);
 
@@ -180,6 +190,7 @@ export class PaymentController {
    * Refund a payment
    */
   @Post(':id/refund')
+  @RateLimit('EXPENSIVE')
   async refundPayment(
     @Param('id') paymentId: string,
     @Body() dto: CreateRefundDto,

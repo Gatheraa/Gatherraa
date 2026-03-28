@@ -3,26 +3,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RateLimitGuard } from './guards/rate-limit.guard';
-import { AdvancedRateLimitMiddleware } from './middleware/advanced-rate-limit.middleware';
-import { RateLimitService } from './providers/rate-limit.service';
-import { CircuitBreakerService } from './providers/circuit-breaker.service';
-import { DdosService } from './providers/ddos.service';
-import { ApiKeyService } from './providers/api-key.service';
-import { AbuseReportService } from './providers/abuse-report.service';
-import { AdvancedQuotaService } from './services/advanced-quota.service';
-import { ApiKeyManagementService } from './services/api-key-management.service';
-import { AdvancedDdosService } from './services/advanced-ddos.service';
-import { ApiUsageAnalyticsService } from './services/api-usage-analytics.service';
-import { ApiGatewayService } from './services/api-gateway.service';
-import { RateLimitManagementController } from './controllers/rate-limit-management.controller';
-import { ApiQuota } from './entities/api-quota.entity';
-import { ApiKey } from './entities/api-key.entity';
-import { ApiUsageLog } from './entities/api-usage-log.entity';
-import { BlockedIp } from './entities/blocked-ip.entity';
+import { RateLimitService } from './rate-limit.service';
+import { RateLimitMonitoringService } from './services/rate-limit-monitoring.service';
+import { UserTierRateLimitService } from './services/user-tier-rate-limit.service';
+import { RateLimitConfig, DEFAULT_RATE_LIMIT_CONFIG } from './rate-limit.config';
+import { RateLimitStore } from './stores/store.interface';
+import { MemoryStore } from './stores/memory.store';
+import { RedisStore } from './stores/redis.store';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ApiQuota, ApiKey, ApiUsageLog, BlockedIp]),
     ThrottlerModule.forRoot({
       throttlers: [
         {
@@ -33,29 +23,21 @@ import { BlockedIp } from './entities/blocked-ip.entity';
     }),
     ScheduleModule.forRoot(),
   ],
-  controllers: [RateLimitManagementController],
   providers: [
     RateLimitGuard,
-    AdvancedRateLimitMiddleware,
     RateLimitService,
-    CircuitBreakerService,
-    DdosService,
-    ApiKeyService,
-    AbuseReportService,
-    AdvancedQuotaService,
-    ApiKeyManagementService,
-    AdvancedDdosService,
-    ApiUsageAnalyticsService,
-    ApiGatewayService,
+    RateLimitMonitoringService,
+    UserTierRateLimitService,
+    {
+      provide: DEFAULT_RATE_LIMIT_CONFIG,
+      useValue: DEFAULT_RATE_LIMIT_CONFIG,
+    },
   ],
   exports: [
+    RateLimitGuard,
     RateLimitService,
-    AdvancedQuotaService,
-    ApiKeyManagementService,
-    AdvancedDdosService,
-    ApiUsageAnalyticsService,
-    ApiGatewayService,
-    AdvancedRateLimitMiddleware,
+    RateLimitMonitoringService,
+    UserTierRateLimitService,
   ],
 })
-export class RateLimitModule { }
+export class RateLimitModule {}
