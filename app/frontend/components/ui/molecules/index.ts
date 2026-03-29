@@ -8,3 +8,6 @@ export { StarRating } from './StarRating';
 export type { StarRatingProps } from './StarRating';
 export { RoleGate, RoleGateProvider, useRoleGate, withRoleGate, ROLES, PERMISSIONS } from './RoleGate';
 export type { RoleGateProps, Role, UserRole } from './RoleGate';
+export { RegistrationGuard } from './RegistrationGuard';
+export type { RegistrationGuardProps, RegistrationRule } from './RegistrationGuard';
+export { createWalletRule, createCapacityRule, createExpirationRule, createCustomRule } from './RegistrationGuard';

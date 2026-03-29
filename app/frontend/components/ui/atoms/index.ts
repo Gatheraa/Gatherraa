@@ -15,3 +15,5 @@ export type { SpinnerProps } from './Spinner';
 export { Text } from './Text';
 export { InteractiveReaction } from './InteractiveReaction';
 export type { InteractiveReactionProps, ReactionType } from './InteractiveReaction';
+export { OptimizedImage } from './OptimizedImage';
+export type { OptimizedImageProps } from './OptimizedImage';
