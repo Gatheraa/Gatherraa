@@ -1,0 +1,74 @@
+[package]
+name = "gatherraa-fuzz"
+version = "0.1.0"
+authors = ["Gatherraa Team"]
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+soroban-sdk = "23.5.2"
+ticket_contract = { path = "../ticket_contract" }
+escrow_contract = { path = "../escrow_contract" }
+cross_contract_contract = { path = "../cross_contract_contract" }
+governance_contract = { path = "../governance_contract" }
+multisig_wallet_contract = { path = "../multisig_wallet_contract" }
+gathera-common = { path = "../common" }
+
+[dev-dependencies]
+proptest = "1.4"
+quickcheck = "1.0"
+
+[[bin]]
+name = "ticket_mint_fuzzer"
+path = "fuzz_targets/ticket_mint_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "ticket_purchase_fuzzer"
+path = "fuzz_targets/ticket_purchase_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "escrow_create_fuzzer"
+path = "fuzz_targets/escrow_create_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "escrow_release_fuzzer"
+path = "fuzz_targets/escrow_release_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "atomic_ops_fuzzer"
+path = "fuzz_targets/atomic_ops_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "governance_vote_fuzzer"
+path = "fuzz_targets/governance_vote_fuzzer.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "multisig_exec_fuzzer"
+path = "fuzz_targets/multisig_exec_fuzzer.rs"
+test = false
+doc = false
+
+[profile.release]
+opt-level = 3
+debug = true
+lto = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 0
+debug = true
