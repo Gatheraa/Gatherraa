@@ -47,6 +47,13 @@ export const createEventSchema = z.object({
 
   websiteUrl: z.string().optional().or(z.literal('')),
 
+  tags: z
+    .array(z.string().trim().min(1, 'Tags cannot be empty').max(20, 'Tag cannot exceed 20 characters'))
+    .max(10, 'You can add up to 10 tags')
+    .refine((tags) => new Set(tags.map((tag) => tag.toLowerCase())).size === tags.length, {
+      message: 'Tags must be unique',
+    }),
+
   isPublic: z.boolean().default(true),
 });
 
@@ -61,6 +68,7 @@ export const EVENT_FIELD_LABELS: Record<string, string> = {
   maxAttendees: 'Max Attendees',
   contractAddress: 'Contract Address',
   websiteUrl: 'Website URL',
+  tags: 'Tags',
   isPublic: 'Visibility',
 };
 
@@ -73,5 +81,6 @@ export const createEventDefaults: CreateEventFormValues = {
   maxAttendees: '100',
   contractAddress: '',
   websiteUrl: '',
+  tags: [],
   isPublic: true,
 };
