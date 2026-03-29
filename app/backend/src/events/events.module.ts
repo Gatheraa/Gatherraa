@@ -17,6 +17,7 @@ import { EventsService } from './events.service';
 import { EventSourcingService } from './services/event-sourcing.service';
 import { ConcurrencyService } from './services/concurrency.service';
 import { MaterializedViewService } from './services/materialized-view.service';
+import { EventStateMachineService } from './services/event-state-machine.service';
 
 export const CommandHandlers = [
   CreateEventHandler,
@@ -36,6 +37,7 @@ export const Services = [
   EventSourcingService,
   ConcurrencyService,
   MaterializedViewService,
+  EventStateMachineService,
 ];
 
 @Module({
