@@ -1,8 +1,8 @@
 [package]
-name = "multisig_wallet_contract"
+name = "dutch_auction_contract"
 version = "0.1.0"
 edition = "2021"
-description = "Multi-signature wallet contract for event treasury management"
+description = "Dutch auction contract for premium ticket sales"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

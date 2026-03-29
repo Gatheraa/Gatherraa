@@ -1,8 +1,8 @@
 [package]
-name = "multisig_wallet_contract"
+name = "zk_ticket_contract"
 version = "0.1.0"
 edition = "2021"
-description = "Multi-signature wallet contract for event treasury management"
+description = "Zero-knowledge proof system for privacy-preserving ticket verification"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

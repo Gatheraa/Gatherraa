@@ -8,20 +8,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 soroban-sdk = { workspace = true }
-gathera-common = { path = "../common" }
-ticket_contract = { path = "../ticket_contract" }
-escrow_contract = { path = "../escrow_contract" }
-multisig_wallet_contract = { path = "../multisig_wallet_contract" }
+gathera-common = { workspace = true }
+ticket-contract = { workspace = true }
+escrow-contract = { workspace = true }
+multisig-wallet-contract = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-
-[profile.release]
-opt-level = "z"
-debug = 0
-strip = "symbols"
-debug-assertions = false
-overflow-checks = true
-lto = true
-panic = "abort"
-codegen-units = 1
