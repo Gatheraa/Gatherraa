@@ -1,5 +1,5 @@
 [package]
-name = "gathera-test"
+name = "gathera-contracts"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,6 +11,7 @@ soroban-sdk = { workspace = true }
 gathera-common = { path = "../common" }
 ticket_contract = { path = "../ticket_contract" }
 escrow_contract = { path = "../escrow_contract" }
+multisig_wallet_contract = { path = "../multisig_wallet_contract" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

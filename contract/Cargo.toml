@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    "ticket_contract",
+    "escrow_contract", 
+    "multisig_wallet_contract",
+    "contracts",
+    "test"
+]
+
+[workspace.dependencies]
+soroban-sdk = "23.5.2"
+
+[profile.release]
+opt-level = "z"
+debug = 0
+strip = "symbols"
+debug-assertions = false
+overflow-checks = true
+lto = true
+panic = "abort"
+codegen-units = 1
