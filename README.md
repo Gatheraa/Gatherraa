@@ -181,11 +181,18 @@ We welcome contributions from the community! Please see our [Contributing Guidel
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
+## Resources and Documentation
+
+- [Architecture Overview](./docs/architecture.md)
+- [Architectural Decision Records (ADRs)](./docs/adr/README.md)
+- [Security Audit Report](./docs/security/AUDIT_REPORT.md)
+- [Contract Documentation](./contract/README.md)
+
 ## Community
 
 - [Discord](https://discord.gg/gathera)
 - [Twitter](https://twitter.com/gathera)
-- [Documentation](https://docs.gathera.io)
+- [Official Documentation](https://docs.gathera.io)
 
 ## Acknowledgments
 

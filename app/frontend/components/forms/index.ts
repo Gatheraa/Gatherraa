@@ -19,3 +19,4 @@ export * from './exampleSchemas';
 export { default as ErrorSummary } from './ErrorSummary';
 
 export { default as CreateEventForm } from './CreateEventForm';
+export { PersistentFormWrapper } from './PersistentFormWrapper';
