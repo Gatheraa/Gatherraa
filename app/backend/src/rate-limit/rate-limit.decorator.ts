@@ -2,7 +2,7 @@ import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
 import { RateLimitConfig, RATE_LIMIT_PRESETS } from './rate-limit.config';
 import { RateLimitGuard } from './rate-limit.guard';
 
-export const RATE_LIMIT_META = 'RATE_LIMIT_CONFIG';
+export const RATE_LIMIT_CONFIG_KEY = 'RATE_LIMIT_CONFIG';
 
 /**
  * Attach rate limiting to a controller or individual route handler.
@@ -40,10 +40,10 @@ export function RateLimit(
         };
 
   return applyDecorators(
-    SetMetadata(RATE_LIMIT_META, config),
+    SetMetadata(RATE_LIMIT_CONFIG_KEY, config),
     UseGuards(RateLimitGuard),
   );
 }
 
 /** Explicitly disable rate limiting on a handler inside a rate-limited controller */
-export const SkipRateLimit = () => SetMetadata(RATE_LIMIT_META, null);
+export const SkipRateLimit = () => SetMetadata(RATE_LIMIT_CONFIG_KEY, null);
