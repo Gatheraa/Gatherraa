@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, contracterror, Address};
+use soroban_sdk::{contracttype, contracterror, Address, Symbol};
 
 #[derive(Clone)]
 #[contracttype]
@@ -9,7 +9,7 @@ pub enum DataKey {
     OrganizerEvents(Address), // Mapping from an organizer Address to Vec<Address> of event contracts
     UpgradeTimelock,
     Version,
-    UpgradeTimelock,
+    Role(Symbol, Address),
 }
 
 #[contracterror]

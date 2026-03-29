@@ -278,7 +278,7 @@ impl StorageOptimizationContract {
     pub fn store_compact_map(
         e: Env,
         map_id: Symbol,
-        keys: Vec<BytesN<16)>,
+        keys: Vec<BytesN<16>>,
         values: Vec<u32>,
         timestamps: Vec<u32>,
     ) {

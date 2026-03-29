@@ -20,7 +20,7 @@ testutils = ["soroban-sdk/testutils"]
 [profile.release]
 opt-level = "z"
 debug = 0
-strip = symbols
+strip = "symbols"
 debug-assertions = false
 overflow-checks = true
 lto = true

@@ -82,7 +82,7 @@ impl IterationOptimizationContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("batch_created"), batch_id.clone()),
+            (Symbol::new(&e, "batch_created"), batch_id.clone()),
             (total_items, batch_size),
         );
 
@@ -153,7 +153,7 @@ impl IterationOptimizationContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("batch_processed"), batch_id.clone()),
+            (Symbol::new(&e, "batch_processed"), batch_id.clone()),
             (processed_in_batch, batch_data.processed_items),
         );
 
@@ -199,7 +199,7 @@ impl IterationOptimizationContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("pagination_created"), pagination_id.clone()),
+            (Symbol::new(&e, "pagination_created"), pagination_id.clone()),
             (total_items, total_pages),
         );
 
@@ -305,7 +305,7 @@ impl IterationOptimizationContract {
     }
 
     // Batch process with automatic gas management
-    pub fn batch_process_with_gas_management(
+    pub fn batch_process_gas_mgmt(
         e: Env,
         items: Vec<u32>,
         batch_size: u32,

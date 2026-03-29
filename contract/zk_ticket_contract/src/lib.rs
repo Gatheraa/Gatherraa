@@ -36,16 +36,16 @@ impl ZKTicketContract {
         // Validate circuit parameters
         Self::validate_circuit_params(&circuit_params)?;
 
-        env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage().instance().set(&DataKey::CircuitParams, &circuit_params);
-        env.storage().instance().set(&DataKey::Paused, &false);
-        env.storage().instance().set(&DataKey::Version, &1u32);
+        e.storage().instance().set(&DataKey::Admin, &admin);
+        e.storage().instance().set(&DataKey::CircuitParams, &circuit_params);
+        e.storage().instance().set(&DataKey::Paused, &false);
+        e.storage().instance().set(&DataKey::Version, &1u32);
         
         // Initialize revocation list metadata
         let revocation_list = RevocationList {
-            revoked_commitments: Vec::new(&env),
-            revoked_nullifiers: Vec::new(&env),
-            last_updated: env.ledger().timestamp(),
+            revoked_commitments: Vec::new(&e),
+            revoked_nullifiers: Vec::new(&e),
+            last_updated: e.ledger().timestamp(),
         };
         e.storage().instance().set(&DataKey::RevocationList, &revocation_list);
         Ok(())
@@ -72,7 +72,7 @@ impl ZKTicketContract {
         attributes: Vec<ZKAttribute>,
         nullifier: BytesN<32>,
     ) -> Result<BytesN<32>, ZKTicketError> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
+        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
             return Err(ZKTicketError::ContractPaused);
         }
@@ -100,8 +100,8 @@ impl ZKTicketContract {
                 commitments: Vec::new(&env),
                 total_tickets: 0,
                 active_tickets: 0,
-                created_at: e.ledger().timestamp(),
-                circuit_params: Self::get_circuit_params(e.clone())?,
+                created_at: env.ledger().timestamp(),
+                circuit_params: Self::get_internal_circuit_params(&env)?,
             });
 
         event_commits.commitments.push_back(commitment.clone());
@@ -119,7 +119,7 @@ impl ZKTicketContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("commitment_created"), commitment.clone()),
+            (Symbol::new(&env, "commitment_created"), commitment.clone()),
             (event_id, ticket_hash),
         );
 
@@ -152,16 +152,16 @@ impl ZKTicketContract {
         event_id: Address,
         owner: Address,
         attributes: Vec<ZKAttribute>,
-        proof_data: Vec<u8>,
+        proof_data: Bytes,
         expires_at: u64,
     ) -> Result<bool, ZKTicketError> {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
+        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
             return Err(ZKTicketError::ContractPaused);
         }
 
         // Validate commitment exists and is active
-        let commitment: TicketCommitment = e.storage().instance().get(&DataKey::TicketCommitment(ticket_commitment.clone()))
+        let commitment: TicketCommitment = env.storage().instance().get(&DataKey::TicketCommitment(ticket_commitment.clone()))
             .ok_or(ZKTicketError::InvalidCommitment)?;
 
         if !commitment.active {
@@ -173,7 +173,7 @@ impl ZKTicketContract {
         }
 
         // Check nullifier not used
-        let nullifier_info: NullifierInfo = e.storage().instance().get(&DataKey::Nullifier(nullifier.clone()))
+        let nullifier_info: NullifierInfo = env.storage().instance().get(&DataKey::Nullifier(nullifier.clone()))
             .ok_or(ZKTicketError::InvalidNullifier)?;
 
         if nullifier_info.used {
@@ -181,12 +181,12 @@ impl ZKTicketContract {
         }
 
         // Validate proof expiration
-        if e.ledger().timestamp() > expires_at {
+        if env.ledger().timestamp() > expires_at {
             return Err(ZKTicketError::ProofExpired);
         }
 
         // Check revocation list (O(1) check)
-        if e.storage().instance().has(&DataKey::RevokedCommitment(ticket_commitment.clone())) {
+        if env.storage().instance().has(&DataKey::RevokedCommitment(ticket_commitment.clone())) {
             return Err(ZKTicketError::TicketRevoked);
         }
 
@@ -225,7 +225,7 @@ impl ZKTicketContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("proof_verified"), proof_id.clone()),
+            (Symbol::new(&env, "proof_verified"), proof_id.clone()),
             (event_id, owner),
         );
 
@@ -261,7 +261,7 @@ impl ZKTicketContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("batch_completed"), batch_id.clone()),
+            (Symbol::new(&e, "batch_completed"), batch_id.clone()),
             batch.results.len(),
         );
 
@@ -272,17 +272,17 @@ impl ZKTicketContract {
     pub fn verify_mobile_proof(
         env: Env,
         mobile_device_id: BytesN<32>,
-        proof_template: Vec<u8>,
-        proof_data: Vec<u8>,
+        proof_template: Bytes,
+        proof_data: Bytes,
         expires_at: u64,
     ) -> Result<bool, ZKTicketError> {
-        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap();
+        let paused: bool = env.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
-            panic!("contract is paused");
+            return Err(ZKTicketError::ContractPaused);
         }
 
         if env.ledger().timestamp() > expires_at {
-            panic!("proof expired");
+            return Err(ZKTicketError::ProofExpired);
         }
 
         let verification_result = Self::verify_mobile_proof_internal(&env, &proof_template, &proof_data)?;
@@ -314,9 +314,9 @@ impl ZKTicketContract {
         e: Env,
         proof_id: BytesN<32>,
         attribute_types: Vec<AttributeType>,
-        reveal_data: Vec<Vec<u8>>,
+        reveal_data: Vec<Bytes>,
     ) -> bool {
-        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap();
+        let paused: bool = e.storage().instance().get(&DataKey::Paused).unwrap_or(false);
         if paused {
             panic!("contract is paused");
         }
@@ -337,9 +337,13 @@ impl ZKTicketContract {
         }
 
         for (i, attr_type) in attribute_types.iter().enumerate() {
-            if let Some(attr) = proof.attributes.iter_mut().find(|a| a.attribute_type == *attr_type) {
-                attr.revealed = true;
-                attr.value = reveal_data.get(i).unwrap().clone();
+            for j in 0..proof.attributes.len() {
+                let mut attr = proof.attributes.get_unchecked(j);
+                if attr.attribute_type == *attr_type {
+                    attr.revealed = true;
+                    attr.value = reveal_data.get(i).unwrap().clone();
+                    proof.attributes.set(j, attr);
+                }
             }
         }
 
@@ -347,7 +351,7 @@ impl ZKTicketContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("attributes_revealed"), proof_id.clone()),
+            (Symbol::new(&e, "attributes_revealed"), proof_id.clone()),
             attribute_types.len(),
         );
 
@@ -386,7 +390,7 @@ impl ZKTicketContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("ticket_revoked"), ticket_commitment.clone()),
+            (Symbol::new(&e, "ticket_revoked"), ticket_commitment.clone()),
             reason,
         );
         Ok(())
@@ -410,7 +414,7 @@ impl ZKTicketContract {
     pub fn update_circuit_params(e: Env, new_params: CircuitParameters) {
         let admin: Address = e.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
-        Self::validate_circuit_params(&new_params);
+        let _ = Self::validate_circuit_params(&new_params);
         e.storage().instance().set(&DataKey::CircuitParams, &new_params);
     }
 
@@ -442,7 +446,7 @@ impl ZKTicketContract {
 
     /// Retrieves all proof IDs submitted by a specific user.
     pub fn get_user_proofs(e: Env, user: Address) -> Vec<BytesN<32>> {
-        e.storage().persistent().get(&DataKey::UserProofs(user))
+        e.storage().persistent().get(&user)
             .unwrap_or(Vec::new(&e))
     }
 
@@ -454,6 +458,11 @@ impl ZKTicketContract {
     /// Retrieves the current circuit parameters.
     pub fn get_circuit_params(e: Env) -> CircuitParameters {
         e.storage().instance().get(&DataKey::CircuitParams).unwrap()
+    }
+    
+    fn get_internal_circuit_params(e: &Env) -> Result<CircuitParameters, ZKTicketError> {
+        e.storage().instance().get(&DataKey::CircuitParams)
+            .ok_or(ZKTicketError::NotInitialized)
     }
 
     /// Returns the contract logic version.
@@ -480,8 +489,16 @@ impl ZKTicketContract {
         }
 
         // Check for required attributes
-        let has_ticket_id = attributes.iter().any(|a| matches!(a.attribute_type, AttributeType::TicketId));
-        let has_event_id = attributes.iter().any(|a| matches!(a.attribute_type, AttributeType::EventId));
+        let mut has_ticket_id = false;
+        let mut has_event_id = false;
+        
+        for attr in attributes.iter() {
+            if attr.attribute_type == AttributeType::TicketId {
+                has_ticket_id = true;
+            } else if attr.attribute_type == AttributeType::EventId {
+                has_event_id = true;
+            }
+        }
 
         if !has_ticket_id || !has_event_id {
             return Err(ZKTicketError::InsufficientAttributes);
@@ -514,14 +531,14 @@ impl ZKTicketContract {
 
     fn verify_zk_proof(
         e: &Env,
-        proof_data: &Vec<u8>,
+        proof_data: &Bytes,
         attributes: &Vec<ZKAttribute>,
         commitment: &TicketCommitment,
     ) -> Result<BytesN<32>, ZKTicketError> {
         // In a real implementation, this would use actual ZK proof verification
         // For now, we'll simulate verification with hash checks
         
-        let circuit_params: CircuitParameters = e.storage().instance().get(&DataKey::CircuitParams).unwrap();
+        let _circuit_params: CircuitParameters = e.storage().instance().get(&DataKey::CircuitParams).unwrap();
         
         // Verify proof format and structure
         if proof_data.len() < 100 {
@@ -529,7 +546,7 @@ impl ZKTicketContract {
         }
 
         // Check proof against circuit parameters
-        let proof_hash = e.crypto().sha256(&proof_data.to_bytes());
+        let proof_hash = e.crypto().sha256(proof_data);
         
         // Simulate verification (in reality, this would be actual ZK verification)
         let verification_success = Self::simulate_zk_verification(e, proof_data, attributes, commitment);
@@ -543,7 +560,7 @@ impl ZKTicketContract {
 
     fn simulate_zk_verification(
         e: &Env,
-        proof_data: &Vec<u8>,
+        proof_data: &Bytes,
         attributes: &Vec<ZKAttribute>,
         commitment: &TicketCommitment,
     ) -> bool {
@@ -586,20 +603,20 @@ impl ZKTicketContract {
         let verification_result = Self::verify_zk_proof(e, &proof.proof_data, &proof.attributes, &commitment).is_ok();
 
         // Cache result
-        Self::cache_verification_result(env, proof_id, verification_result);
+        Self::cache_verification_result(e, proof_id, verification_result);
 
         Ok(verification_result)
     }
 
-    fn verify_mobile_proof_internal(e: &Env, proof_template: &Vec<u8>, proof_data: &Vec<u8>) -> Result<bool, ZKTicketError> {
+    fn verify_mobile_proof_internal(e: &Env, proof_template: &Bytes, proof_data: &Bytes) -> Result<bool, ZKTicketError> {
         // Simplified mobile verification - optimized for mobile devices
         if proof_data.len() < 50 {
             return Err(ZKTicketError::MobileVerificationFailed);
         }
 
         // Quick hash-based verification for mobile
-        let template_hash = e.crypto().sha256(&proof_template.to_bytes());
-        let proof_hash = e.crypto().sha256(&proof_data.to_bytes());
+        let template_hash = e.crypto().sha256(proof_template);
+        let proof_hash = e.crypto().sha256(proof_data);
         
         // Simple validation
         Ok(template_hash != BytesN::from_array(e, &[0; 32]) && 
@@ -624,7 +641,7 @@ impl ZKTicketContract {
         e.crypto().sha256(&data.to_bytes())
     }
 
-    fn generate_batch_id(e: &Env, proof_ids: &Vec<BytesN<32>) -> BytesN<32> {
+    fn generate_batch_id(e: &Env, proof_ids: &Vec<BytesN<32>>) -> BytesN<32> {
         let mut data = Vec::new(e);
         data.push_back(proof_ids.len().into_val(e));
         data.push_back(e.ledger().timestamp().to_val());
@@ -636,3 +653,4 @@ impl ZKTicketContract {
         e.crypto().sha256(&data.to_bytes())
     }
 }
+

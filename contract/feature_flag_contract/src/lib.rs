@@ -82,7 +82,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("flag_created"), key.clone()),
+            (Symbol::new(&env, "flag_created"), key.clone()),
             (enabled, rollout_percentage),
         );
     }
@@ -163,7 +163,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("ab_test_created"), id.clone()),
+            (Symbol::new(&env, "ab_test_created"), id.clone()),
             (feature_flag, start_time),
         );
     }
@@ -224,7 +224,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("rollout_plan_created"), feature_flag.clone()),
+            (Symbol::new(&env, "rollout_plan_created"), feature_flag.clone()),
             plan.stages.len(),
         );
     }
@@ -251,7 +251,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("user_segmented"), user.clone()),
+            (Symbol::new(&env, "user_segmented"), user.clone()),
             user_segment.segments.len(),
         );
     }
@@ -281,7 +281,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("kill_switch_activated"), flag_key.clone()),
+            (Symbol::new(&env, "kill_switch_activated"), flag_key.clone()),
             admin,
         );
     }
@@ -305,7 +305,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("kill_switch_deactivated"), flag_key.clone()),
+            (Symbol::new(&env, "kill_switch_deactivated"), flag_key.clone()),
             admin,
         );
     }
@@ -347,7 +347,7 @@ impl FeatureFlagContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("flag_updated"), key.clone()),
+            (Symbol::new(&env, "flag_updated"), key.clone()),
             flag.enabled,
         );
     }

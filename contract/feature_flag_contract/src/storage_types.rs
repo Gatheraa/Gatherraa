@@ -1,6 +1,7 @@
-use soroban_sdk::{Address, BytesN, Env, Symbol, Vec, Map, U256};
+use soroban_sdk::{contracttype, contracterror, Address, BytesN, Env, Symbol, Vec, Map, U256, String};
 
 #[derive(Clone)]
+#[contracttype]
 pub enum DataKey {
     Admin,
     Paused,
@@ -16,6 +17,7 @@ pub enum DataKey {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct FeatureFlag {
     pub key: Symbol,
     pub enabled: bool,
@@ -33,6 +35,7 @@ pub struct FeatureFlag {
 }
 
 #[derive(Clone, PartialEq)]
+#[contracttype]
 pub enum Environment {
     Development,
     Staging,
@@ -41,6 +44,7 @@ pub enum Environment {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct SegmentRule {
     pub id: Symbol,
     pub name: String,
@@ -50,6 +54,7 @@ pub struct SegmentRule {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct Condition {
     pub field: Symbol,
     pub operator: ComparisonOperator,
@@ -58,6 +63,7 @@ pub struct Condition {
 }
 
 #[derive(Clone, PartialEq)]
+#[contracttype]
 pub enum ComparisonOperator {
     Equals,
     NotEquals,
@@ -72,6 +78,7 @@ pub enum ComparisonOperator {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct UserSegment {
     pub user: Address,
     pub segments: Vec<Symbol>,
@@ -81,6 +88,7 @@ pub struct UserSegment {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct ABTest {
     pub id: Symbol,
     pub name: String,
@@ -95,6 +103,7 @@ pub struct ABTest {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct TestVariant {
     pub id: Symbol,
     pub name: String,
@@ -103,6 +112,7 @@ pub struct TestVariant {
 }
 
 #[derive(Clone, PartialEq)]
+#[contracttype]
 pub enum ABTestStatus {
     Draft,
     Running,
@@ -112,6 +122,7 @@ pub enum ABTestStatus {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct RolloutPlan {
     pub feature_flag: Symbol,
     pub stages: Vec<RolloutStage>,
@@ -121,6 +132,7 @@ pub struct RolloutPlan {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct RolloutStage {
     pub percentage: u32,
     pub duration: u64,
@@ -129,6 +141,7 @@ pub struct RolloutStage {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub enum RolloutStrategy {
     Immediate,
     Gradual,
@@ -138,6 +151,7 @@ pub enum RolloutStrategy {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct AnalyticsData {
     pub flag_key: Symbol,
     pub user: Address,
@@ -149,6 +163,7 @@ pub struct AnalyticsData {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct EnvironmentConfig {
     pub environment: Environment,
     pub flags: Vec<Symbol>,
@@ -157,6 +172,7 @@ pub struct EnvironmentConfig {
 }
 
 #[derive(Clone)]
+#[contracttype]
 pub struct KillSwitch {
     pub flag_key: Symbol,
     pub active: bool,
@@ -168,37 +184,39 @@ pub struct KillSwitch {
 }
 
 // Custom errors
-#[derive(Debug, Clone, PartialEq)]
+#[contracterror]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(u32)]
 pub enum FeatureFlagError {
-    AlreadyInitialized,
-    NotInitialized,
-    Unauthorized,
-    FlagNotFound,
-    InvalidFlagKey,
-    InvalidPercentage,
-    InvalidEnvironment,
-    InvalidSegment,
-    InvalidRule,
-    InvalidABTest,
-    ABTestNotFound,
-    InvalidRolloutPlan,
-    RolloutPlanNotFound,
-    InvalidVariant,
-    UserNotFound,
-    InvalidCondition,
-    InvalidOperator,
-    InvalidValue,
-    KillSwitchActive,
-    FlagDisabled,
-    TestNotRunning,
-    InvalidTimeRange,
-    DuplicateFlag,
-    DuplicateSegment,
-    DuplicateTest,
-    InvalidTrafficAllocation,
-    InsufficientSampleSize,
-    ConfidenceThresholdNotMet,
-    ContractPaused,
-    StorageError,
-    SerializationError,
+    AlreadyInitialized = 1,
+    NotInitialized = 2,
+    Unauthorized = 3,
+    FlagNotFound = 4,
+    InvalidFlagKey = 5,
+    InvalidPercentage = 6,
+    InvalidEnvironment = 7,
+    InvalidSegment = 8,
+    InvalidRule = 9,
+    InvalidABTest = 10,
+    ABTestNotFound = 11,
+    InvalidRolloutPlan = 12,
+    RolloutPlanNotFound = 13,
+    InvalidVariant = 14,
+    UserNotFound = 15,
+    InvalidCondition = 16,
+    InvalidOperator = 17,
+    InvalidValue = 18,
+    KillSwitchActive = 19,
+    FlagDisabled = 20,
+    TestNotRunning = 21,
+    InvalidTimeRange = 22,
+    DuplicateFlag = 23,
+    DuplicateSegment = 24,
+    DuplicateTest = 25,
+    InvalidTrafficAllocation = 26,
+    InsufficientSampleSize = 27,
+    ConfidenceThresholdNotMet = 28,
+    ContractPaused = 29,
+    StorageError = 30,
+    SerializationError = 31,
 }

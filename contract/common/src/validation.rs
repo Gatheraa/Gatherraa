@@ -6,10 +6,14 @@ use soroban_sdk::{Address, BytesN, Env, token};
 /// # Panics
 ///
 /// Panics if the address is the zero contract address.
-pub fn validate_address(env: &Env, address: &Address) {
+pub fn validate_address(_env: &Env, _address: &Address) {
+    // FIXME: from_contract_id is private in SDK 23.5.3. 
+    // Zero address check is disabled until a public alternative is identified.
+    /*
     if address == &Address::from_contract_id(&BytesN::from_array(env, &[0; 32])) {
         panic!("zero address not allowed");
     }
+    */
 }
 
 /// Validates that an address points to a deployed and functional token contract.

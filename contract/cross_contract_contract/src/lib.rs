@@ -125,9 +125,10 @@ impl CrossContractContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("contract_registered"), contract_address.clone()),
+            (Symbol::new(&env, "contract_registered"), contract_address.clone()),
             (contract_type, version),
         );
+        Ok(())
     }
 
     // Execute single contract call
@@ -141,9 +142,14 @@ impl CrossContractContract {
         let caller = env.current_contract_address();
         
         // Check permissions
-        Self::check_call_permissions(&env, &caller, &contract_address)?;
+        if let Err(err) = Self::check_call_permissions(&env, &caller, &contract_address) {
+            panic!("permission denied: {:?}", err);
+        }
 
-        let contract_info = Self::get_contract_info(&env, &contract_address)?;
+        let contract_info = match Self::get_contract_info_internal(&env, &contract_address) {
+            Ok(info) => info,
+            Err(err) => panic!("contract not found: {:?}", err),
+        };
         
         // Check if contract is active
         if !contract_info.active {
@@ -159,7 +165,7 @@ impl CrossContractContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("contract_called"), contract_address.clone()),
+            (Symbol::new(&env, "contract_called"), contract_address.clone()),
             (function_name, caller),
         );
 
@@ -240,7 +246,7 @@ impl CrossContractContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("callback_registered"), callback_id.clone()),
+            (Symbol::new(&env, "callback_registered"), callback_id.clone()),
             (trigger_contract, trigger_function),
         );
 
@@ -276,7 +282,7 @@ impl CrossContractContract {
 
                 #[allow(deprecated)]
                 env.events().publish(
-                    (symbol_short!("callback_executed"), callback.id.clone()),
+                    (Symbol::new(&env, "callback_executed"), callback.id.clone()),
                     (trigger_contract, trigger_function),
                 );
             }
@@ -288,7 +294,10 @@ impl CrossContractContract {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         admin.require_auth();
 
-        let contract_info = Self::get_contract_info(&env, &contract_address)?;
+        let contract_info = match Self::get_contract_info_internal(&env, &contract_address) {
+            Ok(info) => info,
+            Err(_) => panic!("contract not found"),
+        };
         
         let state = ContractState {
             contract_address: contract_address.clone(),
@@ -302,7 +311,7 @@ impl CrossContractContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("state_synced"), contract_address.clone()),
+            (Symbol::new(&env, "state_synced"), contract_address.clone()),
             state_hash,
         );
     }
@@ -329,7 +338,7 @@ impl CrossContractContract {
         // Check event contract for ticket validity
         let ticket_valid_result = env.invoke_contract::<bool>(
             &event_contract,
-            &symbol_short!("is_ticket_valid"),
+            &Symbol::new(&env, "is_ticket_valid"),
             vec![&env, ticket_id.into_val(&env)],
         );
 
@@ -355,7 +364,7 @@ impl CrossContractContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("auth_delegated"), from_contract.clone()),
+            (Symbol::new(&env, "auth_delegated"), from_contract.clone()),
             to_contract,
         );
     }
@@ -388,7 +397,7 @@ impl CrossContractContract {
 
         #[allow(deprecated)]
         env.events().publish(
-            (symbol_short!("contract_deactivated"), contract_address.clone()),
+            (Symbol::new(&env, "contract_deactivated"), contract_address.clone()),
             (),
         );
     }
@@ -455,10 +464,10 @@ impl CrossContractContract {
         let graph: DependencyGraph = env.storage().instance().get(&DataKey::DependencyGraph).unwrap();
         
         // Simple DFS to detect cycles
-        let mut visited = Vec::new(e);
-        let mut recursion_stack = Vec::new(e);
+        let mut visited = Vec::new(env);
+        let mut recursion_stack = Vec::new(env);
         
-        if Self::has_cycle_dfs(e, &graph, contract_address, &mut visited, &mut recursion_stack) {
+        if Self::has_cycle_dfs(env, &graph, contract_address, &mut visited, &mut recursion_stack) {
             return Err(CrossContractError::CircularDependency);
         }
         
@@ -477,8 +486,8 @@ impl CrossContractContract {
 
         if let Some(node_info) = graph.nodes.get(node.clone()) {
             for neighbor in node_info.dependencies.iter() {
-                if !visited.contains(neighbor) {
-                    if Self::has_cycle_dfs(e, graph, neighbor, visited, recursion_stack) {
+                if !visited.contains(neighbor.clone()) {
+                    if Self::has_cycle_dfs(env, graph, &neighbor, visited, recursion_stack) {
                         return true;
                     }
                 } else if recursion_stack.contains(neighbor) {
@@ -487,7 +496,10 @@ impl CrossContractContract {
             }
         }
 
-        recursion_stack.pop();
+        let len = recursion_stack.len();
+        if len > 0 {
+            recursion_stack.remove(len - 1);
+        }
         false
     }
 
@@ -498,7 +510,7 @@ impl CrossContractContract {
         let node = DependencyNode {
             contract_address: contract_address.clone(),
             contract_type: contract_type.clone(),
-            dependents: Vec::new(e),
+            dependents: Vec::new(env),
             dependencies: dependencies.clone(),
             circular_dependency: false,
         };
@@ -546,15 +558,15 @@ impl CrossContractContract {
                 let rollback_data = RollbackData {
                     contract_address: operation.contract_address.clone(),
                     rollback_function: symbol_short!("rollback"),
-                    rollback_arguments: Vec::new(e),
+                    rollback_arguments: Vec::new(env),
                 };
                 atomic_op.rollback_data.push_back(rollback_data);
             }
 
             // Handle failure
-            if operation.requires_success && result == soroban_sdk::Val::VOID {
+            if operation.requires_success && result.is_void() {
                 // Rollback previous operations
-                Self::rollback_operations(e, &atomic_op, i)?;
+                Self::rollback_operations(env, &atomic_op, i as u32)?;
                 atomic_op.status = OperationStatus::Failed;
                 env.storage().instance().set(&DataKey::AtomicOperation(operation_id.clone()), &atomic_op);
                 return Err(CrossContractError::AtomicOperationFailed);
@@ -588,29 +600,29 @@ impl CrossContractContract {
     }
 
     fn generate_operation_id(env: &Env, caller: &Address, operations: &Vec<ContractCall>) -> BytesN<32> {
-        let mut data = Vec::new(e);
+        let mut data = Vec::new(env);
         data.push_back(caller.to_val());
-        data.push_back(env.ledger().timestamp().to_val());
-        data.push_back(operations.len().into_val(e));
+        data.push_back(env.ledger().timestamp().into_val(env));
+        data.push_back(operations.len().into_val(env));
         
         for operation in operations.iter() {
             data.push_back(operation.contract_address.to_val());
             data.push_back(operation.function_name.to_val());
         }
         
-        env.crypto().sha256(&data.to_bytes())
+        env.crypto().sha256(&data.into_val(env))
     }
 
     fn generate_callback_id(env: &Env, trigger_contract: &Address, trigger_function: &Symbol) -> BytesN<32> {
-        let mut data = Vec::new(e);
+        let mut data = Vec::new(env);
         data.push_back(trigger_contract.to_val());
         data.push_back(trigger_function.to_val());
-        data.push_back(env.ledger().timestamp().to_val());
+        data.push_back(env.ledger().timestamp().into_val(env));
         
-        env.crypto().sha256(&data.to_bytes())
+        env.crypto().sha256(&data.into_val(env))
     }
 
-    fn get_contract_info(env: &Env, contract_address: &Address) -> Result<ContractInfo, CrossContractError> {
+    fn get_contract_info_internal(env: &Env, contract_address: &Address) -> Result<ContractInfo, CrossContractError> {
         let registry: ContractRegistry = env.storage().instance().get(&DataKey::ContractRegistry).unwrap();
         registry.contracts.get(contract_address.clone())
             .ok_or(CrossContractError::ContractNotFound)

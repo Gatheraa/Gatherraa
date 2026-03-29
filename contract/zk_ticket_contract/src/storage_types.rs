@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, contracterror, Address, BytesN, Env, Symbol, Vec, Map, U256};
+use soroban_sdk::{contracttype, contracterror, Address, BytesN, Env, Symbol, Vec, Map, U256, Bytes};
 
 /// Storage keys for the ZK Ticket Contract.
 #[derive(Clone)]
@@ -47,7 +47,7 @@ pub struct ZKProof {
     /// List of attributes (some potentially revealed).
     pub attributes: Vec<ZKAttribute>,
     /// The raw ZK proof data.
-    pub proof_data: Vec<u8>,
+    pub proof_data: Bytes,
     /// Hash of the verification parameters for integrity.
     pub verification_hash: BytesN<32>,
     /// Timestamp when the proof was submitted.
@@ -69,14 +69,14 @@ pub struct ZKAttribute {
     /// The type of the attribute.
     pub attribute_type: AttributeType,
     /// The actual value (only meaningful if `revealed` is true).
-    pub value: Vec<u8>,
+    pub value: Bytes,
     /// Whether the value is publicly revealed or remains hidden in ZK.
     pub revealed: bool,
     /// The cryptographic commitment to this attribute's value.
     pub commitment: BytesN<32>,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 #[contracttype]
 pub enum AttributeType {
     /// Unique ticket ID.
@@ -233,7 +233,7 @@ pub struct MobileProofData {
     /// Unique ID for the mobile device.
     pub mobile_device_id: BytesN<32>,
     /// Template used for mobile-optimized proofs.
-    pub proof_template: Vec<u8>,
+    pub proof_template: Bytes,
     /// Last usage timestamp.
     pub last_used: u64,
     /// Total number of proofs verified for this device.
