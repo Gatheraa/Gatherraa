@@ -28,7 +28,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             contract/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/Cargo.toml', 'contract/**/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -81,6 +81,33 @@ jobs:
         working-directory: contract
         run: cargo fmt --all -- --check
 
+  contract-test:
+    name: Contract Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/Cargo.toml', 'contract/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Run contract tests
+        working-directory: contract
+        run: cargo test --workspace --all-features
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -114,7 +141,7 @@ jobs:
 
   build-and-push:
     name: Build Docker Image
-    needs: [test, security, contract-clippy, contract-fmt]
+    needs: [test, security, contract-clippy, contract-fmt, contract-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
