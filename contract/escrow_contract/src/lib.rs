@@ -43,6 +43,8 @@ pub enum EscrowError {
     InvalidResolution = 8,
     /// Escrow expired
     EscrowExpired = 9,
+    /// Functionality not implemented yet
+    NotImplemented = 255,
 }
 
 /// Escrow status enumeration
@@ -125,8 +127,8 @@ impl EscrowContract {
         terms: String,
         required_confirmations: u32,
     ) -> Result<Symbol, EscrowError> {
-        // Implementation would go here
-        todo!("Implement escrow creation logic")
+        let _ = (env, beneficiary, amount, expires_at, terms, required_confirmations);
+        Err(EscrowError::NotImplemented)
     }
 
     /// Fund an existing escrow
@@ -139,8 +141,8 @@ impl EscrowContract {
     /// 
     /// True if funding was successful
     pub fn fund_escrow(env: Env, escrow_id: Symbol) -> Result<bool, EscrowError> {
-        // Implementation would go here
-        todo!("Implement escrow funding logic")
+        let _ = (env, escrow_id);
+        Err(EscrowError::NotImplemented)
     }
 
     /// Release funds from escrow
@@ -153,8 +155,8 @@ impl EscrowContract {
     /// 
     /// True if release was successful
     pub fn release_funds(env: Env, escrow_id: Symbol) -> Result<bool, EscrowError> {
-        // Implementation would go here
-        todo!("Implement fund release logic")
+        let _ = (env, escrow_id);
+        Err(EscrowError::NotImplemented)
     }
 
     /// Create a dispute for an escrow
@@ -172,8 +174,8 @@ impl EscrowContract {
         escrow_id: Symbol,
         reason: String,
     ) -> Result<Symbol, EscrowError> {
-        // Implementation would go here
-        todo!("Implement dispute creation logic")
+        let _ = (env, escrow_id, reason);
+        Err(EscrowError::NotImplemented)
     }
 
     /// Resolve a dispute
@@ -191,8 +193,8 @@ impl EscrowContract {
         dispute_id: Symbol,
         resolution: String,
     ) -> Result<bool, EscrowError> {
-        // Implementation would go here
-        todo!("Implement dispute resolution logic")
+        let _ = (env, dispute_id, resolution);
+        Err(EscrowError::NotImplemented)
     }
 
     /// Get escrow information
@@ -205,7 +207,7 @@ impl EscrowContract {
     /// 
     /// Escrow data structure
     pub fn get_escrow(env: Env, escrow_id: Symbol) -> Result<Escrow, EscrowError> {
-        // Implementation would go here
-        todo!("Implement escrow retrieval")
+        let _ = (env, escrow_id);
+        Err(EscrowError::NotImplemented)
     }
 }
