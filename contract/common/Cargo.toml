@@ -1,7 +1,8 @@
 [package]
 name = "gathera-common"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -11,13 +12,3 @@ soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-
-[profile.release]
-opt-level = "z"
-debug = 0
-strip = "symbols"
-debug-assertions = false
-overflow-checks = true
-lto = true
-panic = "abort"
-codegen-units = 1
