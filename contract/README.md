@@ -12,6 +12,9 @@ contract/
 ├── ticket_contract/          # Soulbound ticket system
 ├── escrow_contract/         # Secure escrow services
 ├── multisig_wallet_contract/ # Multi-signature wallet
+├── dutch_auction_contract/  # Dutch auction for tickets
+├── zk_ticket_contract/      # Zero-knowledge ticketing
+├── cross_contract_contract/ # Cross-contract operations
 ├── contracts/               # Integration layer
 └── test/                    # Testing utilities
 ```
@@ -65,6 +68,40 @@ contract/
 - Time-lock for critical operations
 
 **Dependencies**: `gathera-common`
+
+### 💰 `dutch_auction_contract`
+
+**Purpose**: Implements a Dutch auction mechanism for ticket sales, ensuring fair price discovery.
+
+**Key Features**:
+- Linear price decay
+- Real-time bidding
+- Automatic fulfillment
+- Integration with `ticket_contract`
+
+**Dependencies**: `gathera-common`, `ticket_contract`
+
+### 🕶️ `zk_ticket_contract`
+
+**Purpose**: Enables privacy-preserving ticket verification using Zero-Knowledge Proofs.
+
+**Key Features**:
+- On-chain ZK verification
+- Private attendance logs
+- Proof of eligibility without revealing identity
+
+**Dependencies**: `gathera-common`
+
+### 🔀 `cross_contract_contract`
+
+**Purpose**: Orchestrates complex operations involving multiple Gathera contracts.
+
+**Key Features**:
+- Atomic multi-contract execution
+- Shared state synchronization
+- Rollback mechanisms for failed multi-step operations
+
+**Dependencies**: All other contracts
 
 ### 🔗 `contracts` (Integration Layer)
 
@@ -195,6 +232,30 @@ When contributing to the Gathera contract suite:
 4. **Check Gas Usage**: Verify gas efficiency of changes
 5. **Run CI**: Ensure all tests pass before submitting
 
+## Troubleshooting
+
+### Common Build Issues
+
+- **WASM Target Missing**: Ensure the `wasm32-unknown-unknown` target is installed:
+  ```bash
+  rustup target add wasm32-unknown-unknown
+  ```
+- **Outdated CLI**: If contract deployment fails, update the Soroban CLI:
+  ```bash
+  cargo install --locked soroban-cli
+  ```
+
+### Testing Issues
+
+- **Time-based Proofs Fail**: Some tests depend on network time. Ensure your environment matches the expected time parameters in `test/src/utils.rs`.
+- **Insufficient Gas**: For complex transactions, increase the gas limit in the `soroban contract invoke` flags.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+**Gathera Smart Contract Team** 🛡️
+
+For support, please open an issue in the main repository or contact us on Discord.
