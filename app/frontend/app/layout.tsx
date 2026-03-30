@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/components/wallet/WalletProvider";
 import { OfflineProvider } from "@/lib/offline/OfflineContext";
+import { ReactQueryProvider } from "@/lib/react-query/QueryClientProvider";
 import { FloatingActionButton } from "@/components/navigation/FloatingActionButton";
 import { RoleProvider } from "@/components/dao/RoleContext";
 
@@ -43,6 +44,11 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="antialiased">
         <OfflineProvider>
+          <WalletProvider>
+            <ReactQueryProvider>
+              {children}
+            </ReactQueryProvider>
+          </WalletProvider>
           <RoleProvider>
             <WalletProvider>
               {children}
