@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { WalletProvider } from "@/components/wallet/WalletProvider";
 import { OfflineProvider } from "@/lib/offline/OfflineContext";
+import { ReactQueryProvider } from "@/lib/react-query/QueryClientProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +43,9 @@ export default function RootLayout({
       <body className="antialiased">
         <OfflineProvider>
           <WalletProvider>
-            {children}
+            <ReactQueryProvider>
+              {children}
+            </ReactQueryProvider>
           </WalletProvider>
         </OfflineProvider>
       </body>
