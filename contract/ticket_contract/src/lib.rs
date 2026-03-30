@@ -37,6 +37,8 @@ pub enum TicketError {
     EventEnded = 6,
     /// Maximum tickets reached
     MaxTicketsReached = 7,
+    /// Functionality not implemented yet
+    NotImplemented = 255,
 }
 
 /// Ticket data structure
@@ -76,8 +78,8 @@ impl SoulboundTicketContract {
         recipient: Address,
         metadata: String,
     ) -> Result<Symbol, TicketError> {
-        // Implementation would go here
-        todo!("Implement ticket issuance logic")
+        let _ = (env, event_id, recipient, metadata);
+        Err(TicketError::NotImplemented)
     }
 
     /// Verify ticket ownership
@@ -95,8 +97,8 @@ impl SoulboundTicketContract {
         ticket_id: Symbol,
         claimed_owner: Address,
     ) -> bool {
-        // Implementation would go here
-        todo!("Implement ownership verification")
+        let _ = (env, ticket_id, claimed_owner);
+        false
     }
 
     /// Get ticket information
@@ -109,7 +111,7 @@ impl SoulboundTicketContract {
     /// 
     /// Ticket data structure
     pub fn get_ticket(env: Env, ticket_id: Symbol) -> Result<Ticket, TicketError> {
-        // Implementation would go here
-        todo!("Implement ticket retrieval")
+        let _ = (env, ticket_id);
+        Err(TicketError::NotImplemented)
     }
 }

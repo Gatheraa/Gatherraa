@@ -5,6 +5,22 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import FormInput from './FormInput';
 import ErrorSummary from './ErrorSummary';
+import { TagSelector } from '@/components/ui/atoms';
+
+const TAG_SUGGESTIONS = [
+  'Web3',
+  'Blockchain',
+  'Stellar',
+  'Soroban',
+  'Hackathon',
+  'Workshop',
+  'Networking',
+  'Startup',
+  'AI',
+  'DeFi',
+  'Community',
+  'Technology',
+];
 
 const EVENT_CATEGORIES = ['conference', 'workshop', 'concert', 'hackathon', 'meetup'] as const;
 
@@ -32,6 +48,14 @@ const createEventSchema = z.object({
     .string()
     .refine((value) => EVENT_CATEGORIES.includes(value as (typeof EVENT_CATEGORIES)[number]), {
       message: 'Please select a category',
+  category: z.enum(['conference', 'workshop', 'concert', 'hackathon', 'meetup', ''], {
+    errorMap: () => ({ message: 'Please select a category' }),
+  }).refine(v => v !== '', { message: 'Please select a category' }),
+  tags: z
+    .array(z.string().trim().min(1).max(20, 'Tag cannot exceed 20 characters'))
+    .max(10, 'You can add up to 10 tags')
+    .refine((tags) => new Set(tags.map((tag) => tag.toLowerCase())).size === tags.length, {
+      message: 'Duplicate tags are not allowed',
     }),
   isPublic: z.boolean(),
   websiteUrl: z
@@ -50,6 +74,7 @@ const FIELD_LABELS: Record<string, string> = {
   ticketPrice: 'Ticket Price',
   maxAttendees: 'Max Attendees',
   category: 'Category',
+  tags: 'Tags',
   isPublic: 'Visibility',
   websiteUrl: 'Website URL',
 };
@@ -105,6 +130,7 @@ export default function CreateEventForm() {
       ticketPrice: '0',
       maxAttendees: '100',
       category: '',
+      tags: [],
       isPublic: true,
       websiteUrl: '',
     },
@@ -194,6 +220,23 @@ export default function CreateEventForm() {
         <option value="meetup">Meetup</option>
       </FormInput>
 
+      {/* Tags */}
+      <Controller
+        name="tags"
+        control={control}
+        render={({ field }) => (
+          <TagSelector
+            label="Tags"
+            name={field.name}
+            value={field.value}
+            onChange={field.onChange}
+            suggestions={TAG_SUGGESTIONS}
+            hint="Press Enter or comma to add tags. Backspace removes the last tag."
+            error={errors.tags}
+          />
+        )}
+      />
+
       {/* Price + Attendees side by side */}
       <div className="grid grid-cols-2 gap-4">
         <FormInput
@@ -265,7 +308,7 @@ export default function CreateEventForm() {
               role="switch"
               aria-checked={field.value}
               onClick={() => field.onChange(!field.value)}
-              className={`relative w-11 h-6 rounded-full transition-all duration-200 flex-shrink-0 ${
+              className={`relative w-11 h-6 rounded-full transition-all duration-200 shrink-0 ${
                 field.value ? 'bg-[#3d5afe]' : 'bg-[#1e2333]'
               }`}
             >

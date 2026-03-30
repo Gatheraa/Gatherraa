@@ -46,6 +46,8 @@ pub enum MultisigError {
     WalletLocked = 9,
     /// Duplicate signature
     DuplicateSignature = 10,
+    /// Functionality not implemented yet
+    NotImplemented = 255,
 }
 
 /// Transaction status enumeration
@@ -121,8 +123,8 @@ impl MultisigWalletContract {
         timelock: u64,
         max_amount: u128,
     ) -> Result<bool, MultisigError> {
-        // Implementation would go here
-        todo!("Implement wallet initialization logic")
+        let _ = (env, owners, threshold, timelock, max_amount);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Submit a new transaction
@@ -144,8 +146,8 @@ impl MultisigWalletContract {
         data: String,
         expires_at: u64,
     ) -> Result<Symbol, MultisigError> {
-        // Implementation would go here
-        todo!("Implement transaction submission logic")
+        let _ = (env, destination, amount, data, expires_at);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Approve a transaction
@@ -161,8 +163,8 @@ impl MultisigWalletContract {
         env: Env,
         transaction_id: Symbol,
     ) -> Result<bool, MultisigError> {
-        // Implementation would go here
-        todo!("Implement transaction approval logic")
+        let _ = (env, transaction_id);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Execute an approved transaction
@@ -178,8 +180,8 @@ impl MultisigWalletContract {
         env: Env,
         transaction_id: Symbol,
     ) -> Result<bool, MultisigError> {
-        // Implementation would go here
-        todo!("Implement transaction execution logic")
+        let _ = (env, transaction_id);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Add a new owner
@@ -197,8 +199,8 @@ impl MultisigWalletContract {
         new_owner: Address,
         transaction_id: Symbol,
     ) -> Result<bool, MultisigError> {
-        // Implementation would go here
-        todo!("Implement owner addition logic")
+        let _ = (env, new_owner, transaction_id);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Remove an owner
@@ -216,8 +218,8 @@ impl MultisigWalletContract {
         owner_to_remove: Address,
         transaction_id: Symbol,
     ) -> Result<bool, MultisigError> {
-        // Implementation would go here
-        todo!("Implement owner removal logic")
+        let _ = (env, owner_to_remove, transaction_id);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Change the signature threshold
@@ -235,8 +237,8 @@ impl MultisigWalletContract {
         new_threshold: u32,
         transaction_id: Symbol,
     ) -> Result<bool, MultisigError> {
-        // Implementation would go here
-        todo!("Implement threshold change logic")
+        let _ = (env, new_threshold, transaction_id);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Get transaction information
@@ -252,8 +254,8 @@ impl MultisigWalletContract {
         env: Env,
         transaction_id: Symbol,
     ) -> Result<Transaction, MultisigError> {
-        // Implementation would go here
-        todo!("Implement transaction retrieval")
+        let _ = (env, transaction_id);
+        Err(MultisigError::NotImplemented)
     }
 
     /// Get wallet configuration
@@ -262,7 +264,11 @@ impl MultisigWalletContract {
     /// 
     /// Current wallet configuration
     pub fn get_config(env: Env) -> MultisigConfig {
-        // Implementation would go here
-        todo!("Implement config retrieval")
+        MultisigConfig {
+            owners: Vec::new(&env),
+            threshold: 0,
+            timelock: 0,
+            max_transaction_amount: 0,
+        }
     }
 }

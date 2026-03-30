@@ -22,6 +22,12 @@
 
 use soroban_sdk::{Address, Symbol, Env, String, Vec, Map};
 
+pub mod chain_abstraction;
+pub mod contract;
+pub mod cross_chain;
+pub mod storage;
+pub mod types;
+
 /// Re-export contract clients for easy access
 pub use ticket_contract::SoulboundTicketContract;
 pub use escrow_contract::EscrowContract;
@@ -59,8 +65,11 @@ pub mod orchestration {
             max_tickets: u32,
             escrow_terms: String,
         ) -> Result<Symbol, WorkflowError> {
-            // Implementation would go here
-            todo!("Implement event creation with escrow")
+            let _ = (event_id, organizer, ticket_price, max_tickets, escrow_terms);
+            Err(WorkflowError::IntegrationError(String::from_str(
+                &self.env,
+                "Not implemented",
+            )))
         }
 
         /// Process ticket purchase with escrow
@@ -70,8 +79,11 @@ pub mod orchestration {
             buyer: Address,
             payment_amount: u128,
         ) -> Result<Symbol, WorkflowError> {
-            // Implementation would go here
-            todo!("Implement ticket purchase processing")
+            let _ = (event_id, buyer, payment_amount);
+            Err(WorkflowError::IntegrationError(String::from_str(
+                &self.env,
+                "Not implemented",
+            )))
         }
     }
 
@@ -148,8 +160,11 @@ pub mod deployment {
 
         /// Deploy all Gathera contracts
         pub fn deploy_all(&self, config: DeploymentConfig) -> Result<DeploymentResult, DeploymentError> {
-            // Implementation would go here
-            todo!("Implement contract deployment")
+            let _ = config;
+            Err(DeploymentError::DeploymentFailed(String::from_str(
+                &self.env,
+                "Not implemented",
+            )))
         }
     }
 

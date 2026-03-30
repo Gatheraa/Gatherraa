@@ -17,3 +17,5 @@ export { InteractiveReaction } from './InteractiveReaction';
 export type { InteractiveReactionProps, ReactionType } from './InteractiveReaction';
 export { OptimizedImage } from './OptimizedImage';
 export type { OptimizedImageProps } from './OptimizedImage';
+export { TagSelector } from './TagSelector';
+export type { TagSelectorProps } from './TagSelector';
