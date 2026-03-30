@@ -482,7 +482,7 @@ fn check_paused(e: &Env) -> Result<(), IdentityError> {
 fn generate_did(e: &Env, address: &Address) -> String {
     // Generate DID in format: did:stellar:<address_hash>
     let address_bytes = address.to_bytes();
-    let hash = crypto::sha256(e, &address_bytes);
+    let hash = e.crypto().sha256(&address_bytes);
     let hash_str = hex_encode(&hash);
     
     // Using manual concatenation for gas efficiency in no_std

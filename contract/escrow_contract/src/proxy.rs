@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec, Map, U256, i128, u64,
+    contract, contractimpl, Address, BytesN, Env, String, Symbol, Vec, Map, U256,
 };
 
 use crate::storage_types::{DataKey, EscrowContractConfig, EscrowStatus, Milestone, Dispute};
@@ -51,11 +51,11 @@ impl EscrowProxyContract {
             .get(&DataKey::ContractConfig)
             .unwrap();
 
-        match contract_type.to_string().as_str() {
-            "escrow_management" => config.escrow_management_contract = new_address,
-            "dispute_resolution" => config.dispute_resolution_contract = new_address,
-            "revenue_splitting" => config.revenue_splitting_contract = new_address,
-            "referral_tracking" => config.referral_tracking_contract = new_address,
+        match contract_type {
+            s if s == Symbol::new(e, "escrow_management") => config.escrow_management_contract = new_address,
+            s if s == Symbol::new(e, "dispute_resolution") => config.dispute_resolution_contract = new_address,
+            s if s == Symbol::new(e, "revenue_splitting") => config.revenue_splitting_contract = new_address,
+            s if s == Symbol::new(e, "referral_tracking") => config.referral_tracking_contract = new_address,
             _ => panic!("invalid contract type"),
         }
 
@@ -197,10 +197,10 @@ impl EscrowProxyContract {
     /// Generate unique escrow ID
     fn generate_escrow_id(e: &Env, event: &Address, purchaser: &Address, amount: i128) -> BytesN<32> {
         let mut data = Vec::new(e);
-        data.push_back(event.clone());
-        data.push_back(purchaser.clone());
-        data.push_back(amount);
-        e.crypto().sha256(&data)
+        data.push_back(event.clone().to_val());
+        data.push_back(purchaser.clone().to_val());
+        data.push_back(amount.into_val(e));
+        e.crypto().sha256(&data.to_bytes())
     }
 
     /// Generate unique dispute ID

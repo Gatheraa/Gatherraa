@@ -1,0 +1,414 @@
+﻿cargo : warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+At line:1 char:1
++ cargo build > errors_new.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo              : NotSpecified: (warni    ng: profil...workspace     root::String) [], Remot    eException
+    + FullyQualifiedErrorId     : NativeCommandError
+ 
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\contracts\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\escrow_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\dutch_auction_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\cross_contract_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\multisig_wallet_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\zk_ticket_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\event_factory_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\governance_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\identity_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\subscription_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\ticket_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\whitelist_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\feature_flag_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\iteration_optimization_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\storage_initialization_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\storage_optimization_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
+package:   C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\vrf_contract\Cargo.toml
+workspace: C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\Cargo.toml
+   Compiling zerocopy v0.8.48
+   Compiling serde_with v3.18.0
+   Compiling num-bigint v0.4.6
+   Compiling sec1 v0.7.3
+   Compiling indexmap v2.13.0
+   Compiling group v0.13.0
+   Compiling sha2 v0.10.9
+   Compiling crypto-bigint v0.5.5
+   Compiling once_cell v1.21.4
+   Compiling base64 v0.22.1
+   Compiling either v1.15.0
+   Compiling hmac v0.12.1
+   Compiling wasmparser v0.116.1
+   Compiling itertools v0.10.5
+   Compiling rfc6979 v0.4.0
+   Compiling libm v0.2.16
+   Compiling curve25519-dalek v4.1.3
+   Compiling stellar-xdr v23.0.0
+   Compiling elliptic-curve v0.13.8
+   Compiling downcast-rs v1.2.1
+   Compiling indexmap-nostd v0.4.0
+   Compiling static_assertions v1.1.0
+   Compiling ecdsa v0.16.9
+   Compiling wasmparser-nostd v0.100.2
+   Compiling soroban-env-common v23.0.1
+   Compiling spin v0.9.8
+   Compiling hex v0.4.3
+   Compiling smallvec v1.15.1
+   Compiling ppv-lite86 v0.2.21
+   Compiling ahash v0.8.12
+   Compiling wasmi_core v0.13.0
+   Compiling byteorder v1.5.0
+   Compiling rand_chacha v0.3.1
+   Compiling hashbrown v0.13.2
+   Compiling wasmi_arena v0.4.1
+   Compiling hash32 v0.3.1
+   Compiling rand v0.8.5
+   Compiling soroban-wasmi v0.31.1-soroban.20.0.1
+error[E0786]: found invalid metadata files for crate `alloc` which `std` depends on
+  --> C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\lib.rs:59:25
+   |
+59 | #[cfg(feature = "std")] extern crate std;
+   |                         ^^^^^^^^^^^^^^^^^
+   |
+   = note: failed to mmap file 
+'C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib\liballoc-f090014afa110f38.rlib': The paging file 
+is too small for this operation to complete. (os error 1455)
+
+error[E0463]: can't find crate for `rand_core`
+  --> C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\lib.rs:94:9
+   |
+94 | pub use rand_core::{CryptoRng, Error, RngCore, SeedableRng};
+   |         ^^^^^^^^^ can't find crate
+
+error[E0463]: can't find crate for `rand_chacha`
+  --> C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\rngs\std.rs:13:16
+   |
+13 | pub(crate) use rand_chacha::ChaCha12Core as Core;
+   |                ^^^^^^^^^^^ can't find crate
+
+error[E0432]: unresolved imports `crate::RngCore`, `crate::CryptoRng`, `crate::RngCore`, `crate::SeedableRng`, `crate::CryptoRng`, `crate::Error`, 
+`crate::RngCore`, `crate::SeedableRng`, `super::std::Core`, `crate::rngs::OsRng`, `crate::CryptoRng`, `crate::Error`, `crate::RngCore`, 
+`crate::SeedableRng`
+   --> C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\distributions\uniform.rs:115:18
+    |
+115 | use crate::{Rng, RngCore};
+    |                  ^^^^^^^
+    |
+   ::: C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\prelude.rs:34:35
+    |
+ 34 | #[doc(no_inline)] pub use crate::{CryptoRng, Rng, RngCore, SeedableRng};
+    |                                   ^^^^^^^^^       ^^^^^^^  ^^^^^^^^^^^
+    |
+   ::: C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\rngs\std.rs:11:13
+    |
+ 11 | use crate::{CryptoRng, Error, RngCore, SeedableRng};
+    |             ^^^^^^^^^  ^^^^^  ^^^^^^^  ^^^^^^^^^^^
+    |
+   ::: C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\rngs\thread.rs:15:5
+    |
+ 15 | use super::std::Core;
+    |     ^^^^^^^^^^^^^^^^
+ 16 | use crate::rngs::adapter::ReseedingRng;
+ 17 | use crate::rngs::OsRng;
+    |     ^^^^^^^^^^^^^^^^^^
+ 18 | use crate::{CryptoRng, Error, RngCore, SeedableRng};
+    |             ^^^^^^^^^  ^^^^^  ^^^^^^^  ^^^^^^^^^^^
+
+   Compiling serde_core v1.0.228
+error[E0425]: cannot find value `THREAD_RNG_KEY` in this scope
+  --> C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\rngs\thread.rs:89:15
+   |
+89 |     let rng = THREAD_RNG_KEY.with(|t| t.clone());
+   |               ^^^^^^^^^^^^^^ not found in this scope
+
+memory allocation of 36880 bytes failed
+stack backtrace:
+   0:     0x7ffcb9634b12 - <unknown>
+memory allocation of 81920 bytes failed
+stack backtrace:
+   1:     0x7ffcb9649e01 - <unknown>
+   2:     0x7ffcb95fd034 - <unknown>
+   3:     0x7ffcb961a3ef - <unknown>
+   4:     0x7ffcb961a4dc - <unknown>
+   5:     0x7ffcb961575f - <unknown>
+   6:     0x7ffcb961a4ab - <unknown>
+   7:     0x7ffcb95f7ae8 - <unknown>
+   8:     0x7ffcbd700caa - <unknown>
+   9:     0x7ffcb9438be1 - <unknown>
+  10:     0x7ffcb6ba96fd - <unknown>
+  11:     0x7ffcb6ba25af - <unknown>
+  12:     0x7ffcb6bb0859 - <unknown>
+  13:     0x7ffcb960dd68 - <unknown>
+  14:     0x7ffd8e91e8d7 - <unknown>
+  15:     0x7ffd8f60c48c - <unknown>
+memory allocation of 2097152 bytes failed
+stack backtrace:
+   0:     0x7ffcb9634b12 - <unknown>
+rustc-LLVM ERROR: out of memory
+Allocation failed
+memory allocation of 411200 bytes failed
+stack backtrace:
+   1:     0x7ffcb9649e01 - <unknown>
+   2:     0x7ffcb95fd034 - <unknown>
+   3:     0x7ffcb961a3ef - <unknown>
+   4:     0x7ffcb961a4dc - <unknown>
+   5:     0x7ffcb961575f - <unknown>
+   6:     0x7ffcb961a4ab - <unknown>
+   7:     0x7ffcb95f7ae8 - <unknown>
+   8:     0x7ffcbd700caa - <unknown>
+   9:     0x7ffcbd700cec - <unknown>
+  10:     0x7ffcbad94635 - <unknown>
+   0:     0x7ffcb9634b12 - <unknown>
+   1:     0x7ffcb9649e01 - <unknown>
+  11:     0x7ffcbac1b693 - <unknown>
+   2:     0x7ffcb95fd034 - <unknown>
+   3:     0x7ffcb961a3ef - <unknown>
+   4:     0x7ffcb961a4dc - <unknown>
+   5:     0x7ffcb961575f - <unknown>
+   6:     0x7ffcb961a4ab - <unknown>
+   7:     0x7ffcb95f7ae8 - <unknown>
+   8:     0x7ffcbd700caa - <unknown>
+   9:     0x7ffcbd700cec - <unknown>
+  12:     0x7ffcb9930314 - <unknown>
+  10:     0x7ffcba327ab0 - <unknown>
+  13:     0x7ffcb97f2bd1 - <unknown>
+  14:     0x7ffcb97f22ca - <unknown>
+  15:     0x7ffcb984e2a1 - <unknown>
+  11:     0x7ffcba2acd46 - <unknown>
+  16:     0x7ffcb97eb695 - <unknown>
+  17:     0x7ffcb984e3d6 - <unknown>
+  18:     0x7ffcb97f252c - <unknown>
+  19:     0x7ffcb984e2a1 - <unknown>
+  20:     0x7ffcb98c3103 - <unknown>
+  21:     0x7ffcb984dd21 - <unknown>
+  22:     0x7ffcb9942194 - <unknown>
+  23:     0x7ffcb97d93ed - <unknown>
+  24:     0x7ffcb97f2230 - <unknown>
+  12:     0x7ffcb907700b - <unknown>
+  25:     0x7ffcba4647db - <unknown>
+  26:     0x7ffcba507d32 - <unknown>
+  13:     0x7ffcb908ccab - <unknown>
+  27:     0x7ffcba53d6a2 - <unknown>
+  28:     0x7ffcb99a201d - <unknown>
+  29:     0x7ffcb967f0f5 - <unknown>
+  30:     0x7ffcb9076d8a - <unknown>
+  31:     0x7ffcb9080fe3 - <unknown>
+  14:     0x7ffcb9160ab5 - <unknown>
+  32:     0x7ffcb915fc13 - <unknown>
+  33:     0x7ffcb6ba9f17 - <unknown>
+  34:     0x7ffcb6ba25af - <unknown>
+  35:     0x7ffcb6bb0859 - <unknown>
+  36:     0x7ffcb960dd68 - <unknown>
+  15:     0x7ffcb9698fe2 - <unknown>
+  16:     0x7ffcba46359b - <unknown>
+  17:     0x7ffcba507d32 - <unknown>
+  18:     0x7ffcba537502 - <unknown>
+  19:     0x7ffcbac27d08 - <unknown>
+  20:     0x7ffcb944be3b - <unknown>
+  21:     0x7ffcb907369d - <unknown>
+  22:     0x7ffcb908ccab - <unknown>
+  23:     0x7ffcb9148a35 - <unknown>
+  24:     0x7ffcb967e7bd - <unknown>
+  25:     0x7ffcb9076d8a - <unknown>
+  26:     0x7ffcb9080fe3 - <unknown>
+  27:     0x7ffcb915fc13 - <unknown>
+  28:     0x7ffcb6ba9f17 - <unknown>
+  29:     0x7ffcb6ba25af - <unknown>
+  37:     0x7ffd8e91e8d7 - BaseThreadInitThunk
+  30:     0x7ffcb6bb0859 - <unknown>
+  31:     0x7ffcb960dd68 - <unknown>
+  32:     0x7ffd8e91e8d7 - BaseThreadInitThunk
+  38:     0x7ffd8f60c48c - RtlUserThreadStart
+  33:     0x7ffd8f60c48c - RtlUserThreadStart
+   0:     0x7ffcb9634b12 - <unknown>
+   1:     0x7ffcb9649e01 - <unknown>
+   2:     0x7ffcb95fd034 - <unknown>
+   3:     0x7ffcb961a3ef - <unknown>
+   4:     0x7ffcb961a4dc - <unknown>
+   5:     0x7ffcb961575f - <unknown>
+   6:     0x7ffcb961a4ab - <unknown>
+   7:     0x7ffcb95f7ae8 - <unknown>
+   8:     0x7ffcbd700caa - <unknown>
+   9:     0x7ffcbcb30e43 - <unknown>
+  10:     0x7ffcba4670f9 - <unknown>
+  11:     0x7ffcb915ac87 - <unknown>
+  12:     0x7ffcbacb4bc8 - <unknown>
+  13:     0x7ffcbac63d81 - <unknown>
+  14:     0x7ffcb8d78009 - <unknown>
+  15:     0x7ffcb99a5827 - <unknown>
+  16:     0x7ffcb8e104fa - <unknown>
+  17:     0x7ffcb907528e - <unknown>
+  18:     0x7ffcb91ba98a - <unknown>
+  19:     0x7ffcb90df3d9 - <unknown>
+  20:     0x7ffcb9153201 - <unknown>
+  21:     0x7ffcb9a5b8cd - <unknown>
+  22:     0x7ffcb8e10459 - <unknown>
+  23:     0x7ffcb907528e - <unknown>
+  24:     0x7ffcb91ba98a - <unknown>
+  25:     0x7ffcb90df3d9 - <unknown>
+  26:     0x7ffcb9153201 - <unknown>
+  27:     0x7ffcb9a5b8cd - <unknown>
+  28:     0x7ffcb99c0827 - <unknown>
+  29:     0x7ffcb998da23 - <unknown>
+  30:     0x7ffcb9998160 - <unknown>
+  31:     0x7ffcb99994e5 - <unknown>
+  32:     0x7ffcb9a4819d - <unknown>
+  33:     0x7ffcba464880 - <unknown>
+  34:     0x7ffcba48ec13 - <unknown>
+  35:     0x7ffcba53db86 - <unknown>
+  36:     0x7ffcb99de824 - <unknown>
+  37:     0x7ffcb9075af4 - <unknown>
+  38:     0x7ffcb908ccab - <unknown>
+  39:     0x7ffcb9155cd5 - <unknown>
+  40:     0x7ffcb99ddf22 - <unknown>
+  41:     0x7ffcba46366e - <unknown>
+  42:     0x7ffcba466e96 - <unknown>
+  43:     0x7ffcba538369 - <unknown>
+  44:     0x7ffcb9a45078 - <unknown>
+  45:     0x7ffcba4624c3 - <unknown>
+  46:     0x7ffcba473abc - <unknown>
+  47:     0x7ffcba531c26 - <unknown>
+  48:     0x7ffcb9a071d4 - <unknown>
+  49:     0x7ffcb9a30080 - <unknown>
+  50:     0x7ffcba462fcb - <unknown>
+  51:     0x7ffcba4ff262 - <unknown>
+  52:     0x7ffcba534f95 - <unknown>
+  53:     0x7ffcb9a29c7c - <unknown>
+  54:     0x7ffcb90727fb - <unknown>
+  55:     0x7ffcb90879d3 - <unknown>
+  56:     0x7ffcb9144463 - <unknown>
+  57:     0x7ffcb99a1710 - <unknown>
+  58:     0x7ffcb967f0f5 - <unknown>
+  59:     0x7ffcb9076d8a - <unknown>
+  60:     0x7ffcb9080fe3 - <unknown>
+  61:     0x7ffcb915fc13 - <unknown>
+  62:     0x7ffcb6ba9f17 - <unknown>
+  63:     0x7ffcb6ba25af - <unknown>
+  64:     0x7ffcb6bb0859 - <unknown>
+  65:     0x7ffcb960dd68 - <unknown>
+  66:     0x7ffd8e91e8d7 - BaseThreadInitThunk
+  67:     0x7ffd8f60c48c - <unknown>
+error: could not compile `stellar-xdr` (lib)
+
+Caused by:
+  process didn't exit successfully: `C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name stellar_xdr 
+--edition=2021 C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\stellar-xdr-23.0.0\src\lib.rs --error-format=json 
+--json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 
+"feature=\"alloc\"" --cfg "feature=\"base64\"" --cfg "feature=\"curr\"" --cfg "feature=\"std\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, 
+values(\"alloc\", \"arbitrary\", \"base64\", \"cli\", \"curr\", \"default\", \"hex\", \"next\", \"rand\", \"schemars\", \"serde\", \"serde_json\", 
+\"std\"))" -C metadata=e35a12f1dcda89b8 -C extra-filename=-3e9afbb43aeec0dc --out-dir 
+C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps -L 
+dependency=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps --extern 
+base64=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libbase64-898207ab1a330424.rmeta --extern 
+cfg_eval=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\cfg_eval-f70187df7bf1c5c6.dll --extern 
+escape_bytes=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libescape_bytes-6076c61cbf9c73ee.rmeta --extern 
+ethnum=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libethnum-25ad6232a85f157f.rmeta --extern 
+hex=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libhex-cc741e95499b24b5.rmeta --extern 
+sha2=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libsha2-53d61ad37ce3273d.rmeta --extern 
+stellar_strkey=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libstellar_strkey-e57619369816ad58.rmeta --cap-lints allow 
+--check-cfg cfg(docs)` (exit code: 0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `wasmparser-nostd` (lib)
+
+Caused by:
+  process didn't exit successfully: `C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name wasmparser_nostd 
+--edition=2021 C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\wasmparser-nostd-0.100.2\src\lib.rs --error-format=json 
+--json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 
+"feature=\"std\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"default\", \"std\"))" -C metadata=0a8c9e73fe4fbfa3 -C 
+extra-filename=-8831da56ff015a4d --out-dir C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps -L 
+dependency=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps --extern 
+indexmap=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libindexmap_nostd-729063b29593e58f.rmeta --cap-lints allow` (exit code: 
+0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
+error: could not compile `rand` (lib) due to 5 previous errors
+
+Caused by:
+  process didn't exit successfully: `C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name rand --edition=2018 
+C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\rand-0.8.5\src\lib.rs --error-format=json 
+--json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 
+"feature=\"alloc\"" --cfg "feature=\"default\"" --cfg "feature=\"getrandom\"" --cfg "feature=\"libc\"" --cfg "feature=\"rand_chacha\"" --cfg 
+"feature=\"std\"" --cfg "feature=\"std_rng\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"alloc\", \"default\", \"getrandom\", 
+\"libc\", \"log\", \"min_const_gen\", \"nightly\", \"packed_simd\", \"rand_chacha\", \"serde\", \"serde1\", \"simd_support\", \"small_rng\", \"std\", 
+\"std_rng\"))" -C metadata=b7282d9c43acccde -C extra-filename=-ca9228298377f8a0 --out-dir 
+C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps -L 
+dependency=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps --extern 
+rand_chacha=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\librand_chacha-a74d44dff1a139b1.rmeta --extern 
+rand_core=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\librand_core-d6d54532109acf17.rmeta --cap-lints allow` (exit code: 
+0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
+error: could not compile `stellar-xdr` (lib)
+
+Caused by:
+  process didn't exit successfully: `C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name stellar_xdr 
+--edition=2021 C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\stellar-xdr-23.0.0\src\lib.rs --error-format=json 
+--json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --cfg "feature=\"alloc\"" 
+--cfg "feature=\"curr\"" --cfg "feature=\"hex\"" --cfg "feature=\"serde\"" --cfg "feature=\"std\"" --check-cfg cfg(docsrs,test) --check-cfg 
+"cfg(feature, values(\"alloc\", \"arbitrary\", \"base64\", \"cli\", \"curr\", \"default\", \"hex\", \"next\", \"rand\", \"schemars\", \"serde\", 
+\"serde_json\", \"std\"))" -C metadata=d9e28451cba0d008 -C extra-filename=-408738536d49b928 --out-dir 
+C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps -L 
+dependency=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps --extern 
+cfg_eval=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\cfg_eval-f70187df7bf1c5c6.dll --extern 
+escape_bytes=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libescape_bytes-6076c61cbf9c73ee.rmeta --extern 
+ethnum=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libethnum-25ad6232a85f157f.rmeta --extern 
+hex=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libhex-73a0c3845c687a4b.rmeta --extern 
+serde=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libserde-79d29cdeef0b5940.rmeta --extern 
+serde_with=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libserde_with-27f29e3e47e70437.rmeta --extern 
+sha2=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libsha2-9c6de035335bc573.rmeta --extern 
+stellar_strkey=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libstellar_strkey-e57619369816ad58.rmeta --cap-lints allow 
+--check-cfg cfg(docs)` (exit code: 0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
+error: could not compile `serde_core` (lib)
+
+Caused by:
+  process didn't exit successfully: `C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name serde_core 
+--edition=2021 C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde_core-1.0.228\src\lib.rs --error-format=json 
+--json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 
+"feature=\"result\"" --cfg "feature=\"std\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"alloc\", \"default\", \"rc\", \"result\", 
+\"std\", \"unstable\"))" -C metadata=eb8f654123672940 -C extra-filename=-1dee74cae6a7bdbe --out-dir 
+C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps -L 
+dependency=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps --cap-lints allow --check-cfg cfg(if_docsrs_then_no_serde_core) 
+--check-cfg cfg(no_core_cstr) --check-cfg cfg(no_core_error) --check-cfg cfg(no_core_net) --check-cfg cfg(no_core_num_saturating) --check-cfg 
+cfg(no_diagnostic_namespace) --check-cfg cfg(no_serde_derive) --check-cfg cfg(no_std_atomic) --check-cfg cfg(no_std_atomic64) --check-cfg 
+cfg(no_target_has_atomic)` (exit code: 0xc0000409, STATUS_STACK_BUFFER_OVERRUN)
+rustc-LLVM ERROR: IO failure on output stream: no space on device
+error: could not compile `soroban-wasmi` (lib)
+
+Caused by:
+  process didn't exit successfully: `C:\Users\ADMIN\.rustup\toolchains\stable-x86_64-pc-windows-msvc\bin\rustc.exe --crate-name soroban_wasmi 
+--edition=2021 C:\Users\ADMIN\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\soroban-wasmi-0.31.1-soroban.20.0.1\src\lib.rs --error-format=json 
+--json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --cfg 
+"feature=\"default\"" --cfg "feature=\"std\"" --check-cfg cfg(docsrs,test) --check-cfg "cfg(feature, values(\"default\", \"std\"))" -C 
+metadata=73c2026971efd719 -C extra-filename=-f7c37b9a9d66e7d3 --out-dir C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps -L 
+dependency=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps --extern 
+smallvec=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libsmallvec-cb2a34040821ad8c.rmeta --extern 
+spin=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libspin-4405cfee3e186b16.rmeta --extern 
+wasmi_arena=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libwasmi_arena-8f1843159ca8697c.rmeta --extern 
+wasmi_core=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libwasmi_core-19f123fafd9cfe49.rmeta --extern 
+wasmparser=C:\Users\ADMIN\Desktop\lekan-drips\Gatherraa\contract\target\debug\deps\libwasmparser_nostd-8831da56ff015a4d.rmeta --cap-lints allow` (exit 
+code: 101)

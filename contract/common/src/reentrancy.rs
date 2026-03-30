@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::{symbol_short, Env, Symbol};
 
 /// The internal key used to track the reentrancy lock.

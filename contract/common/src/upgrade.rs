@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::{Address, BytesN, Env, Symbol};
 use crate::access::require_admin;
 use crate::storage::CommonDataKey;

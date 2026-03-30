@@ -1,0 +1,1651 @@
+﻿cargo : warning: 
+profiles for the non 
+root package will be 
+ignored, specify 
+profiles at the 
+workspace root:
+At line:1 char:1
++ cargo check -p 
+escrow_contract > 
+escrow_errors_2.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~
+    + CategoryInfo       
+       : NotSpecified: 
+(warni    ng: 
+profil...workspace     
+root::String) [], Remot  
+  eException
+    + 
+FullyQualifiedErrorId    
+ : NativeCommandError
+ 
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\contracts\
+Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\escrow_con
+tract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\dutch_auct
+ion_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\cross_cont
+ract_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\multisig_w
+allet_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\zk_ticket_
+contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\event_fact
+ory_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\governance
+_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\identity_c
+ontract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\subscripti
+on_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\ticket_con
+tract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\whitelist_
+contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\feature_fl
+ag_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\iteration_
+optimization_contract\Car
+go.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\storage_in
+itialization_contract\Car
+go.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\storage_op
+timization_contract\Cargo
+.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\vrf_contra
+ct\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: unused import: 
+`Address`
+ --> common\src\upgrade.r
+s:1:19
+  |
+1 | use 
+soroban_sdk::{Address, 
+BytesN, Env, Symbol};
+  |                   
+^^^^^^^
+  |
+  = note: `#[warn(unused_
+imports)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: unused import: 
+`BytesN`
+ --> common\src\validatio
+n.rs:1:28
+  |
+1 | use 
+soroban_sdk::{Address, 
+BytesN, Env, token};
+  |                      
+      ^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> common\src\upgrade.
+rs:26:18
+   |
+26 |     
+env.events().publish(
+   |                  
+^^^^^^^
+   |
+   = note: 
+`#[warn(deprecated)]` on 
+by default
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> common\src\upgrade.
+rs:59:18
+   |
+59 |     env.events().pub
+lish((Symbol::new(env, 
+"Upgraded"),), 
+new_wasm_hash);
+   |                  
+^^^^^^^
+
+warning: unused 
+variable: `env`
+  --> 
+common\src\error.rs:39:25
+   |
+39 | pub fn 
+panic_with_error(env: 
+&soroban_sdk::Env, 
+error: CommonError) -> ! 
+{
+   |                     
+    ^^^ help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_env`
+   |
+   = note: `#[warn(unused
+_variables)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: 
+`gathera-common` (lib) 
+generated 5 warnings 
+(run `cargo fix --lib -p 
+gathera-common` to apply 
+3 suggestions)
+    Checking 
+escrow_contract v0.1.0 (C
+:\Users\ADMIN\Desktop\lek
+an-drips\Gatherraa\contra
+ct\escrow_contract)
+warning: unused imports: 
+`Env`, `Map`, and `U256`
+ --> escrow_contract\src\
+storage_types.rs:1:65
+  |
+1 | use soroban_sdk::{con
+tracttype, 
+contracterror, Address, 
+BytesN, Env, Symbol, 
+Vec, Map, U256};
+  |                      
+                         
+                  ^^^    
+           ^^^  ^^^^
+  |
+  = note: `#[warn(unused_
+imports)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: unused import: 
+`U256`
+ --> escrow_contract\src\
+proxy.rs:4:77
+  |
+4 |     contract, 
+contractimpl, Address, 
+BytesN, Env, String, 
+Symbol, Vec, Map, U256,
+  |                      
+                         
+                         
+     ^^^^
+
+warning: unused import: 
+`Milestone`
+ --> escrow_contract\src\
+proxy.rs:7:73
+  |
+7 | use crate::storage_ty
+pes::{DataKey, 
+EscrowContractConfig, 
+EscrowStatus, Milestone, 
+Dispute};
+  |                      
+                         
+                         
+ ^^^^^^^^^
+
+warning: unused imports: 
+`Map`, `String`, `U256`, 
+`map`, `symbol_short`, 
+and `vec`
+  --> escrow_contract\src
+\lib.rs:19:29
+   |
+19 |     contract, 
+contractimpl, 
+symbol_short, vec, map, 
+Address, BytesN, Env, 
+IntoVal, String, Symbol, 
+Vec, Map, U256,
+   |                     
+        ^^^^^^^^^^^^  
+^^^  ^^^                 
+                ^^^^^^   
+            ^^^  ^^^^
+
+warning: unused imports: 
+`is_paused`, 
+`set_reentrancy_guard`, 
+and `write_version`
+  --> escrow_contract\src
+\lib.rs:24:5
+   |
+24 |     
+set_reentrancy_guard, 
+remove_reentrancy_guard,
+   |     
+^^^^^^^^^^^^^^^^^^^^
+25 |     require_admin, 
+is_paused, set_paused, 
+read_version, 
+write_version
+   |                    
+^^^^^^^^^                
+            ^^^^^^^^^^^^^
+
+warning: unnecessary 
+parentheses around 
+assigned value
+   --> escrow_contract\sr
+c\lib.rs:367:32
+    |
+367 |             
+referral_amount -= 
+(total_splits - 
+milestone_amt);
+    |                    
+            ^            
+                ^
+    |
+    = note: 
+`#[warn(unused_parens)]` 
+(part of 
+`#[warn(unused)]`) on by 
+default
+help: remove these 
+parentheses
+    |
+367 -             
+referral_amount -= 
+(total_splits - 
+milestone_amt);
+367 +             
+referral_amount -= 
+total_splits - 
+milestone_amt;
+    |
+
+warning: unnecessary 
+parentheses around 
+assigned value
+   --> escrow_contract\sr
+c\lib.rs:564:32
+    |
+564 |             
+referral_amount -= 
+(total_splits - 
+escrow.amount);
+    |                    
+            ^            
+                ^
+    |
+help: remove these 
+parentheses
+    |
+564 -             
+referral_amount -= 
+(total_splits - 
+escrow.amount);
+564 +             
+referral_amount -= 
+total_splits - 
+escrow.amount;
+    |
+
+warning: the 
+`#![no_std]` attribute 
+can only be used at the 
+crate root
+ --> escrow_contract\src\
+proxy.rs:1:1
+  |
+1 | #![no_std]
+  | ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_
+attributes)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+error[E0560]: struct 
+`Dispute` has no field 
+named `id`
+   --> escrow_contract\sr
+c\proxy.rs:116:13
+    |
+116 |             id: 
+dispute_id,
+    |             ^^ 
+`Dispute` does not have 
+this field
+    |
+    = note: available 
+fields are: 
+`challenger`, `resolved`
+
+error[E0560]: struct 
+`Dispute` has no field 
+named `complainant`
+   --> escrow_contract\sr
+c\proxy.rs:118:13
+    |
+118 |             
+complainant: 
+complainant.clone(),
+    |             
+^^^^^^^^^^^ `Dispute` 
+does not have this field
+    |
+    = note: available 
+fields are: 
+`challenger`, `resolved`
+
+error[E0560]: struct 
+`Dispute` has no field 
+named `respondent`
+   --> escrow_contract\sr
+c\proxy.rs:119:13
+    |
+119 |             
+respondent: 
+respondent.clone(),
+    |             
+^^^^^^^^^^ `Dispute` 
+does not have this field
+    |
+    = note: available 
+fields are: 
+`challenger`, `resolved`
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\proxy.rs:120:13
+    |
+120 |             reason,
+    |             ^^^^^^ 
+expected `Symbol`, found 
+`String`
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\proxy.rs:121:13
+    |
+121 |             
+evidence,
+    |             
+^^^^^^^^ expected 
+`Vec<Symbol>`, found 
+`Vec<String>`
+    |
+    = note: expected 
+struct `soroban_sdk::Vec<
+soroban_sdk::Symbol>`
+               found 
+struct `soroban_sdk::Vec<
+soroban_sdk::String>`
+
+error[E0560]: struct 
+`Dispute` has no field 
+named `status`
+   --> escrow_contract\sr
+c\proxy.rs:122:13
+    |
+122 |             
+status: 
+EscrowStatus::Pending,
+    |             ^^^^^^ 
+`Dispute` does not have 
+this field
+    |
+    = note: available 
+fields are: 
+`challenger`, `resolved`
+
+error[E0560]: struct 
+`Dispute` has no field 
+named `resolved_at`
+   --> escrow_contract\sr
+c\proxy.rs:124:13
+    |
+124 |             
+resolved_at: None,
+    |             
+^^^^^^^^^^^ unknown field
+    |
+help: a field with a 
+similar name exists
+    |
+124 -             
+resolved_at: None,
+124 +             
+resolved: None,
+    |
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\proxy.rs:128:56
+    |
+128 |         e.storage()
+.persistent().set(&DataKe
+y::Dispute(dispute_id), 
+&dispute);
+    |                    
+                   
+---------------- 
+^^^^^^^^^^ expected 
+`BytesN<32>`, found `u32`
+    |                    
+                   |
+    |                    
+                   
+arguments to this enum 
+variant are incorrect
+    |
+    = note: expected 
+struct 
+`soroban_sdk::BytesN<32>`
+                 found 
+type `u32`
+note: tuple variant 
+defined here
+   --> escrow_contract\sr
+c\storage_types.rs:23:5
+    |
+ 23 |     
+Dispute(BytesN<32>),
+    |     ^^^^^^^
+
+error[E0599]: no 
+function or associated 
+item named `generate` 
+found for struct 
+`soroban_sdk::Address` 
+in the current scope
+   --> escrow_contract\sr
+c\proxy.rs:154:39
+    |
+154 |         let 
+organizer_addr = 
+Address::generate(e);
+    |                    
+                   
+^^^^^^^^ function or 
+associated item not 
+found in 
+`soroban_sdk::Address`
+    |
+note: if you're trying 
+to build a new 
+`soroban_sdk::Address` 
+consider using one of 
+the following associated 
+functions:
+      soroban_sdk::Addres
+s::from_str
+      soroban_sdk::Addres
+s::from_string
+      soroban_sdk::Addres
+s::from_string_bytes
+   --> C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\ad
+dress.rs:273:5
+    |
+273 |     pub fn 
+from_str(env: &Env, 
+strkey: &str) -> Address 
+{
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
+...
+285 |     pub fn 
+from_string(strkey: 
+&String) -> Self {
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+...
+307 |     pub fn from_str
+ing_bytes(strkey: 
+&Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+
+error[E0599]: no 
+function or associated 
+item named `generate` 
+found for struct 
+`soroban_sdk::Address` 
+in the current scope
+   --> escrow_contract\sr
+c\proxy.rs:155:38
+    |
+155 |         let 
+platform_addr = 
+Address::generate(e);
+    |                    
+                  
+^^^^^^^^ function or 
+associated item not 
+found in 
+`soroban_sdk::Address`
+    |
+note: if you're trying 
+to build a new 
+`soroban_sdk::Address` 
+consider using one of 
+the following associated 
+functions:
+      soroban_sdk::Addres
+s::from_str
+      soroban_sdk::Addres
+s::from_string
+      soroban_sdk::Addres
+s::from_string_bytes
+   --> C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\ad
+dress.rs:273:5
+    |
+273 |     pub fn 
+from_str(env: &Env, 
+strkey: &str) -> Address 
+{
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
+...
+285 |     pub fn 
+from_string(strkey: 
+&String) -> Self {
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+...
+307 |     pub fn from_str
+ing_bytes(strkey: 
+&Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+
+error[E0599]: no 
+function or associated 
+item named `generate` 
+found for struct 
+`soroban_sdk::Address` 
+in the current scope
+   --> escrow_contract\sr
+c\proxy.rs:156:38
+    |
+156 |         let 
+referral_addr = 
+Address::generate(e);
+    |                    
+                  
+^^^^^^^^ function or 
+associated item not 
+found in 
+`soroban_sdk::Address`
+    |
+note: if you're trying 
+to build a new 
+`soroban_sdk::Address` 
+consider using one of 
+the following associated 
+functions:
+      soroban_sdk::Addres
+s::from_str
+      soroban_sdk::Addres
+s::from_string
+      soroban_sdk::Addres
+s::from_string_bytes
+   --> C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\ad
+dress.rs:273:5
+    |
+273 |     pub fn 
+from_str(env: &Env, 
+strkey: &str) -> Address 
+{
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^
+...
+285 |     pub fn 
+from_string(strkey: 
+&String) -> Self {
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^
+...
+307 |     pub fn from_str
+ing_bytes(strkey: 
+&Bytes) -> Self {
+    |     ^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+
+error[E0599]: no method 
+named `into_val` found 
+for type `i128` in the 
+current scope
+   --> escrow_contract\sr
+c\proxy.rs:202:31
+    |
+202 |         data.push_b
+ack(amount.into_val(e));
+    |                    
+           ^^^^^^^^
+    |
+   ::: C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\en
+v.rs:90:8
+    |
+ 90 |     fn 
+into_val(&self, e: &E) 
+-> T;
+    |        -------- 
+the method is available 
+for `i128` here
+    |
+    = help: items from 
+traits can only be used 
+if the trait is in scope
+help: there is a method 
+`into` with a similar 
+name, but with different 
+arguments
+   --> /rustc/01f6ddf7588
+f42ae2d7eb0a2f21d44e8e966
+74cf\library\core\src\con
+vert\mod.rs:455:5
+help: trait `IntoVal` 
+which provides 
+`into_val` is 
+implemented but not in 
+scope; perhaps you want 
+to import it
+    |
+  3 + use 
+soroban_sdk::IntoVal;
+    |
+
+error[E0599]: no method 
+named `to_bytes` found 
+for struct 
+`soroban_sdk::Vec<T>` in 
+the current scope
+   --> escrow_contract\sr
+c\proxy.rs:203:33
+    |
+203 |         e.crypto().
+sha256(&data.to_bytes())
+    |                    
+             ^^^^^^^^ 
+method not found in `soro
+ban_sdk::Vec<soroban_sdk:
+:Val>`
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\proxy.rs:203:9
+    |
+198 |     fn 
+generate_escrow_id(e: 
+&Env, event: &Address, 
+purchaser: &Address, 
+amount: i128) -> 
+BytesN<32> {
+    |                    
+                         
+                         
+                     
+---------- expected `soro
+ban_sdk::BytesN<32>` 
+because of return type
+...
+203 |         e.crypto().
+sha256(&data.to_bytes())
+    |         ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^ 
+expected `BytesN<32>`, 
+found `Hash<32>`
+    |
+    = note: expected 
+struct 
+`soroban_sdk::BytesN<32>`
+               found 
+struct `soroban_sdk::cryp
+to::Hash<32>`
+help: call `Into::into` 
+on this expression to 
+convert `soroban_sdk::cry
+pto::Hash<32>` into 
+`soroban_sdk::BytesN<32>`
+    |
+203 |         e.crypto().
+sha256(&data.to_bytes()).
+into()
+    |                    
+                        
++++++++
+
+error[E0599]: no method 
+named `to_u256` found 
+for reference `&soroban_s
+dk::BytesN<32>` in the 
+current scope
+   --> escrow_contract\sr
+c\proxy.rs:209:32
+    |
+209 |         (timestamp 
++ 
+escrow_id.to_u256().low 
+as u64) as u32 % 1000000
+    |                    
+            ^^^^^^^ 
+method not found in `&sor
+oban_sdk::BytesN<32>`
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> escrow_contract\src
+\upgrade_manager.rs:26:14
+   |
+26 |             
+.publish((Symbol::new(e, 
+"EscrowUpgradeScheduled")
+,), (new_wasm_hash, 
+unlock_time));
+   |              ^^^^^^^
+   |
+   = note: 
+`#[warn(deprecated)]` on 
+by default
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> escrow_contract\src
+\upgrade_manager.rs:35:14
+   |
+35 |             
+.publish((Symbol::new(e, 
+"EscrowUpgradeCancelled")
+,), ());
+   |              ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> escrow_contract\src
+\upgrade_manager.rs:68:14
+   |
+68 |             
+.publish((Symbol::new(e, 
+"EscrowUpgraded"),), 
+new_wasm_hash);
+   |              ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\upgrade_manager.rs:101:
+14
+    |
+101 |             
+.publish((Symbol::new(e, 
+"EscrowStateMigrated"),),
+ (current_version, 
+new_version));
+    |              
+^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:142:22
+    |
+142 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:170:22
+    |
+170 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:205:22
+    |
+205 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:237:22
+    |
+237 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:273:22
+    |
+273 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:318:22
+    |
+318 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+error[E0608]: cannot 
+index into a value of 
+type `soroban_sdk::Vec<Mi
+lestone>`
+   --> escrow_contract\sr
+c\lib.rs:342:29
+    |
+342 |         if escrow.m
+ilestones[milestone_index
+].released {
+    |                    
+         
+^^^^^^^^^^^^^^^^^
+
+error[E0608]: cannot 
+index into a value of 
+type `soroban_sdk::Vec<Mi
+lestone>`
+   --> escrow_contract\sr
+c\lib.rs:346:56
+    |
+346 |         if 
+env.ledger().timestamp() 
+< escrow.milestones[miles
+tone_index].release_time 
+{
+    |                    
+                         
+           
+^^^^^^^^^^^^^^^^^
+
+error[E0608]: cannot 
+index into a value of 
+type `soroban_sdk::Vec<Mi
+lestone>`
+   --> escrow_contract\sr
+c\lib.rs:357:46
+    |
+357 |         let 
+milestone_amt = escrow.mi
+lestones[milestone_index]
+.amount;
+    |                    
+                         
+ ^^^^^^^^^^^^^^^^^
+
+error[E0608]: cannot 
+index into a value of 
+type `soroban_sdk::Vec<Mi
+lestone>`
+   --> escrow_contract\sr
+c\lib.rs:382:26
+    |
+382 |         escrow.mile
+stones[milestone_index].r
+eleased = true;
+    |                    
+      ^^^^^^^^^^^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> escrow_contract\sr
+c\lib.rs:385:22
+    |
+385 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\lib.rs:400:96
+    |
+400 |         let last_em
+ergency_withdrawal: 
+Option<u64> = env.storage
+().instance().get(&Symbol
+::new(env, 
+"last_emergency"));
+    |                    
+                         
+                         
+              
+----------- ^^^ expected 
+`&Env`, found `Env`
+    |                    
+                         
+                         
+              |
+    |                    
+                         
+                         
+              arguments 
+to this function are 
+incorrect
+    |
+note: associated 
+function defined here
+   --> C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\sy
+mbol.rs:212:12
+    |
+212 |     pub fn 
+new(env: &Env, s: &str) 
+-> Self {
+    |            ^^^
+help: consider borrowing 
+here
+    |
+400 |         let last_em
+ergency_withdrawal: 
+Option<u64> = env.storage
+().instance().get(&Symbol
+::new(&env, 
+"last_emergency"));
+    |                    
+                         
+                         
+                         
+ +
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\lib.rs:412:51
+    |
+412 |         env.storage
+().instance().set(&Symbol
+::new(env, 
+"last_emergency"), &env.l
+edger().timestamp());
+    |                    
+                   
+----------- ^^^ expected 
+`&Env`, found `Env`
+    |                    
+                   |
+    |                    
+                   
+arguments to this 
+function are incorrect
+    |
+note: associated 
+function defined here
+   --> C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\sy
+mbol.rs:212:12
+    |
+212 |     pub fn 
+new(env: &Env, s: &str) 
+-> Self {
+    |            ^^^
+help: consider borrowing 
+here
+    |
+412 |         env.storage
+().instance().set(&Symbol
+::new(&env, 
+"last_emergency"), &env.l
+edger().timestamp());
+    |                    
+                         
+      +
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\lib.rs:416:26
+    |
+416 |             
+(Symbol::new(env, 
+"emergency_withdraw"),),
+    |              
+----------- ^^^ expected 
+`&Env`, found `Env`
+    |              |
+    |              
+arguments to this 
+function are incorrect
+    |
+note: associated 
+function defined here
+   --> C:\Users\ADMIN\.ca
+rgo\registry\src\index.cr
+ates.io-1949cf8c6b5b557f\
+soroban-sdk-23.5.3\src\sy
+mbol.rs:212:12
+    |
+212 |     pub fn 
+new(env: &Env, s: &str) 
+-> Self {
+    |            ^^^
+help: consider borrowing 
+here
+    |
+416 |             
+(Symbol::new(&env, 
+"emergency_withdraw"),),
+    |                    
+      +
+
+error[E0599]: no method 
+named `to_bytes` found 
+for struct 
+`soroban_sdk::Vec<T>` in 
+the current scope
+   --> escrow_contract\sr
+c\lib.rs:485:35
+    |
+485 |         env.crypto(
+).sha256(&data.to_bytes()
+)
+    |                    
+               ^^^^^^^^ 
+method not found in `soro
+ban_sdk::Vec<soroban_sdk:
+:Val>`
+
+error[E0308]: mismatched 
+types
+   --> escrow_contract\sr
+c\lib.rs:485:9
+    |
+479 |     fn 
+generate_escrow_id(env: 
+&Env, event: &Address, 
+purchaser: &Address, 
+amount: i128) -> 
+BytesN<32> {
+    |                    
+                         
+                         
+                       
+---------- expected `soro
+ban_sdk::BytesN<32>` 
+because of return type
+...
+485 |         env.crypto(
+).sha256(&data.to_bytes()
+)
+    |         ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^
+^ expected `BytesN<32>`, 
+found `Hash<32>`
+    |
+    = note: expected 
+struct 
+`soroban_sdk::BytesN<32>`
+               found 
+struct `soroban_sdk::cryp
+to::Hash<32>`
+help: call `Into::into` 
+on this expression to 
+convert `soroban_sdk::cry
+pto::Hash<32>` into 
+`soroban_sdk::BytesN<32>`
+    |
+485 |         env.crypto(
+).sha256(&data.to_bytes()
+).into()
+    |                    
+                         
+ +++++++
+
+warning: unused 
+variable: `config`
+  --> escrow_contract\src
+\proxy.rs:83:13
+   |
+83 |         let config: 
+EscrowContractConfig = 
+e.storage()
+   |             ^^^^^^ 
+help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_config`
+   |
+   = note: `#[warn(unused
+_variables)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: unused 
+variable: `config`
+   --> escrow_contract\sr
+c\proxy.rs:173:13
+    |
+173 |         let 
+config: 
+EscrowContractConfig = 
+e.storage()
+    |             ^^^^^^ 
+help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_config`
+
+warning: unused 
+variable: `event`
+   --> escrow_contract\sr
+c\proxy.rs:216:9
+    |
+216 |         event: 
+Address,
+    |         ^^^^^ 
+help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_event`
+
+warning: unused 
+variable: `organizer`
+   --> escrow_contract\sr
+c\proxy.rs:217:9
+    |
+217 |         organizer: 
+Address,
+    |         ^^^^^^^^^ 
+help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_organizer`
+
+warning: unused 
+variable: `purchaser`
+   --> escrow_contract\sr
+c\proxy.rs:218:9
+    |
+218 |         purchaser: 
+Address,
+    |         ^^^^^^^^^ 
+help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_purchaser`
+
+warning: unused 
+variable: `token`
+   --> escrow_contract\sr
+c\proxy.rs:220:9
+    |
+220 |         token: 
+Address,
+    |         ^^^^^ 
+help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_token`
+
+warning: unused 
+variable: `migration_key`
+  --> escrow_contract\src
+\upgrade_manager.rs:76:9
+   |
+76 |         
+migration_key: Symbol,
+   |         
+^^^^^^^^^^^^^ help: if 
+this is intentional, 
+prefix it with an 
+underscore: 
+`_migration_key`
+
+warning: unused 
+variable: `e`
+   --> escrow_contract\sr
+c\upgrade_manager.rs:105:
+25
+    |
+105 |     fn 
+migrate_v1_to_v2(e: 
+&Env) {
+    |                    
+     ^ help: if this is 
+intentional, prefix it 
+with an underscore: `_e`
+
+warning: unused 
+variable: `e`
+   --> escrow_contract\sr
+c\upgrade_manager.rs:111:
+25
+    |
+111 |     fn 
+migrate_v2_to_v3(e: 
+&Env) {
+    |                    
+     ^ help: if this is 
+intentional, prefix it 
+with an underscore: `_e`
+
+warning: unused 
+variable: 
+`compatibility_key`
+   --> escrow_contract\sr
+c\upgrade_manager.rs:120:
+9
+    |
+120 |         
+compatibility_key: 
+Symbol,
+    |         
+^^^^^^^^^^^^^^^^^ help: 
+if this is intentional, 
+prefix it with an 
+underscore: 
+`_compatibility_key`
+
+error[E0382]: use of 
+moved value: `event`
+   --> escrow_contract\sr
+c\lib.rs:144:14
+    |
+ 56 |         event: 
+Address,
+    |         ----- move 
+occurs because `event` 
+has type 
+`soroban_sdk::Address`, 
+which does not implement 
+the `Copy` trait
+...
+130 |         let 
+event_key = DataKey::Even
+tEscrows(event);
+    |                    
+                         
+  ----- value moved here
+...
+144 |             
+(event, organizer, 
+purchaser, amount, 
+token),
+    |              ^^^^^ 
+value used here after 
+move
+    |
+help: consider cloning 
+the value if the 
+performance cost is 
+acceptable
+    |
+130 |         let 
+event_key = DataKey::Even
+tEscrows(event.clone());
+    |                    
+                         
+       ++++++++
+
+error[E0382]: use of 
+moved value: `purchaser`
+   --> escrow_contract\sr
+c\lib.rs:144:32
+    |
+ 58 |         purchaser: 
+Address,
+    |         --------- 
+move occurs because 
+`purchaser` has type 
+`soroban_sdk::Address`, 
+which does not implement 
+the `Copy` trait
+...
+136 |         let 
+user_key = DataKey::UserE
+scrows(purchaser);
+    |                    
+                         
+--------- value moved 
+here
+...
+144 |             
+(event, organizer, 
+purchaser, amount, 
+token),
+    |                    
+            ^^^^^^^^^ 
+value used here after 
+move
+    |
+help: consider cloning 
+the value if the 
+performance cost is 
+acceptable
+    |
+136 |         let 
+user_key = DataKey::UserE
+scrows(purchaser.clone())
+;
+    |                    
+                         
+         ++++++++
+
+error[E0382]: borrow of 
+moved value: `referrer`
+   --> escrow_contract\sr
+c\lib.rs:463:27
+    |
+460 |     pub fn 
+get_referral_info(env: 
+Env, referrer: Address) 
+-> ReferralTracker {
+    |                    
+                    
+-------- move occurs 
+because `referrer` has 
+type 
+`soroban_sdk::Address`, 
+which does not implement 
+the `Copy` trait
+461 |         env.storage
+().persistent().get(&Data
+Key::ReferralTracker(refe
+rrer))
+    |                    
+                         
+                     
+-------- value moved here
+462 |             .unwrap
+_or(ReferralTracker {
+463 |                 
+referrer: 
+referrer.clone(),
+    |                    
+       ^^^^^^^^ value 
+borrowed here after move
+    |
+help: consider cloning 
+the value if the 
+performance cost is 
+acceptable
+    |
+461 |         env.storage
+().persistent().get(&Data
+Key::ReferralTracker(refe
+rrer.clone()))
+    |                    
+                         
+                         
+    ++++++++
+
+Some errors have 
+detailed explanations: 
+E0308, E0382, E0560, 
+E0599, E0608.
+For more information 
+about an error, try 
+`rustc --explain E0308`.
+warning: 
+`escrow_contract` (lib) 
+generated 29 warnings
+error: could not compile 
+`escrow_contract` (lib) 
+due to 27 previous 
+errors; 29 warnings 
+emitted

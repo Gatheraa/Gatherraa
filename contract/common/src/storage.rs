@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::{contracttype, Env};
 
 /// Time-to-live for instance storage (approx 30 days).

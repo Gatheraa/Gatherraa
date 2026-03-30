@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::{Address, BytesN, Env, token};
 
 /// Validates that an address is not a zero/dead address.

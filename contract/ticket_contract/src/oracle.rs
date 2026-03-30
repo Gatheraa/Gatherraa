@@ -11,7 +11,7 @@
 ///   get_value(key: String) -> (i128, u64)
 ///     - i128: price with 8 decimal places (e.g. 100_000_000 = $1.00)
 ///     - u64:  UNIX timestamp of the last price update
-use soroban_sdk::{contractclient, symbol_short, Address, Env, IntoVal, String, TryFromVal, Val};
+use soroban_sdk::{contractclient, symbol_short, Address, Env, IntoVal, String, Symbol, TryFromVal, Val};
 
 /// How long (in seconds) a price is considered fresh. Default: 24 hours.
 pub const DEFAULT_STALENESS_SECONDS: u64 = 86_400;
@@ -22,7 +22,7 @@ pub const DIA_ORACLE_DECIMALS: i128 = 100_000_000;
 /// Validates that an address points to a deployed contract
 pub fn validate_contract_address(e: &Env, address: &Address) -> Result<(), &'static str> {
     // Check if the address is a contract by attempting to get its instance
-    match e.try_invoke_contract::<Val>(address, &symbol_short!("__constructor"), Vec::new(e)) {
+    match e.try_invoke_contract::<Val>(address, &Symbol::new(e, "__constructor"), Vec::new(e)) {
         Ok(_) => Ok(()),
         Err(_) => Err("invalid contract address"),
     }
@@ -46,23 +46,6 @@ pub trait DiaOracleInterface {
     fn get_value(env: Env, pair: String) -> (i128, u64);
 }
 
-// --------------------------------------------------------------------------
-// DIA Oracle client
-//
-// DIA exposes a single function:
-//   get_value(key: soroban_sdk::String) -> (i128, u64)
-//
-// We define the trait using `contractclient` so the SDK generates a typed
-// client struct (`DiaOraclePriceClient`) for us automatically at compile time.
-// --------------------------------------------------------------------------
-
-/// Trait mirroring the on-chain DIA Oracle public interface.
-/// `contractclient` generates `DiaOraclePriceClient` from this.
-#[contractclient(name = "DiaOraclePriceClient")]
-pub trait DiaOracleInterface {
-    /// Returns (price_8decimals, unix_timestamp).
-    fn get_value(env: Env, pair: String) -> (i128, u64);
-}
 
 // --------------------------------------------------------------------------
 // Stellar DEX fallback client
@@ -163,10 +146,10 @@ pub fn fetch_price_with_fallback(
     // Validate addresses
     if let Err(err) = validate_contract_address(e, oracle_address) {
         // Log validation failure but continue to fallback
-        e.events().publish((symbol_short!("oracle_validation_failed"),), err);
+        e.events().publish((Symbol::new(e, "oracle_validation_failed"),), err);
     }
     if let Err(err) = validate_contract_address(e, dex_address) {
-        e.events().publish((symbol_short!("dex_validation_failed"),), err);
+        e.events().publish((Symbol::new(e, "dex_validation_failed"),), err);
     }
 
     // --- Primary oracle ---
@@ -178,7 +161,7 @@ pub fn fetch_price_with_fallback(
         // Accept if fresh enough
         if now <= timestamp || (now - timestamp) <= max_age_seconds {
             // Log successful oracle call
-            e.events().publish((symbol_short!("oracle_call_success"),), true);
+            e.events().publish((Symbol::new(e, "oracle_call_success"),), true);
             return Some(OracleResult {
                 price: raw_price,
                 timestamp,
@@ -186,10 +169,10 @@ pub fn fetch_price_with_fallback(
             });
         }
         // Log stale price
-        e.events().publish((symbol_short!("oracle_price_stale"),), timestamp);
+        e.events().publish((Symbol::new(e, "oracle_price_stale"),), timestamp);
     } else {
         // Log oracle call failure
-        e.events().publish((symbol_short!("oracle_call_failed"),), true);
+        e.events().publish((Symbol::new(e, "oracle_call_failed"),), true);
     }
 
     // --- DEX fallback ---
@@ -198,7 +181,7 @@ pub fn fetch_price_with_fallback(
 
     if let Ok(Ok(raw_price)) = dex_result {
         // Log successful DEX call
-        e.events().publish((symbol_short!("dex_call_success"),), true);
+        e.events().publish((Symbol::new(e, "dex_call_success"),), true);
         return Some(OracleResult {
             price: raw_price,
             timestamp: e.ledger().timestamp(),
@@ -206,11 +189,11 @@ pub fn fetch_price_with_fallback(
         });
     } else {
         // Log DEX call failure
-        e.events().publish((symbol_short!("dex_call_failed"),), true);
+        e.events().publish((Symbol::new(e, "dex_call_failed"),), true);
     }
 
     // Both unavailable
-    e.events().publish((symbol_short!("price_fetch_failed"),), pair);
+    e.events().publish((Symbol::new(e, "price_fetch_failed"),), pair);
     None
 }
 

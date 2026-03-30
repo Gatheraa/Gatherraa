@@ -1,0 +1,585 @@
+﻿cargo : warning: 
+profiles for the non 
+root package will be 
+ignored, specify 
+profiles at the 
+workspace root:
+At line:1 char:1
++ cargo check -p 
+gathera-contracts > 
+contracts_errors_2.txt 
+2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~
+    + CategoryInfo       
+       : NotSpecified: 
+(warni    ng: 
+profil...workspace     
+root::String) [], Remot  
+  eException
+    + 
+FullyQualifiedErrorId    
+ : NativeCommandError
+ 
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\contracts\
+Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\escrow_con
+tract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\dutch_auct
+ion_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\cross_cont
+ract_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\multisig_w
+allet_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\zk_ticket_
+contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\event_fact
+ory_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\governance
+_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\identity_c
+ontract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\subscripti
+on_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\ticket_con
+tract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\whitelist_
+contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\feature_fl
+ag_contract\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\iteration_
+optimization_contract\Car
+go.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\storage_in
+itialization_contract\Car
+go.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\storage_op
+timization_contract\Cargo
+.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: profiles for 
+the non root package 
+will be ignored, specify 
+profiles at the 
+workspace root:
+package:   C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\vrf_contra
+ct\Cargo.toml
+workspace: C:\Users\ADMIN
+\Desktop\lekan-drips\Gath
+erraa\contract\Cargo.toml
+warning: unused import: 
+`Address`
+ --> common\src\upgrade.r
+s:1:19
+  |
+1 | use 
+soroban_sdk::{Address, 
+BytesN, Env, Symbol};
+  |                   
+^^^^^^^
+  |
+  = note: `#[warn(unused_
+imports)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: unused import: 
+`BytesN`
+ --> common\src\validatio
+n.rs:1:28
+  |
+1 | use 
+soroban_sdk::{Address, 
+BytesN, Env, token};
+  |                      
+      ^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> common\src\upgrade.
+rs:26:18
+   |
+26 |     
+env.events().publish(
+   |                  
+^^^^^^^
+   |
+   = note: 
+`#[warn(deprecated)]` on 
+by default
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> common\src\upgrade.
+rs:59:18
+   |
+59 |     env.events().pub
+lish((Symbol::new(env, 
+"Upgraded"),), 
+new_wasm_hash);
+   |                  
+^^^^^^^
+
+warning: unused 
+variable: `env`
+  --> 
+common\src\error.rs:39:25
+   |
+39 | pub fn 
+panic_with_error(env: 
+&soroban_sdk::Env, 
+error: CommonError) -> ! 
+{
+   |                     
+    ^^^ help: if this is 
+intentional, prefix it 
+with an underscore: 
+`_env`
+   |
+   = note: `#[warn(unused
+_variables)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: 
+`gathera-common` (lib) 
+generated 5 warnings 
+(run `cargo fix --lib -p 
+gathera-common` to apply 
+3 suggestions)
+    Checking 
+gathera-contracts v0.1.0 
+(C:\Users\ADMIN\Desktop\l
+ekan-drips\Gatherraa\cont
+ract\contracts)
+warning: unused import: 
+`StorageCache`
+ --> contracts\src\contra
+ct.rs:3:22
+  |
+3 | use crate::storage::{
+StorageCache, *};
+  |                      
+^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_
+imports)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: unused import: 
+`require_admin`
+ --> contracts\src\contra
+ct.rs:9:5
+  |
+9 |     require_admin, 
+has_role, write_role, 
+remove_role, 
+read_version,
+  |     ^^^^^^^^^^^^^
+
+warning: the 
+`#![no_std]` attribute 
+can only be used at the 
+crate root
+ --> contracts\src\error.
+rs:1:1
+  |
+1 | #![no_std]
+  | ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_
+attributes)]` (part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> contracts\src\contr
+act.rs:71:22
+   |
+71 |         
+env.events().publish(
+   |                     
+ ^^^^^^^
+   |
+   = note: 
+`#[warn(deprecated)]` on 
+by default
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+  --> contracts\src\contr
+act.rs:97:22
+   |
+97 |         
+env.events().publish(
+   |                     
+ ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:131:30
+    |
+131 |                 env
+.events().publish((Symbol
+::new(&env, "stake_transf
+er_success"),), amount);
+    |                    
+          ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:135:30
+    |
+135 |                 env
+.events().publish((Symbol
+::new(&env, "stake_transf
+er_failed"),), amount);
+    |                    
+          ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:174:22
+    |
+174 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:230:22
+    |
+230 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:300:30
+    |
+300 |                 env
+.events().publish((Symbol
+::new(&env, "unstake_tran
+sfer_success"),), 
+actual_amount);
+    |                    
+          ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:304:30
+    |
+304 |                 env
+.events().publish((Symbol
+::new(&env, "unstake_tran
+sfer_failed"),), 
+actual_amount);
+    |                    
+          ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:312:22
+    |
+312 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:362:22
+    |
+362 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:403:22
+    |
+403 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:420:14
+    |
+420 |             .publis
+h((Symbol::new(&env, 
+"UpgradeCancelled"),), 
+());
+    |              
+^^^^^^^
+
+warning: use of 
+deprecated method `soroba
+n_sdk::events::Events::pu
+blish`: use the 
+#[contractevent] macro 
+on a contract event type
+   --> contracts\src\cont
+ract.rs:444:22
+    |
+444 |         
+env.events().publish(
+    |                    
+  ^^^^^^^
+
+warning: constant 
+`MOD_ROLE` is never used
+  --> contracts\src\contr
+act.rs:27:7
+   |
+27 | const MOD_ROLE: 
+Symbol = 
+symbol_short!("MOD");
+   |       ^^^^^^^^
+   |
+   = note: 
+`#[warn(dead_code)]` 
+(part of 
+`#[warn(unused)]`) on by 
+default
+
+warning: 
+`gathera-contracts` 
+(lib) generated 17 
+warnings (run `cargo fix 
+--lib -p 
+gathera-contracts` to 
+apply 2 suggestions)
+    Finished `dev` 
+profile [unoptimized + 
+debuginfo] target(s) in 
+4.44s

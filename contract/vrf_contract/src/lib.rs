@@ -6,10 +6,10 @@ mod test;
 mod storage_types;
 use storage_types::{DataKey, VRFRequest, VRFStatus, VRFProof, EntropyProvider, ProviderType,
                    RandomnessSeed, EntropySource, SourceType, RandomnessValidation, TestResult,
-                   QualityMetrics, ProviderStats, VRFError};
+                   QualityMetrics, ProviderStats};
 
 use soroban_sdk::{
-    contract, contractimpl, symbol_short, vec, map, Address, BytesN, Env, IntoVal, String, Symbol, Vec, Map, U256,
+    contract, contractimpl, symbol_short, Address, BytesN, Env, IntoVal, Symbol, Vec,
 };
 
 #[contract]
@@ -70,7 +70,7 @@ impl VRFContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("provider_registered"), provider_address.clone()),
+            (Symbol::new(&e, "provider_registered"), provider_address.clone()),
             provider.provider_type,
         );
     }
@@ -120,7 +120,7 @@ impl VRFContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("vrf_requested"), request_id.clone()),
+            (Symbol::new(&e, "vrf_requested"), request_id.clone()),
             (requester, selected_providers.len()),
         );
 
@@ -172,7 +172,7 @@ impl VRFContract {
 
         #[allow(deprecated)]
         e.events().publish(
-            (symbol_short!("vrf_fulfilled"), request_id.clone()),
+            (Symbol::new(&e, "vrf_fulfilled"), request_id.clone()),
             (proof.provider, randomness_output),
         );
 
@@ -396,21 +396,21 @@ impl VRFContract {
         let mut results = Vec::new(e);
 
         // Test 1: Monobit test (frequency test)
-        let monobit_result = Self::monobit_test(randomness);
+        let monobit_result = Self::monobit_test(e, randomness);
         results.push_back(monobit_result);
 
         // Test 2: Runs test
-        let runs_result = Self::runs_test(randomness);
+        let runs_result = Self::runs_test(e, randomness);
         results.push_back(runs_result);
 
         // Test 3: Longest run of ones test
-        let longest_run_result = Self::longest_run_test(randomness);
+        let longest_run_result = Self::longest_run_test(e, randomness);
         results.push_back(longest_run_result);
 
         results
     }
 
-    fn monobit_test(randomness: &BytesN<32>) -> TestResult {
+    fn monobit_test(e: &Env, randomness: &BytesN<32>) -> TestResult {
         let mut ones = 0;
         for byte in randomness.as_bytes() {
             for bit in 0..8 {
@@ -433,11 +433,11 @@ impl VRFContract {
             test_name: symbol_short!("monobit"),
             passed,
             score,
-            details: Vec::new(),
+            details: Vec::new(e),
         }
     }
 
-    fn runs_test(randomness: &BytesN<32>) -> TestResult {
+    fn runs_test(e: &Env, randomness: &BytesN<32>) -> TestResult {
         let mut runs = 1;
         let mut prev_bit = randomness.as_bytes()[0] & 1;
 
@@ -463,11 +463,11 @@ impl VRFContract {
             test_name: symbol_short!("runs"),
             passed,
             score,
-            details: Vec::new(),
+            details: Vec::new(e),
         }
     }
 
-    fn longest_run_test(randomness: &BytesN<32>) -> TestResult {
+    fn longest_run_test(e: &Env, randomness: &BytesN<32>) -> TestResult {
         let mut longest_run = 0;
         let mut current_run = 0;
         let mut prev_bit = 0;
@@ -492,10 +492,10 @@ impl VRFContract {
         let score = if longest_run <= 10 { 1.0 } else { (26.0 - longest_run as f32) / 16.0 };
 
         TestResult {
-            test_name: symbol_short!("longest_run"),
+            test_name: Symbol::new(e, "longest_run"),
             passed,
             score,
-            details: Vec::new(),
+            details: Vec::new(e),
         }
     }
 

@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::contracterror;
 
 /// Standard error codes shared across the Gatherraa smart contract ecosystem.

@@ -77,6 +77,8 @@ pub enum EscrowStatus {
     Disputed,
     /// Escrow was cancelled before completion.
     Cancelled,
+    /// Funds are active and available for use
+    Active,
 }
 
 #[contracttype]
@@ -169,6 +171,16 @@ pub struct RevenueSplitConfig {
     pub dispute_timeout: u64,
     /// Time delay for administrative emergency withdrawals.
     pub emergency_withdrawal_delay: u64,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub struct EscrowContractConfig {
+    pub admin: Address,
+    pub escrow_management_contract: Address,
+    pub dispute_resolution_contract: Address,
+    pub revenue_splitting_contract: Address,
+    pub referral_tracking_contract: Address,
 }
 
 // Custom errors

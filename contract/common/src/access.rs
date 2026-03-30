@@ -1,4 +1,3 @@
-#![no_std]
 use soroban_sdk::{contracttype, Address, Env, Symbol};
 
 /// Storage keys for access control and contract state.

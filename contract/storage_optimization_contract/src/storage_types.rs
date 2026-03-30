@@ -102,14 +102,14 @@ pub struct BatchOperation {
     pub operation_type: u8,    // Use u8 instead of enum for storage efficiency
     pub target: Address,
     pub amount: i128,
-    pub data: BytesN<32),
+    pub data: BytesN<32>,
     pub gas_estimate: u32,
 }
 
 // Efficient data structures for common patterns
 #[derive(Clone)]
 pub struct CompactMap {
-    pub keys: Vec<BytesN<16)>,  // Smaller keys for storage efficiency
+    pub keys: Vec<BytesN<16>>,  // Smaller keys for storage efficiency
     pub values: Vec<u32>,        // Use u32 instead of larger types where possible
     pub timestamps: Vec<u32>,   // Packed timestamps
 }

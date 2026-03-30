@@ -128,17 +128,22 @@ impl StakingContract {
         
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("stake_transfer_success"),), amount);
+                env.events().publish((Symbol::new(&env, "stake_transfer_success"),), amount);
             },
             _ => {
                 remove_reentrancy_guard(&env);
-                env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
+                env.events().publish((Symbol::new(&env, "stake_transfer_failed"),), amount);
                 return Err(StakingError::InsufficientBalance);
             }
         }
 
         // Update amount
         user_info.amount += amount;
+
+        let tier = read_tier(&env, tier_id).unwrap_or(Tier {
+            min_amount: 0,
+            reward_multiplier: 100,
+        });
 
         if user_info.amount < tier.min_amount {
             remove_reentrancy_guard(&env);
@@ -159,8 +164,8 @@ impl StakingContract {
 
         write_user_info(&env, &user, &user_info);
 
+        let mut total_shares = read_total_shares(&env);
         total_shares += diff_shares;
-        cache.set_total_shares(total_shares);
         write_total_shares(&env, total_shares);
 
         remove_reentrancy_guard(&env);
@@ -209,6 +214,7 @@ impl StakingContract {
                 user_info.shares = new_shares;
                 write_user_info(&env, &user, &user_info);
 
+                let mut total_shares = read_total_shares(&env);
                 total_shares += diff_shares;
                 write_total_shares(&env, total_shares);
             } else {
@@ -284,17 +290,18 @@ impl StakingContract {
 
         write_user_info(&env, &user, &user_info);
 
+        let mut total_shares = read_total_shares(&env);
         total_shares -= diff_shares;
         write_total_shares(&env, total_shares);
 
         let token_client = token::Client::new(&env, &config.staking_token);
         match token_client.try_transfer(&env.current_contract_address(), &user, &actual_amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("unstake_transfer_success"),), actual_amount);
+                env.events().publish((Symbol::new(&env, "unstake_transfer_success"),), actual_amount);
             },
             _ => {
                 remove_reentrancy_guard(&env);
-                env.events().publish((symbol_short!("unstake_transfer_failed"),), actual_amount);
+                env.events().publish((Symbol::new(&env, "unstake_transfer_failed"),), actual_amount);
                 return Err(StakingError::InsufficientBalance);
             }
         }
@@ -315,6 +322,7 @@ impl StakingContract {
             return Err(StakingError::Unauthorized);
         }
 
+        let config = read_config(&env);
         let mut user_info = update_reward(&env, Some(&user), &config).expect("user not found");
         if user_info.amount < amount {
             return Err(StakingError::SlashingAmountExceedsBalance);
@@ -344,6 +352,7 @@ impl StakingContract {
         write_user_info(&env, &user, &user_info);
 
         // Update cached total_shares and write once
+        let mut total_shares = read_total_shares(&env);
         total_shares -= diff_shares;
         write_total_shares(&env, total_shares);
 
