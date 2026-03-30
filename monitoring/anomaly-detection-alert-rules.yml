@@ -1,0 +1,229 @@
+# Prometheus Alert Rules for Anomaly Detection System
+
+groups:
+  - name: anomaly_detection_alerts
+    interval: 30s
+    rules:
+      # Critical Alerts
+      - alert: HighCriticalAnomalyDetectionRate
+        expr: |
+          increase(anomaly_alerts_total{severity="CRITICAL"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: anomaly-detection
+        annotations:
+          summary: "High rate of critical anomalies detected"
+          description: |
+            {{ $value }} critical anomalies detected in the last 5 minutes.
+            This indicates potential coordinated market manipulation.
+            Immediate investigation and action required.
+
+      - alert: CriticalPatternDetected
+        expr: |
+          increase(anomaly_detections_total{pattern=~"SPOOFING.*|LAYERING.*"}[1m]) > 3
+        for: 2m
+        labels:
+          severity: critical
+          service: anomaly-detection
+        annotations:
+          summary: "Critical spoofing or layering pattern detected"
+          description: |
+            {{ $value }} critical spoofing/layering events detected.
+            Pattern: {{ $labels.pattern }}
+            Symbol: {{ $labels.symbol }}
+            Auto-ban action should be verified.
+
+      - alert: AnomalyDetectionServiceDown
+        expr: |
+          up{job="anomaly-detection"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: anomaly-detection
+        annotations:
+          summary: "Anomaly Detection Service is down"
+          description: |
+            The anomaly detection service has been unavailable for more than 2 minutes.
+            Market surveillance is currently not operational.
+
+      # High Severity Alerts
+      - alert: HighAnomalyDetectionRate
+        expr: |
+          increase(anomaly_alerts_total{severity=~"HIGH|CRITICAL"}[5m]) > 25
+        for: 5m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "Elevated rate of high/critical anomalies"
+          description: |
+            {{ $value }} high or critical anomalies detected in 5 minutes.
+            Review alert dashboard and take appropriate actions.
+
+      - alert: HighFalsePositiveRate
+        expr: |
+          (increase(anomaly_alerts_resolved_as_false_positive[24h]) /
+           increase(anomaly_alerts_total[24h])) > 0.20
+        for: 30m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "High false positive rate detected"
+          description: |
+            False positive rate is {{ $value | humanizePercentage }}.
+            Review and adjust detection thresholds.
+            Current pattern: {{ $labels.pattern }}
+
+      - alert: LargeNumberOfThrottledActors
+        expr: |
+          anomaly_throttled_traders_count > 50
+        for: 10m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "Large number of traders throttled"
+          description: |
+            {{ $value }} traders are currently throttled.
+            Review alert patterns and consider threshold adjustment.
+
+      - alert: DetectionLatencyHigh
+        expr: |
+          histogram_quantile(0.95, detection_latency_ms) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "Detection latency exceeding 1 second"
+          description: |
+            95th percentile detection latency is {{ $value }}ms.
+            System may be unable to react quickly to market manipulation.
+
+      # Medium Severity Alerts
+      - alert: AnomalyDetectionBacklogGrowing
+        expr: |
+          increase(anomaly_detection_queue_depth[5m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "Detection backlog is accumulating"
+          description: |
+            Detection queue depth has increased over 10 minutes.
+            May indicate processing bottleneck or high market volatility.
+
+      - alert: FeatureExtractionSlowdown
+        expr: |
+          histogram_quantile(0.99, feature_extraction_duration_ms) > 500
+        for: 10m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "Feature extraction taking longer than expected"
+          description: |
+            99th percentile feature extraction time is {{ $value }}ms.
+            Consider optimizing feature calculation or reducing patterns.
+
+      - alert: MLModelLatencyHigh
+        expr: |
+          histogram_quantile(0.95, ml_detection_latency_ms) > 2000
+        for: 5m
+        labels:
+          severity: warning
+          service: anomaly-detection
+        annotations:
+          summary: "ML model inference latency elevated"
+          description: |
+            ML model 95th percentile latency is {{ $value }}ms.
+            May want to disable ML engine during high-load periods.
+
+      # Low Severity Alerts (Informational)
+      - alert: UnusualVolumeSpikesDetected
+        expr: |
+          increase(anomaly_detections_total{pattern="UNUSUAL_VOLUME_SPIKE"}[1h]) > 100
+        for: 30m
+        labels:
+          severity: info
+          service: anomaly-detection
+        annotations:
+          summary: "Elevated number of unusual volume spike detections"
+          description: |
+            {{ $value }} volume spike anomalies in the last hour.
+            This may indicate genuine market volatility or needs threshold adjustment.
+
+      - alert: HistoricalDataBufferFull
+        expr: |
+          anomaly_historical_data_size_percent > 90
+        for: 30m
+        labels:
+          severity: info
+          service: anomaly-detection
+        annotations:
+          summary: "Historical data buffer approaching capacity"
+          description: |
+            Historical data storage is at {{ $value }}% capacity.
+            Consider archiving old data or adjusting retention period.
+
+      - alert: AlertResolutionBacklog
+        expr: |
+          anomaly_alerts_unresolved_older_than_24h > 10
+        for: 60m
+        labels:
+          severity: info
+          service: anomaly-detection
+        annotations:
+          summary: "Backlog of unresolved alerts"
+          description: |
+            {{ $value }} alerts remain unresolved for >24 hours.
+            May need additional review resources.
+
+  - name: anomaly_detection_slo
+    interval: 1m
+    rules:
+      # SLO: 99.9% uptime
+      - alert: AnomalyDetectionSLOViolation
+        expr: |
+          (1 - (increase(up{job="anomaly-detection"}[5m]) / 5)) > 0.001
+        for: 5m
+        labels:
+          severity: critical
+          slo: "99.9%"
+        annotations:
+          summary: "Anomaly Detection SLO violation"
+          description: |
+            Service availability is below 99.9% SLO target.
+            Current uptime: {{ (1 - $value) | humanizePercentage }}
+
+      # SLO: 95th percentile latency < 500ms
+      - alert: AnomalyDetectionLatencySLOViolation
+        expr: |
+          histogram_quantile(0.95, detection_latency_ms) > 500
+        for: 10m
+        labels:
+          severity: warning
+          slo: "detection_latency_p95_500ms"
+        annotations:
+          summary: "Detection latency SLO violation"
+          description: |
+            95th percentile latency is {{ $value }}ms (target: <500ms).
+            Service may need optimization or resource scaling.
+
+      # SLO: False positive rate < 15%
+      - alert: AnomalyDetectionAccuracySLOViolation
+        expr: |
+          (increase(anomaly_alerts_resolved_as_false_positive[7d]) /
+           increase(anomaly_alerts_total[7d])) > 0.15
+        for: 1h
+        labels:
+          severity: warning
+          slo: "fp_rate_15_percent"
+        annotations:
+          summary: "Anomaly detection accuracy SLO violation"
+          description: |
+            7-day false positive rate is {{ $value | humanizePercentage }} (target: <15%).
+            Model tuning or threshold adjustment needed.

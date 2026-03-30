@@ -16,7 +16,8 @@ export interface ConflictResolution {
 // Get all unresolved conflicts
 export async function getUnresolvedConflicts(): Promise<ConflictRecord[]> {
   return db.conflicts
-    .filter(c => !c.resolvedAt)
+    .where('resolvedAt')
+    .notEqual('')
     .toArray();
 }
 

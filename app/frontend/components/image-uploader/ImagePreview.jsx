@@ -2,45 +2,30 @@ import React from "react";
 
 const ImagePreview = ({ preview, progress }) => {
   return (
-    <div style={styles.container}>
-      <img src={preview} alt="preview" style={styles.image} />
-
-      <div style={styles.progressBar}>
-        <div
-          style={{
-            ...styles.progressFill,
-            width: `${progress}%`,
-          }}
+    <div className="mt-6 space-y-3">
+      {/* Image */}
+      <div className="relative rounded-xl overflow-hidden border border-gray-700">
+        <img
+          src={preview}
+          alt="preview"
+          className="w-full h-64 object-cover"
         />
       </div>
 
-      <p>{progress}%</p>
+      {/* Progress Bar */}
+      <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-green-500 transition-all duration-300"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Percentage */}
+      <p className="text-xs text-gray-400 text-right">
+        {progress}%
+      </p>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    marginTop: "20px",
-  },
-  image: {
-    width: "100%",
-    maxHeight: "300px",
-    objectFit: "cover",
-    borderRadius: "8px",
-  },
-  progressBar: {
-    marginTop: "10px",
-    height: "8px",
-    background: "#eee",
-    borderRadius: "5px",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    background: "#16a34a",
-    transition: "width 0.3s ease",
-  },
 };
 
 export default ImagePreview;

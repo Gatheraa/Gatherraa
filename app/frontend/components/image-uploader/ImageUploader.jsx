@@ -10,26 +10,22 @@ const ImageUploader = ({ onUpload }) => {
   const inputRef = useRef();
 
   const handleFile = (selectedFile) => {
-    if (!selectedFile) return;
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) return;
 
     setFile(selectedFile);
     setPreview(URL.createObjectURL(selectedFile));
-
-    // Start upload simulation or real upload
     uploadFile(selectedFile);
   };
 
   const uploadFile = async (file) => {
     if (!onUpload) {
-      // Simulate progress if no backend yet
-      let progressValue = 0;
+      let value = 0;
       const interval = setInterval(() => {
-        progressValue += 10;
-        setProgress(progressValue);
-        if (progressValue >= 100) clearInterval(interval);
+        value += 10;
+        setProgress(value);
+        if (value >= 100) clearInterval(interval);
       }, 200);
     } else {
-      // Real upload handler passed from parent
       await onUpload(file, setProgress);
     }
   };
@@ -37,26 +33,33 @@ const ImageUploader = ({ onUpload }) => {
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const droppedFile = e.dataTransfer.files[0];
-    handleFile(droppedFile);
+    handleFile(e.dataTransfer.files[0]);
   };
 
   return (
-    <div>
+    <div className="w-full max-w-lg mx-auto">
+      {/* Dropzone */}
       <div
-        style={{
-          ...styles.dropzone,
-          borderColor: isDragging ? "#16a34a" : "#ccc",
-        }}
+        onClick={() => inputRef.current.click()}
         onDragOver={(e) => {
           e.preventDefault();
           setIsDragging(true);
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        onClick={() => inputRef.current.click()}
+        className={`
+          border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer
+          transition-all duration-300
+          ${isDragging 
+            ? "border-green-400 bg-green-900/20 scale-[1.02]" 
+            : "border-gray-600 hover:border-green-500 hover:bg-gray-800/40"}
+        `}
       >
-        <p>Drag & drop an image here, or click to select</p>
+        <p className="text-gray-300 text-sm">
+          Drag & drop an image here, or{" "}
+          <span className="text-green-400 font-semibold">click to upload</span>
+        </p>
+
         <input
           ref={inputRef}
           type="file"
@@ -66,21 +69,12 @@ const ImageUploader = ({ onUpload }) => {
         />
       </div>
 
+      {/* Preview */}
       {preview && (
         <ImagePreview preview={preview} progress={progress} />
       )}
     </div>
   );
-};
-
-const styles = {
-  dropzone: {
-    border: "2px dashed #ccc",
-    padding: "30px",
-    textAlign: "center",
-    cursor: "pointer",
-    borderRadius: "10px",
-  },
 };
 
 export default ImageUploader;

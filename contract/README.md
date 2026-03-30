@@ -1,57 +1,261 @@
-# Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
+# Gathera Smart Contract Suite
 
-This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
+A comprehensive smart contract ecosystem for the Gathera platform, providing secure and efficient solutions for event ticketing, escrow services, and multi-signature wallet management.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Overview
 
-## Project Overview
+The Gathera contract suite is organized into logical modules with clear boundaries and well-defined interfaces:
 
-This example project includes:
+```
+contract/
+├── common/                    # Shared utilities and types
+├── ticket_contract/          # Soulbound ticket system
+├── escrow_contract/         # Secure escrow services
+├── multisig_wallet_contract/ # Multi-signature wallet
+├── dutch_auction_contract/  # Dutch auction for tickets
+├── zk_ticket_contract/      # Zero-knowledge ticketing
+├── cross_contract_contract/ # Cross-contract operations
+├── contracts/               # Integration layer
+└── test/                    # Testing utilities
+```
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using `mocha` and ethers.js
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+## Modules
 
-## Usage
+### 📦 `gathera-common`
+
+**Purpose**: Provides shared utilities, types, and testing frameworks used across all contracts.
+
+**Key Features**:
+- Gas measurement and benchmarking utilities
+- Common data types and structures
+- Error handling patterns
+- Testing frameworks
+
+**Dependencies**: None (base module)
+
+### 🎫 `ticket_contract`
+
+**Purpose**: Implements soulbound (non-transferable) ticket system for events and activities.
+
+**Key Features**:
+- Soulbound ticket mechanism
+- Event-based ticket issuance
+- Attendance tracking and verification
+- Integration with escrow for payments
+
+**Dependencies**: `gathera-common`
+
+### 🔒 `escrow_contract`
+
+**Purpose**: Provides secure escrow services with conditional release and dispute resolution.
+
+**Key Features**:
+- Secure fund escrow with multi-sig support
+- Conditional release mechanisms
+- Dispute resolution system
+- Time-based auto-release
+
+**Dependencies**: `gathera-common`
+
+### 👥 `multisig_wallet_contract`
+
+**Purpose**: Implements multi-signature wallet for enhanced security of organizational funds.
+
+**Key Features**:
+- Multi-signature transaction approval
+- Configurable threshold settings
+- Owner management with voting
+- Time-lock for critical operations
+
+**Dependencies**: `gathera-common`
+
+### 💰 `dutch_auction_contract`
+
+**Purpose**: Implements a Dutch auction mechanism for ticket sales, ensuring fair price discovery.
+
+**Key Features**:
+- Linear price decay
+- Real-time bidding
+- Automatic fulfillment
+- Integration with `ticket_contract`
+
+**Dependencies**: `gathera-common`, `ticket_contract`
+
+### 🕶️ `zk_ticket_contract`
+
+**Purpose**: Enables privacy-preserving ticket verification using Zero-Knowledge Proofs.
+
+**Key Features**:
+- On-chain ZK verification
+- Private attendance logs
+- Proof of eligibility without revealing identity
+
+**Dependencies**: `gathera-common`
+
+### 🔀 `cross_contract_contract`
+
+**Purpose**: Orchestrates complex operations involving multiple Gathera contracts.
+
+**Key Features**:
+- Atomic multi-contract execution
+- Shared state synchronization
+- Rollback mechanisms for failed multi-step operations
+
+**Dependencies**: All other contracts
+
+### 🔗 `contracts` (Integration Layer)
+
+**Purpose**: Provides orchestration and unified interfaces for cross-contract operations.
+
+**Key Features**:
+- Cross-contract workflow management
+- Unified client interfaces
+- Contract deployment utilities
+- Common business workflows
+
+**Dependencies**: All other contracts
+
+### 🧪 `test`
+
+**Purpose**: Comprehensive testing utilities and benchmarks for the entire suite.
+
+**Key Features**:
+- Gas benchmarking and regression testing
+- Integration testing frameworks
+- Performance monitoring
+- Edge case testing
+
+**Dependencies**: All contracts
+
+## Architecture Principles
+
+### 1. **Clear Module Boundaries**
+Each contract has a single responsibility and well-defined interface.
+
+### 2. **Minimal Dependencies**
+Dependencies flow in one direction to avoid circular dependencies:
+```
+common → ticket_contract
+common → escrow_contract  
+common → multisig_wallet_contract
+all contracts → contracts (integration)
+all contracts → test
+```
+
+### 3. **Shared Utilities**
+Common functionality is centralized in `gathera-common` to reduce duplication.
+
+### 4. **Comprehensive Testing**
+Each module includes extensive tests with shared testing utilities.
+
+## Development Workflow
+
+### Building All Contracts
+```bash
+cargo build --workspace --release
+```
 
 ### Running Tests
-
-To run all the tests in the project, execute the following command:
-
-```shell
-npx hardhat test
+```bash
+cargo test --workspace
 ```
 
-You can also selectively run the Solidity or `mocha` tests:
-
-```shell
-npx hardhat test solidity
-npx hardhat test mocha
+### Running Gas Benchmarks
+```bash
+cargo test --package gathera-test --release -- --ignored
 ```
 
-### Make a deployment to Sepolia
+### Contract Deployment
+Use the deployment utilities in the `contracts` module for automated deployment.
 
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
+## Gas Optimization
 
-To run the deployment to a local chain:
+All contracts are optimized for minimal gas usage:
 
-```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+- **Profile**: Optimized for size (`opt-level = "z"`)
+- **Link-Time Optimization**: Enabled for better optimization
+- **Strip Symbols**: Reduces contract size
+- **Single Codegen Unit**: Maximizes optimization opportunities
+
+## Security Features
+
+### 1. **Access Control**
+Role-based access control with proper authorization checks.
+
+### 2. **Input Validation**
+Comprehensive input validation to prevent vulnerabilities.
+
+### 3. **Reentrancy Protection**
+Built-in protection against reentrancy attacks.
+
+### 4. **Overflow Protection**
+Automatic overflow checks in all arithmetic operations.
+
+## Integration Patterns
+
+### Event Ticketing Workflow
+```
+Event Creation → Ticket Issuance → Escrow Payment → Attendance Verification
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
-
-```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+### Multi-Sig Operations
+```
+Transaction Submission → Owner Approvals → Threshold Check → Execution
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
-
-```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+### Dispute Resolution
 ```
+Dispute Creation → Evidence Collection → Resolution Voting → Fund Distribution
+```
+
+## Testing Strategy
+
+### Unit Tests
+Each contract has comprehensive unit tests covering all functionality.
+
+### Integration Tests
+Cross-contract workflows are tested end-to-end.
+
+### Gas Benchmarks
+Regular gas usage monitoring to ensure efficiency.
+
+### Security Tests
+Extensive security testing including edge cases and attack vectors.
+
+## Contributing
+
+When contributing to the Gathera contract suite:
+
+1. **Follow Module Boundaries**: Keep changes within the intended module scope
+2. **Update Documentation**: Document any new features or changes
+3. **Add Tests**: Ensure comprehensive test coverage
+4. **Check Gas Usage**: Verify gas efficiency of changes
+5. **Run CI**: Ensure all tests pass before submitting
+
+## Troubleshooting
+
+### Common Build Issues
+
+- **WASM Target Missing**: Ensure the `wasm32-unknown-unknown` target is installed:
+  ```bash
+  rustup target add wasm32-unknown-unknown
+  ```
+- **Outdated CLI**: If contract deployment fails, update the Soroban CLI:
+  ```bash
+  cargo install --locked soroban-cli
+  ```
+
+### Testing Issues
+
+- **Time-based Proofs Fail**: Some tests depend on network time. Ensure your environment matches the expected time parameters in `test/src/utils.rs`.
+- **Insufficient Gas**: For complex transactions, increase the gas limit in the `soroban contract invoke` flags.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+**Gathera Smart Contract Team** 🛡️
+
+For support, please open an issue in the main repository or contact us on Discord.

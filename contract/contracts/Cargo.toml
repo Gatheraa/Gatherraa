@@ -1,35 +1,17 @@
-[workspace]
-members = [
-    "escrow_contract",
-    "cross_contract_contract", 
-    "multisig_wallet_contract",
-    "dutch_auction_contract",
-    "zk_ticket_contract",
-    "event_factory_contract",
-    "governance_contract",
-    "identity_contract",
-    "subscription_contract",
-    "ticket_contract",
-    "whitelist_contract",
-]
-
 [package]
 name = "gathera-contracts"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-soroban-sdk = "23.5.2"
+soroban-sdk = { workspace = true }
+gathera-common = { workspace = true }
+ticket-contract = { workspace = true }
+escrow-contract = { workspace = true }
+multisig-wallet-contract = { workspace = true }
 
 [dev-dependencies]
-soroban-sdk = { version = "23.5.2", features = ["testutils"] }
-
-[profile.release]
-opt-level = "z"
-debug = 0
-strip = "symbols"
-debug-assertions = false
-overflow-checks = true
-lto = true
-panic = "abort"
-codegen-units = 1
+soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -123,6 +123,7 @@ export const PUBLIC_PATHS = [
   "/_next",
   "/api/health",
   "/favicon",
+  "/profile", // TODO: remove once wallet-to-JWT auth flow is implemented
 ];
 
 export function isPublicPath(pathname: string): boolean {

@@ -5,15 +5,25 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { eventsApi, Event } from '../../../lib/api/events';
+import { ScrollHeader } from '@/components/layout/ScrollHeader';
 import RatingDisplay from '../../../components/reviews/rating-display';
 import ReviewList from '../../../components/reviews/review-list';
 import ReviewForm from '../../../components/reviews/review-form';
+
+/** API may include aggregates not yet on the base `Event` type */
+type EventDetailPayload = Event & {
+  ratingSummary?: {
+    averageRating: number;
+    totalReviews: number;
+    ratingDistribution: Record<number, number>;
+  };
+};
 
 export default function EventDetailPage() {
   const params = useParams();
   const eventId = params.id as string;
 
-  const [event, setEvent] = useState<Event | null>(null);
+  const [event, setEvent] = useState<EventDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -25,7 +35,7 @@ export default function EventDetailPage() {
       setError(null);
 
       try {
-        const eventData = await eventsApi.getEvent(eventId);
+        const eventData = (await eventsApi.getEvent(eventId)) as EventDetailPayload;
         setEvent(eventData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load event');
@@ -87,37 +97,53 @@ export default function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Back Link */}
-        <Link
-          href="/events"
-          className="inline-flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Events</span>
-        </Link>
+      <ScrollHeader threshold={20}>
+        {({ compact }) => (
+          <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+            <Link
+              href="/events"
+              className="inline-flex shrink-0 items-center gap-2 text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+              <span className={compact ? 'hidden sm:inline' : ''}>Back to Events</span>
+            </Link>
+            <p
+              className={`min-w-0 truncate font-semibold text-gray-900 transition-all duration-300 dark:text-white motion-reduce:transition-none ${
+                compact
+                  ? 'max-w-[min(72vw,28rem)] text-base opacity-100'
+                  : 'max-w-0 overflow-hidden text-base opacity-0'
+              }`}
+              aria-hidden={!compact}
+            >
+              {event.title}
+            </p>
+          </div>
+        )}
+      </ScrollHeader>
 
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {/* Event Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            {event.name}
+        <div className="mb-6 rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+          <h1 className="mb-2 text-2xl font-bold text-gray-900 sm:text-3xl dark:text-white">
+            {event.title}
           </h1>
           {event.description && (
-            <p className="text-gray-700 dark:text-gray-300 mb-4">{event.description}</p>
+            <p className="mb-4 text-gray-700 dark:text-gray-300">{event.description}</p>
           )}
           <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
             <div>
-              <span className="font-medium">Start:</span> {formatDate(event.startTime)}
+              <span className="font-medium">Start:</span> {formatDate(event.startDate)}
             </div>
-            {event.endTime && (
+            {event.endDate && (
               <div>
-                <span className="font-medium">End:</span> {formatDate(event.endTime)}
+                <span className="font-medium">End:</span> {formatDate(event.endDate)}
               </div>
             )}
-            <div>
-              <span className="font-medium">Contract:</span>{' '}
-              <span className="font-mono text-xs">{event.contractAddress}</span>
-            </div>
+            {event.location && (
+              <div>
+                <span className="font-medium">Location:</span> {event.location}
+              </div>
+            )}
           </div>
         </div>
 

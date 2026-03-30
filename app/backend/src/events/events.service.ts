@@ -9,6 +9,7 @@ import { CreateEventCommand } from './commands/create-event.command';
 import { UpdateEventCommand } from './commands/update-event.command';
 import { DeleteEventCommand } from './commands/delete-event.command';
 import { BulkCreateEventsCommand } from './commands/bulk-create-events.command';
+import { GetEventsQuery } from './queries/get-events.query';
 import { CreateEventDto as CreateEventDtoCQRS, UpdateEventDto as UpdateEventDtoCQRS, BulkCreateEventsDto } from './dto/event.dto';
 import { User, UserRole } from '../users/entities/user.entity';
 
@@ -150,5 +151,29 @@ export class EventsService {
   async getEventsByOrganizer(organizerId: string, query: any) {
     // This will be implemented with query handlers
     return { message: 'Query handler not implemented yet' };
+  }
+
+  async searchEvents(query: any): Promise<{ events: any[]; total: number }> {
+    const filters = {
+      organizerId: query.organizerId,
+      organizerName: query.organizerName,
+      status: query.status,
+      type: query.type,
+      category: query.category,
+      isPublic: query.isPublic,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      minPrice: query.minPrice,
+      maxPrice: query.maxPrice,
+      location: query.location,
+      isFeatured: query.isFeatured,
+    };
+
+    const limit = query.limit || 20;
+    const offset = query.offset || 0;
+
+    return await this.queryBus.execute(
+      new GetEventsQuery(filters, limit, offset),
+    );
   }
 }

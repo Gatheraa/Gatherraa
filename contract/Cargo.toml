@@ -1,0 +1,39 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    "contracts",
+    "ticket_contract",
+    "escrow_contract",
+    "dutch_auction_contract",
+    "multisig_wallet_contract",
+    "zk_ticket_contract",
+    "cross_contract_contract",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Gathera Team <dev@gathera.com>"]
+edition = "2021"
+repository = "https://github.com/Gatheraa/Gatherraa"
+license = "MIT"
+
+[workspace.dependencies]
+soroban-sdk = { version = "23.5.2", features = ["testutils"] }
+gathera-common = { path = "./common" }
+ticket-contract = { path = "./ticket_contract" }
+escrow-contract = { path = "./escrow_contract" }
+multisig-wallet-contract = { path = "./multisig_wallet_contract" }
+dutch-auction-contract = { path = "./dutch_auction_contract" }
+zk-ticket-contract = { path = "./zk_ticket_contract" }
+cross-contract-contract = { path = "./cross_contract_contract" }
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+lto = true
+codegen-units = 1

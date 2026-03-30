@@ -3,3 +3,4 @@ export { WalletButton } from './WalletButton';
 export { WalletAddress } from './WalletAddress';
 export { WrongNetworkAlert } from './WrongNetworkAlert';
 export { ConnectWalletModal } from './ConnectWalletModal';
+export { WalletConnector } from './WalletConnector';

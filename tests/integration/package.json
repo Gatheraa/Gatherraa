@@ -1,0 +1,38 @@
+{
+  "name": "gatheraa-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration tests for Gatheraa smart contracts",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/run-tests.js",
+    "test:cross-contract": "echo 'Cross-contract tests not implemented for Soroban contracts yet'",
+    "test:token-interactions": "echo 'Token interaction tests not implemented for Soroban contracts yet'",
+    "test:end-to-end": "echo 'End-to-end tests not implemented for Soroban contracts yet'",
+    "test:upgrades": "echo 'Upgrade tests not implemented for Soroban contracts yet'",
+    "test:coverage": "echo 'Coverage generation not implemented for Soroban contracts yet' && mkdir -p coverage && echo '{}' > coverage/coverage.json",
+    "test:lint": "echo 'Linting not implemented for Soroban contracts yet'",
+    "build": "npm run build:contracts",
+    "build:contracts": "node scripts/build-contracts.js",
+    "clean": "npm run clean:contracts",
+    "clean:contracts": "node scripts/clean-contracts.js",
+    "setup": "npm install && npm run build"
+  },
+  "keywords": ["blockchain", "smart-contracts", "integration-tests", "gatheraa", "soroban", "rust"],
+  "author": "Gatheraa Team",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/chai": "^4.3.20",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.19.7",
+    "chai": "^5.3.3",
+    "mocha": "^11.7.5",
+    "typescript": "~5.8.0",
+    "dotenv": "^16.4.5",
+    "soroban-client": "^21.0.0",
+    "soroban-sdk": "^23.5.2"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}

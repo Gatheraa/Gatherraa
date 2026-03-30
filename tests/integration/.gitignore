@@ -1,0 +1,29 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.env.*.local
+coverage/
+coverage.json
+typechain/
+typechain-types/
+
+# Hardhat files
+cache/
+artifacts/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test-results/
+*.test.ts.snap

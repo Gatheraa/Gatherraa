@@ -1,0 +1,208 @@
+name: Gatheraa CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '20.x'
+  IMAGE_NAME: gatheraa/backend
+
+jobs:
+  # --- Contract Jobs ---
+  contract-lint:
+    name: Contract Linting (Clippy & Fmt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contract/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check formatting
+        working-directory: contract
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        working-directory: contract
+        run: |
+          cargo clippy \
+            --target wasm32-unknown-unknown \
+            --all-targets \
+            --all-features \
+            -- \
+            -D warnings \
+            -D clippy::all \
+            -D clippy::pedantic \
+            -W clippy::nursery \
+            -A clippy::module_name_repetitions \
+            -A clippy::too_many_arguments \
+            -A clippy::cast_possible_truncation
+
+  contract-test:
+    name: Contract Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            contract/target
+          key: ${{ runner.os }}-cargo-tests-${{ hashFiles('contract/**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-tests-
+
+      - name: Run contract tests
+        working-directory: contract
+        run: cargo test --workspace --all-features
+
+  # --- Backend Jobs ---
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/backend
+        run: npm ci
+
+      - name: Run tests
+        working-directory: app/backend
+        run: npm test
+
+  # --- Security & Dependency Scanning (#349) ---
+  security-audit:
+    name: Security & Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@cargo-audit
+
+      - name: Run Cargo Audit
+        working-directory: contract
+        run: cargo audit
+
+      - name: Run NPM Audit
+        working-directory: app/backend
+        run: npm audit --audit-level=high
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  # --- Gas Profiling (#350) ---
+  gas-profiling:
+    name: Gas Usage Profiling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Soroban CLI
+        run: cargo install --locked soroban-cli --features opt
+
+      - name: Build contracts
+        working-directory: contract
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Run Gas Profiling Script
+        run: bash scripts/profile_gas.sh
+        continue-on-error: true
+
+      - name: Upload Gas Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-reports
+          path: contract/gas_reports/
+
+  # --- Deployment & Verification (#348, #351) ---
+  deploy-and-verify:
+    name: Deploy & Verify Contracts
+    needs: [contract-lint, contract-test, backend-test, security-audit]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Soroban CLI
+        run: cargo install --locked soroban-cli
+
+      - name: Build Contracts
+        working-directory: contract
+        run: cargo build --target wasm32-unknown-unknown --release
+
+      - name: Deploy to Testnet/Mainnet
+        run: bash scripts/deploy_contracts.sh
+        env:
+          SOROBAN_NETWORK: testnet
+          SOROBAN_ACCOUNT_SECRET: ${{ secrets.SOROBAN_ACCOUNT_SECRET }}
+
+      - name: Verify Deployed Contracts
+        run: bash scripts/verify_contracts.sh
+        env:
+          SOROBAN_NETWORK: testnet
+
+  build-and-push-docker:
+    name: Build & Push Docker Image
+    needs: [deploy-and-verify]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/backend
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }},${{ env.IMAGE_NAME }}:latest
