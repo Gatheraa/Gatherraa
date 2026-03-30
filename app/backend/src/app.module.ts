@@ -31,6 +31,7 @@ import { OrganizerModule } from './organizer/organizer.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { DataAggregationModule } from './data-aggregation/data-aggregation.module';
+import { InvoicesModule } from './invoices/invoices.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { DataAggregationModule } from './data-aggregation/data-aggregation.modul
     WebhooksModule,
     WaitlistModule,
     DataAggregationModule,
+    InvoicesModule,
   ],
   controllers: [AppController, ApiController],
   providers: [AppService],
