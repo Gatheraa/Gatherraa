@@ -157,7 +157,7 @@ function GenericSkeleton() {
   );
 }
 
-const SKELETONS: Record<SkeletonVariant, () => JSX.Element> = {
+const SKELETONS: Record<SkeletonVariant, () => React.JSX.Element> = {
   dashboard: DashboardSkeleton,
   event: EventSkeleton,
   profile: ProfileSkeleton,

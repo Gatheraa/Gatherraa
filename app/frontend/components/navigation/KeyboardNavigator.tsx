@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useCallback, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Command, HelpCircle, Keyboard, X, ShieldCheck } from 'lucide-react';
 
 interface ShortcutGroup {

@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { eventsApi, Event } from '../../../lib/api/events';
 import { ScrollHeader } from '@/components/layout/ScrollHeader';
+import { EventAccessGate } from '@/components/ui/molecules';
 import RatingDisplay from '../../../components/reviews/rating-display';
 import ReviewList from '../../../components/reviews/review-list';
 import ReviewForm from '../../../components/reviews/review-form';
+import { useAuth } from '../../../hooks/useAuth';
 
 /** API may include aggregates not yet on the base `Event` type */
 type EventDetailPayload = Event & {
@@ -21,13 +23,14 @@ type EventDetailPayload = Event & {
 
 export default function EventDetailPage() {
   const params = useParams();
-  const eventId = params.id as string;
+  const eventId = typeof params?.id === 'string' ? params.id : '';
 
   const [event, setEvent] = useState<EventDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { isAuthenticated, address } = useAuth();
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -95,6 +98,18 @@ export default function EventDetailPage() {
     });
   };
 
+  const normalizedAddress = address?.toLowerCase();
+  const normalizedOrganizer = event.organizerId?.toLowerCase();
+
+  const isOrganizer = Boolean(normalizedAddress && normalizedOrganizer && normalizedAddress === normalizedOrganizer);
+  const isRegistered = Boolean((event as Event & { isRegistered?: boolean }).isRegistered);
+
+  const viewerStatus = {
+    isAuthenticated,
+    isRegistered,
+    isOrganizer,
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <ScrollHeader threshold={20}>
@@ -160,22 +175,29 @@ export default function EventDetailPage() {
 
         {/* Review Form Toggle */}
         <div className="mb-6">
-          {!showReviewForm ? (
-            <button
-              onClick={() => setShowReviewForm(true)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Write a Review
-            </button>
-          ) : (
-            <div>
-              <ReviewForm
-                eventId={eventId}
-                onSubmit={handleReviewSubmit}
-                onCancel={() => setShowReviewForm(false)}
-              />
-            </div>
-          )}
+          <EventAccessGate
+            requiredAccess={['registered', 'organizer']}
+            viewerStatus={viewerStatus}
+            unauthorizedMessage="Only registered attendees can submit reviews."
+            unauthorizedDescription="Register for this event to unlock the review form."
+          >
+            {!showReviewForm ? (
+              <button
+                onClick={() => setShowReviewForm(true)}
+                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Write a Review
+              </button>
+            ) : (
+              <div>
+                <ReviewForm
+                  eventId={eventId}
+                  onSubmit={handleReviewSubmit}
+                  onCancel={() => setShowReviewForm(false)}
+                />
+              </div>
+            )}
+          </EventAccessGate>
         </div>
 
         {/* Reviews List */}

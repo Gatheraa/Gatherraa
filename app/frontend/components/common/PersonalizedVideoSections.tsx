@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import DynamicVideoGrid from '../video/DynamicVideoGrid';
+import { DynamicVideoGrid } from '../video/DynamicVideoGrid';
 
 // Section config type
 type SectionType = 'trending' | 'forYou' | 'newReleases';

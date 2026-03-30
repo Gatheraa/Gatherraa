@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, Clock, LogOut, RefreshCw, X } from 'lucide-react';
 
 // Types for the component

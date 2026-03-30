@@ -22,6 +22,8 @@ const TAG_SUGGESTIONS = [
   'Technology',
 ];
 
+const EVENT_CATEGORIES = ['conference', 'workshop', 'concert', 'hackathon', 'meetup'] as const;
+
 // ─── Schema ───────────────────────────────────────────────────────────────────
 const createEventSchema = z.object({
   title: z
@@ -174,7 +176,6 @@ export default function CreateEventForm() {
       {/* Title */}
       <FormInput
         label="Event Title"
-        name="title"
         type="text"
         placeholder="e.g. Stellar Dev Hackathon 2025"
         required
@@ -188,7 +189,6 @@ export default function CreateEventForm() {
       {/* Description */}
       <FormInput
         label="Description"
-        name="description"
         as="textarea"
         rows={3}
         placeholder="Tell attendees what this event is about..."
@@ -202,7 +202,6 @@ export default function CreateEventForm() {
       {/* Category */}
       <FormInput
         label="Category"
-        name="category"
         as="select"
         required
         error={errors.category}
@@ -238,7 +237,6 @@ export default function CreateEventForm() {
       <div className="grid grid-cols-2 gap-4">
         <FormInput
           label="Ticket Price (XLM)"
-          name="ticketPrice"
           type="number"
           min="0"
           step="0.01"
@@ -251,7 +249,6 @@ export default function CreateEventForm() {
         />
         <FormInput
           label="Max Attendees"
-          name="maxAttendees"
           type="number"
           min="1"
           step="1"
@@ -267,7 +264,6 @@ export default function CreateEventForm() {
       {/* Contract Address */}
       <FormInput
         label="Contract Address"
-        name="contractAddress"
         type="text"
         placeholder="GABC…"
         icon={<CodeIcon />}
@@ -280,7 +276,6 @@ export default function CreateEventForm() {
       {/* Website URL */}
       <FormInput
         label="Website URL"
-        name="websiteUrl"
         type="url"
         placeholder="https://gatheraa.xyz/event"
         icon={<GlobeIcon />}

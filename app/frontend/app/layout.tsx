@@ -4,6 +4,8 @@ import "./globals.css";
 import { WalletProvider } from "@/components/wallet/WalletProvider";
 import { OfflineProvider } from "@/lib/offline/OfflineContext";
 import { ReactQueryProvider } from "@/lib/react-query/QueryClientProvider";
+import { FloatingActionButton } from "@/components/navigation/FloatingActionButton";
+import { RoleProvider } from "@/components/dao/RoleContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,6 +49,12 @@ export default function RootLayout({
               {children}
             </ReactQueryProvider>
           </WalletProvider>
+          <RoleProvider>
+            <WalletProvider>
+              {children}
+              <FloatingActionButton />
+            </WalletProvider>
+          </RoleProvider>
         </OfflineProvider>
       </body>
     </html>

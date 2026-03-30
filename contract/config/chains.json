@@ -1,0 +1,286 @@
+{
+  "networks": {
+    "ethereum": {
+      "chainId": 1,
+      "name": "Ethereum Mainnet",
+      "rpcUrl": "https://mainnet.infura.io/v3/YOUR_PROJECT_ID",
+      "blockTime": 12,
+      "gasLimit": 300000,
+      "confirmations": 12,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x1234567890123456789012345678901234567890",
+        "minConfirmations": 2,
+        "maxGasLimit": 500000
+      }
+    },
+    "polygon": {
+      "chainId": 137,
+      "name": "Polygon Mainnet",
+      "rpcUrl": "https://polygon-rpc.com",
+      "blockTime": 2,
+      "gasLimit": 200000,
+      "confirmations": 5,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "MATIC",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x2345678901234567890123456789012345678901",
+        "minConfirmations": 2,
+        "maxGasLimit": 400000
+      }
+    },
+    "arbitrum": {
+      "chainId": 42161,
+      "name": "Arbitrum One",
+      "rpcUrl": "https://arb1.arbitrum.io/rpc",
+      "blockTime": 1,
+      "gasLimit": 250000,
+      "confirmations": 8,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x3456789012345678901234567890123456789012",
+        "minConfirmations": 2,
+        "maxGasLimit": 450000
+      }
+    },
+    "optimism": {
+      "chainId": 10,
+      "name": "Optimism",
+      "rpcUrl": "https://mainnet.optimism.io",
+      "blockTime": 2,
+      "gasLimit": 200000,
+      "confirmations": 6,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x4567890123456789012345678901234567890123",
+        "minConfirmations": 2,
+        "maxGasLimit": 400000
+      }
+    },
+    "base": {
+      "chainId": 8453,
+      "name": "Base",
+      "rpcUrl": "https://mainnet.base.org",
+      "blockTime": 2,
+      "gasLimit": 200000,
+      "confirmations": 6,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x5678901234567890123456789012345678901234",
+        "minConfirmations": 2,
+        "maxGasLimit": 400000
+      }
+    },
+    "stellar": {
+      "chainId": 2,
+      "name": "Stellar",
+      "rpcUrl": "https://horizon.stellar.org",
+      "blockTime": 5,
+      "gasLimit": 100000,
+      "confirmations": 3,
+      "decimals": 7,
+      "nativeCurrency": {
+        "name": "Lumens",
+        "symbol": "XLM",
+        "decimals": 7
+      },
+      "bridge": {
+        "address": "GABC1234567890123456789012345678901234567890",
+        "minConfirmations": 1,
+        "maxGasLimit": 200000
+      }
+    }
+  },
+  "testnets": {
+    "sepolia": {
+      "chainId": 11155111,
+      "name": "Sepolia Testnet",
+      "rpcUrl": "https://sepolia.infura.io/v3/YOUR_PROJECT_ID",
+      "blockTime": 12,
+      "gasLimit": 300000,
+      "confirmations": 12,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x7890123456789012345678901234567890123456",
+        "minConfirmations": 2,
+        "maxGasLimit": 500000
+      }
+    },
+    "sepoliaOptimism": {
+      "chainId": 11155420,
+      "name": "OP Sepolia Testnet",
+      "rpcUrl": "https://sepolia.optimism.io",
+      "blockTime": 2,
+      "gasLimit": 200000,
+      "confirmations": 6,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x8901234567890123456789012345678901234567",
+        "minConfirmations": 2,
+        "maxGasLimit": 400000
+      }
+    },
+    "sepoliaArbitrum": {
+      "chainId": 421614,
+      "name": "Arbitrum Sepolia Testnet",
+      "rpcUrl": "https://sepolia-rollup.arbitrum.io/rpc",
+      "blockTime": 1,
+      "gasLimit": 250000,
+      "confirmations": 8,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x9012345678901234567890123456789012345678",
+        "minConfirmations": 2,
+        "maxGasLimit": 450000
+      }
+    },
+    "sepoliaPolygon": {
+      "chainId": 1389,
+      "name": "Polygon Sepolia Testnet",
+      "rpcUrl": "https://rpc.sepolia.polygon.technology",
+      "blockTime": 2,
+      "gasLimit": 200000,
+      "confirmations": 5,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "MATIC",
+        "symbol": "MATIC",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x0123456789012345678901234567890123456789",
+        "minConfirmations": 2,
+        "maxGasLimit": 400000
+      }
+    },
+    "sepoliaBase": {
+      "chainId": 84532,
+      "name": "Base Sepolia Testnet",
+      "rpcUrl": "https://sepolia.base.org",
+      "blockTime": 2,
+      "gasLimit": 200000,
+      "confirmations": 6,
+      "decimals": 18,
+      "nativeCurrency": {
+        "name": "Ether",
+        "symbol": "ETH",
+        "decimals": 18
+      },
+      "bridge": {
+        "address": "0x1234567890123456789012345678901234567890",
+        "minConfirmations": 2,
+        "maxGasLimit": 400000
+      }
+    }
+  },
+  "crossChain": {
+    "enabled": true,
+    "timeout": 3600000,
+    "retryAttempts": 3,
+    "retryDelay": 60000,
+    "maxAmount": "1000000000000000000000",
+    "minAmount": "1000000000000000",
+    "supportedPairs": [
+      ["ethereum", "polygon"],
+      ["ethereum", "arbitrum"],
+      ["ethereum", "optimism"],
+      ["ethereum", "base"],
+      ["polygon", "arbitrum"],
+      ["polygon", "optimism"],
+      ["polygon", "base"],
+      ["arbitrum", "optimism"],
+      ["arbitrum", "base"],
+      ["optimism", "base"]
+    ],
+    "fees": {
+      "baseFee": "0.001",
+      "percentageFee": 0.1,
+      "minFee": "0.0001",
+      "maxFee": "1.0"
+    },
+    "security": {
+      "enableBridgeValidation": true,
+      "minBridgeConfirmations": 2,
+      "maxPendingMessages": 100,
+      "blacklist": [],
+      "whitelist": []
+    }
+  },
+  "contracts": {
+    "staking": {
+      "name": "CrossChainStakingContract",
+      "version": "1.0.0",
+      "deployments": {
+        "ethereum": "",
+        "polygon": "",
+        "arbitrum": "",
+        "optimism": "",
+        "base": "",
+        "stellar": ""
+      }
+    },
+    "chainAbstraction": {
+      "name": "ChainAbstraction",
+      "version": "1.0.0",
+      "deployments": {
+        "ethereum": "",
+        "polygon": "",
+        "arbitrum": "",
+        "optimism": "",
+        "base": "",
+        "stellar": ""
+      }
+    }
+  },
+  "monitoring": {
+    "enabled": true,
+    "events": true,
+    "healthCheckInterval": 300000,
+    "alertThreshold": 0.8,
+    "metrics": {
+      "crossChainVolume": true,
+      "crossChainTransactions": true,
+      "bridgeHealth": true,
+      "gasUsage": true
+    }
+  }
+}

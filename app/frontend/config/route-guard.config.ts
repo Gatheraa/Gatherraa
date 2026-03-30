@@ -6,7 +6,7 @@
  * Consumed by middleware.ts, RouteGuard component, and auth utilities.
  */
 
-export type UserRole = "guest" | "user" | "organizer" | "admin";
+export type UserRole = "guest" | "user" | "contributor" | "creator" | "organizer" | "admin";
 
 export interface RouteRule {
   /** Minimum role required to access this path */
@@ -27,6 +27,8 @@ export interface RouteRule {
 export const ROLE_HIERARCHY: UserRole[] = [
   "guest",
   "user",
+  "contributor",
+  "creator",
   "organizer",
   "admin",
 ];
