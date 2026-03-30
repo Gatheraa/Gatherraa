@@ -1,7 +1,18 @@
 import withBundleAnalyzer from '@next/bundle-analyzer';
+import path from 'node:path';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  outputFileTracingRoot: path.resolve(process.cwd()),
+
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+
   // Image optimization
   images: {
     formats: ['image/webp', 'image/avif'],

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { motion, Reorder, AnimatePresence } from 'motion/react';
+import { motion, Reorder, AnimatePresence } from 'framer-motion';
 import { GripVertical, Clock, MapPin, Plus, Trash2, Edit3, Save, RotateCcw } from 'lucide-react';
 
 interface Session {

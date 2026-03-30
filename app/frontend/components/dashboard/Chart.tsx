@@ -222,7 +222,6 @@ export function Chart({
                 name={s.name || s.dataKey}
                 fill={s.color || colors[index % colors.length]}
                 radius={[4, 4, 0, 0]}
-                onClick={(data, index) => handleClick(data, index)}
                 cursor={onDataPointClick ? 'pointer' : 'default'}
                 {...animationProps}
               />
@@ -260,7 +259,6 @@ export function Chart({
                 strokeWidth={s.strokeWidth || 2}
                 dot={{ fill: s.color || colors[index % colors.length], r: 4 }}
                 activeDot={{ r: 6, strokeWidth: 0 }}
-                onClick={(data, index) => handleClick(data, index)}
                 cursor={onDataPointClick ? 'pointer' : 'default'}
                 {...animationProps}
               />
@@ -297,7 +295,6 @@ export function Chart({
                 stroke={s.color || colors[index % colors.length]}
                 fill={s.color || colors[index % colors.length]}
                 fillOpacity={s.fillOpacity || 0.2}
-                onClick={(data, index) => handleClick(data, index)}
                 cursor={onDataPointClick ? 'pointer' : 'default'}
                 {...animationProps}
               />
@@ -318,7 +315,7 @@ export function Chart({
               outerRadius={outerRadius}
               dataKey={chartSeries[0]?.dataKey || 'value'}
               nameKey={xAxisKey}
-              onClick={(data, index) => handleClick(data as unknown as ChartDataPoint, index)}
+              onClick={(data: unknown, index: number) => handleClick(data as ChartDataPoint, index)}
               cursor={onDataPointClick ? 'pointer' : 'default'}
               {...animationProps}
             >
@@ -335,7 +332,7 @@ export function Chart({
         );
 
       default:
-        return null;
+        return <></>;
     }
   };
 

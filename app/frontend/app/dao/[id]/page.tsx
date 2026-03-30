@@ -12,7 +12,7 @@ import { WrongNetworkAlert } from '@/components/wallet/WrongNetworkAlert';
 
 const ProposalDetailPage: React.FC = () => {
   const params = useParams();
-  const id = params.id as string;
+  const id = typeof params?.id === 'string' ? params.id : '';
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

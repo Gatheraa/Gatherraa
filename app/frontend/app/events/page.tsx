@@ -160,7 +160,7 @@ export default function EventsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {events.map((event) => {
-              const status = getEventStatus(event.startDate, event.endDate);
+              const status = getEventStatus(event.startDate, event.endDate ?? null);
               return (
                 <Link
                   key={event.id}
@@ -201,7 +201,7 @@ export default function EventsPage() {
                     <div className="space-y-2 mb-4">
                       <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <Calendar className="w-4 h-4" />
-                        <span>{formatDateRange(event.startDate, event.endDate)}</span>
+                        <span>{formatDateRange(event.startDate, event.endDate ?? null)}</span>
                       </div>
                       {event.registeredCount > 0 && (
                         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
