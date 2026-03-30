@@ -10,8 +10,8 @@ import Link from 'next/link';
 import { Calendar, ChevronLeft, ChevronRight, MapPin, Star, Users } from 'lucide-react';
 import type { Event } from '@/lib/api/events';
 
-function formatDateShort(dateString: string) {
-  const date = new Date(dateString);
+function formatDateShort(dateInput: string | Date) {
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -26,7 +26,7 @@ function formatDateRangeShort(start: string, end?: string | null) {
     return formatDateShort(start);
   }
   if (endDate) {
-    return `${formatDateShort(start)} – ${formatDateShort(end)}`;
+    return `${formatDateShort(start)} – ${formatDateShort(endDate)}`;
   }
   return formatDateShort(start);
 }

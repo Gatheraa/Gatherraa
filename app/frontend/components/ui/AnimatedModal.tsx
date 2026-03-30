@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AnimatedModalProps {
   isOpen: boolean;

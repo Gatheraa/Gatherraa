@@ -32,7 +32,7 @@ export interface ValidationRule {
   value?: string | number;
   message: string;
   regex?: string;
-  customValidator?: (value: any) => boolean | string;
+  customValidator?: (value: any, allValues?: Record<string, any>) => boolean | string;
 }
 
 export interface FieldOption {

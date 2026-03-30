@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 
 export interface CollapsibleSectionProps {

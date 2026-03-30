@@ -1,10 +1,13 @@
-import { useRole, UserRole } from '../app/components/dao/RoleContext';
+import { useRole, UserRole } from '../components/dao/RoleContext';
 
 /**
  * Convenience hook — use this in pages/components instead of useRole directly.
  */
 export function useAuth() {
   const { role, address, isAuthenticated, setRole, setAddress, hasRole } = useRole();
+  const user = isAuthenticated && role ? { role, address } : null;
+  const status = isAuthenticated ? 'authenticated' : 'unauthenticated';
+  const isLoading = false;
 
   /** Call this after wallet connection + on-chain role resolution */
   function login(walletAddress: string, resolvedRole: UserRole) {
@@ -19,6 +22,9 @@ export function useAuth() {
   }
 
   return {
+    user,
+    status,
+    isLoading,
     role,
     address,
     isAuthenticated,

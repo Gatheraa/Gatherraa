@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, AlertCircle, RefreshCw, Database, Activity, CheckCircle, XCircle } from 'lucide-react';
 import { DataSource, AggregatedData, LoadingState } from '../../types/data-aggregator';
 
