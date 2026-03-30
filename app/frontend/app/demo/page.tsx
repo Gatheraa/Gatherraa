@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import MultiSourceDataAggregator from '../components/MultiSourceDataAggregator';
-import SessionTimeoutManager from '../components/SessionTimeoutManager';
+import MultiSourceDataAggregator from '../../components/MultiSourceDataAggregator';
+import SessionTimeoutManager from '../../components/SessionTimeoutManager';
 
 // Demo page for testing both components
 const ComponentDemoPage: React.FC = () => {

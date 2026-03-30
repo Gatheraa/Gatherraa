@@ -21,7 +21,7 @@ type EventDetailPayload = Event & {
 
 export default function EventDetailPage() {
   const params = useParams();
-  const eventId = params.id as string;
+  const eventId = typeof params?.id === 'string' ? params.id : '';
 
   const [event, setEvent] = useState<EventDetailPayload | null>(null);
   const [loading, setLoading] = useState(true);

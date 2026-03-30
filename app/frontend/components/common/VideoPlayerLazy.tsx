@@ -1,6 +1,6 @@
 import React, { Suspense, useState } from 'react';
 import dynamic from 'next/dynamic';
-import VideoPlayerSync from '../video/VideoPlayerSync';
+import { VideoPlayerSync } from '../video/VideoPlayerSync';
 
 // Dynamically import non-critical UI components
 const Captions = dynamic(() => import('./VideoPlayerCaptions'), { ssr: false, loading: () => <div className="player-ui-loading">Loading captions...</div> });
