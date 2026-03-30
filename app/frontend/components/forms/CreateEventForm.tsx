@@ -44,10 +44,6 @@ const createEventSchema = z.object({
   maxAttendees: z
     .string()
     .refine(v => !isNaN(Number(v)) && Number(v) >= 1 && Number.isInteger(Number(v)), 'Must be a whole number ≥ 1'),
-  category: z
-    .string()
-    .refine((value) => EVENT_CATEGORIES.includes(value as (typeof EVENT_CATEGORIES)[number]), {
-      message: 'Please select a category',
   category: z.enum(['conference', 'workshop', 'concert', 'hackathon', 'meetup', ''], {
     errorMap: () => ({ message: 'Please select a category' }),
   }).refine(v => v !== '', { message: 'Please select a category' }),
