@@ -5,10 +5,7 @@ members = [
     "contracts",
     "ticket_contract",
     "escrow_contract",
-    "dutch_auction_contract",
     "multisig_wallet_contract",
-    "zk_ticket_contract",
-    "cross_contract_contract",
 ]
 
 [workspace.package]
@@ -24,9 +21,6 @@ gathera-common = { path = "./common" }
 ticket_contract = { path = "./ticket_contract" }
 escrow_contract = { path = "./escrow_contract" }
 multisig_wallet_contract = { path = "./multisig_wallet_contract" }
-dutch_auction_contract = { path = "./dutch_auction_contract" }
-zk_ticket_contract = { path = "./zk_ticket_contract" }
-cross_contract_contract = { path = "./cross_contract_contract" }
 
 [profile.release]
 opt-level = "z"
