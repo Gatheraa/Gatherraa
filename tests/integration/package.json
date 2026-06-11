@@ -28,9 +28,7 @@
     "chai": "^5.3.3",
     "mocha": "^11.7.5",
     "typescript": "~5.8.0",
-    "dotenv": "^16.4.5",
-    "soroban-client": "^21.0.0",
-    "soroban-sdk": "^23.5.2"
+    "dotenv": "^16.4.5"
   },
   "dependencies": {
     "axios": "^1.6.0"

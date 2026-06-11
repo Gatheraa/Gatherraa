@@ -58,10 +58,9 @@ const FormInput = forwardRef<
   const sharedProps = {
     id: name,
     name,
-    ref: ref,
     className: baseClass,
     onFocus: () => setFocused(true),
-    onBlur: (e: any) => { setFocused(false); props.onBlur?.(e); },
+    onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => { setFocused(false); props.onBlur?.(e); },
     'aria-invalid': hasError,
     'aria-describedby': hasError ? `${name}-error` : hint ? `${name}-hint` : undefined,
     ...props,
@@ -97,16 +96,21 @@ const FormInput = forwardRef<
         {as === 'textarea' ? (
           <textarea
             {...sharedProps}
+            ref={ref as React.Ref<HTMLTextAreaElement>}
             rows={rows}
             className={baseClass + ' resize-none'}
             style={{ paddingTop: '12px', paddingBottom: '12px' }}
           />
         ) : as === 'select' ? (
-          <select {...sharedProps} className={baseClass + ' appearance-none cursor-pointer'}>
+          <select
+            {...sharedProps}
+            ref={ref as React.Ref<HTMLSelectElement>}
+            className={baseClass + ' appearance-none cursor-pointer'}
+          >
             {children}
           </select>
         ) : (
-          <input {...sharedProps} />
+          <input {...sharedProps} ref={ref as React.Ref<HTMLInputElement>} />
         )}
 
         {rightElement && (

@@ -49,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             bodyClassName={widgetProps.bodyClassName}
           >
             {typeof component === "function"
-              ? (component as Function)(props)
+              ? (component as (p: Record<string, unknown>) => React.ReactNode)((props ?? {}) as Record<string, unknown>)
               : component}
             {!component && (
               <div className="p-8 text-center text-text-muted italic opacity-50">
