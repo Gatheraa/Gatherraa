@@ -3,13 +3,17 @@
 ################################################################################
 
 # ============================================================================
-# PACKAGE MANAGERS - LOCK FILES (NEVER COMMIT)
+# PACKAGE MANAGERS - LOCK FILES
 # ============================================================================
-# These should be regenerated during setup, not stored in version control
-package-lock.json
+# NPM lock files SHOULD be committed for reproducible CI builds.
+# Other lock files are workspace-level and should be regenerated during setup.
 pnpm-lock.yaml
 yarn.lock
 Cargo.lock
+
+# ============================================================================
+# OTHER LOCK FILES
+# ============================================================================
 *.lock
 
 # ============================================================================
