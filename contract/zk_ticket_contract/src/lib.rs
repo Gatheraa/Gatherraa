@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl, contracterror, Env, Address, BytesN};
+use soroban_sdk::{contract, contracterror, contractimpl, Address, BytesN, Env};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -25,12 +25,20 @@ pub struct ZKTicketContract;
 
 #[contractimpl]
 impl ZKTicketContract {
-    pub fn issue_ticket(env: Env, event_id: BytesN<32>, proof: BytesN<32>) -> Result<ZKTicket, ZKTicketError> {
+    pub fn issue_ticket(
+        env: Env,
+        event_id: BytesN<32>,
+        proof: BytesN<32>,
+    ) -> Result<ZKTicket, ZKTicketError> {
         let _ = (env, event_id, proof);
         Err(ZKTicketError::NotImplemented)
     }
 
-    pub fn verify_ticket(env: Env, ticket_id: BytesN<32>, proof: BytesN<32>) -> Result<bool, ZKTicketError> {
+    pub fn verify_ticket(
+        env: Env,
+        ticket_id: BytesN<32>,
+        proof: BytesN<32>,
+    ) -> Result<bool, ZKTicketError> {
         let _ = (env, ticket_id, proof);
         Err(ZKTicketError::NotImplemented)
     }
