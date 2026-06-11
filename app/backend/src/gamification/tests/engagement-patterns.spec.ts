@@ -2,9 +2,24 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { GamificationService } from '../services/gamification.service';
-import { EngagementMetrics } from '../entities/gamification-analytics.entity';
+import { Achievement } from '../entities/achievement.entity';
 import { UserAchievement } from '../entities/user-achievement.entity';
-import { UserChallenge } from '../entities/challenge.entity';
+import { Leaderboard, LeaderboardEntry } from '../entities/leaderboard.entity';
+import { Challenge, UserChallenge } from '../entities/challenge.entity';
+import { Streak, StreakActivity } from '../entities/streak.entity';
+import { Guild, GuildMember } from '../entities/guild.entity';
+import { SeasonalEvent, UserEventParticipation } from '../entities/seasonal-event.entity';
+import { GamificationAnalytics, EngagementMetrics } from '../entities/gamification-analytics.entity';
+
+const mockRepo = (entity: any) => ({
+  provide: getRepositoryToken(entity),
+  useValue: {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+  },
+});
 
 describe('Engagement Patterns Tests', () => {
   let service: GamificationService;
@@ -23,27 +38,20 @@ describe('Engagement Patterns Tests', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GamificationService,
-        {
-          provide: getRepositoryToken(EngagementMetrics),
-          useValue: {
-            create: jest.fn(),
-            save: jest.fn(),
-            findOne: jest.fn(),
-            find: jest.fn(),
-          },
-        },
-        {
-          provide: getRepositoryToken(UserAchievement),
-          useValue: {
-            find: jest.fn(),
-          },
-        },
-        {
-          provide: getRepositoryToken(UserChallenge),
-          useValue: {
-            find: jest.fn(),
-          },
-        },
+        mockRepo(Achievement),
+        mockRepo(UserAchievement),
+        mockRepo(Leaderboard),
+        mockRepo(LeaderboardEntry),
+        mockRepo(Challenge),
+        mockRepo(UserChallenge),
+        mockRepo(Streak),
+        mockRepo(StreakActivity),
+        mockRepo(Guild),
+        mockRepo(GuildMember),
+        mockRepo(SeasonalEvent),
+        mockRepo(UserEventParticipation),
+        mockRepo(GamificationAnalytics),
+        mockRepo(EngagementMetrics),
       ],
     }).compile();
 

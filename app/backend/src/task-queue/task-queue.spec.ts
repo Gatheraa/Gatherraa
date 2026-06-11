@@ -3,11 +3,11 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { BullModule } from '@nestjs/bullmq';
-import { TaskQueueService, QueueName } from '../services/task-queue.service';
-import { EmailProcessor } from '../processors/email.processor';
-import { ImageProcessor } from '../processors/image.processor';
-import { BlockchainProcessor } from '../processors/blockchain.processor';
-import { ScheduledTaskProcessor } from '../processors/scheduled-task.processor';
+import { TaskQueueService, QueueName } from './services/task-queue.service';
+import { EmailProcessor } from './processors/email.processor';
+import { ImageProcessor } from './processors/image.processor';
+import { BlockchainProcessor } from './processors/blockchain.processor';
+import { ScheduledTaskProcessor } from './processors/scheduled-task.processor';
 import { INestApplication } from '@nestjs/common';
 
 describe('TaskQueue System', () => {

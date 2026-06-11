@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { CouponService } from '../services/coupon.service';
 import {
   Coupon,
@@ -21,7 +21,6 @@ describe('CouponService', () => {
     create: jest.fn(),
     save: jest.fn(),
     update: jest.fn(),
-    findOneBy: jest.fn(),
   };
 
   const mockCouponUsageRepository = {
@@ -52,6 +51,8 @@ describe('CouponService', () => {
   };
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         CouponService,
@@ -68,7 +69,7 @@ describe('CouponService', () => {
           useValue: mockCacheManager,
         },
         {
-          provide: 'DataSource',
+          provide: DataSource,
           useValue: mockDataSource,
         },
       ],
@@ -110,7 +111,7 @@ describe('CouponService', () => {
         stackabilityRule: StackabilityRule.ALL,
       };
 
-      mockCouponRepository.findOneBy.mockResolvedValue(null);
+      mockCouponRepository.findOne.mockResolvedValue(null);
       mockCouponRepository.create.mockReturnValue(expectedCoupon);
       mockCouponRepository.save.mockResolvedValue(expectedCoupon);
       mockCacheManager.del.mockResolvedValue(undefined);
@@ -134,7 +135,7 @@ describe('CouponService', () => {
         discountValue: 10,
       };
 
-      mockCouponRepository.findOneBy.mockResolvedValue({ id: 'existing-id' });
+      mockCouponRepository.findOne.mockResolvedValue({ id: 'existing-id' });
 
       await expect(service.createCoupon(dto, 'user-123')).rejects.toThrow(
         'Coupon code already exists',

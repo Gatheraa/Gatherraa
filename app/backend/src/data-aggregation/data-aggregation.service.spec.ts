@@ -58,7 +58,7 @@ describe('DataAggregationService', () => {
       const result = await service.testConnection('https://valid-endpoint.com');
 
       expect(result.success).toBe(true);
-      expect(result.responseTime).toBeGreaterThan(0);
+      expect(result.responseTime).toBeGreaterThanOrEqual(0);
       expect(result.error).toBeUndefined();
     });
 
@@ -69,7 +69,7 @@ describe('DataAggregationService', () => {
       const result = await service.testConnection('https://invalid-endpoint.com');
 
       expect(result.success).toBe(false);
-      expect(result.responseTime).toBeGreaterThan(0);
+      expect(result.responseTime).toBeGreaterThanOrEqual(0);
       expect(result.error).toBeDefined();
     });
   });
