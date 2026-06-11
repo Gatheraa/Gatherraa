@@ -186,7 +186,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Soroban CLI
-        run: cargo install --locked soroban-cli --features opt
+        run: cargo install --locked soroban-cli
 
       - name: Build contracts
         working-directory: contract

@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const CONTRACTS_DIR = join(__dirname, '../contracts');
-const RUST_CONTRACTS_DIR = join(__dirname, '../../contract');
+const RUST_CONTRACTS_DIR = join(__dirname, '../../../contract');
 const BUILD_DIR = join(CONTRACTS_DIR, 'build');
 
 console.log('🔨 Building Soroban contracts...');

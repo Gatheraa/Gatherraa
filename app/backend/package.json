@@ -147,7 +147,7 @@
     "testEnvironment": "node",
     "testTimeout": 10000,
     "setupFilesAfterEnv": [
-      "<rootDir>/test/setup.ts"
+      "<rootDir>/../test/setup.ts"
     ]
   }
 }
