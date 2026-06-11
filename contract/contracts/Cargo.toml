@@ -9,9 +9,9 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 soroban-sdk = { workspace = true }
 gathera-common = { workspace = true }
-ticket-contract = { workspace = true }
+ticket_contract = { workspace = true }
 escrow_contract = { workspace = true }
-multisig-wallet-contract = { workspace = true }
+multisig_wallet_contract = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
