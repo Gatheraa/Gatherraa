@@ -6,12 +6,12 @@ export interface DataSource {
   timeout?: number;
   retryCount?: number;
   headers?: Record<string, string>;
-  transform?: (data: any) => any;
+  transform?: (data: unknown) => unknown;
 }
 
 export interface AggregatedData {
   sourceId: string;
-  data: any;
+  data: unknown;
   timestamp: Date;
   status: 'success' | 'error' | 'pending';
   error?: string;
