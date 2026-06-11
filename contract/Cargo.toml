@@ -21,12 +21,12 @@ license = "MIT"
 [workspace.dependencies]
 soroban-sdk = { version = "23.5.2", features = ["testutils"] }
 gathera-common = { path = "./common" }
-ticket-contract = { path = "./ticket_contract" }
+ticket_contract = { path = "./ticket_contract" }
 escrow_contract = { path = "./escrow_contract" }
-multisig-wallet-contract = { path = "./multisig_wallet_contract" }
-dutch-auction-contract = { path = "./dutch_auction_contract" }
-zk-ticket-contract = { path = "./zk_ticket_contract" }
-cross-contract-contract = { path = "./cross_contract_contract" }
+multisig_wallet_contract = { path = "./multisig_wallet_contract" }
+dutch_auction_contract = { path = "./dutch_auction_contract" }
+zk_ticket_contract = { path = "./zk_ticket_contract" }
+cross_contract_contract = { path = "./cross_contract_contract" }
 
 [profile.release]
 opt-level = "z"
