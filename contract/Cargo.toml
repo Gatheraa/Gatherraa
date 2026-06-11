@@ -22,7 +22,7 @@ license = "MIT"
 soroban-sdk = { version = "23.5.2", features = ["testutils"] }
 gathera-common = { path = "./common" }
 ticket-contract = { path = "./ticket_contract" }
-escrow-contract = { path = "./escrow_contract" }
+escrow_contract = { path = "./escrow_contract" }
 multisig-wallet-contract = { path = "./multisig_wallet_contract" }
 dutch-auction-contract = { path = "./dutch_auction_contract" }
 zk-ticket-contract = { path = "./zk_ticket_contract" }
