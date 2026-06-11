@@ -197,8 +197,8 @@ const PersonalInfoStep: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="123 Main Street"
             />
-            {(errors.address as any)?.street && (
-              <p className="text-red-500 text-sm mt-1">{(errors.address as any).street.message as string}</p>
+            {(errors.address as Record<string, { message?: string }>)?.street?.message && (
+              <p className="text-red-500 text-sm mt-1">{(errors.address as Record<string, { message?: string }>).street.message}</p>
             )}
           </div>
 
@@ -212,8 +212,8 @@ const PersonalInfoStep: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="New York"
             />
-            {(errors.address as any)?.city && (
-              <p className="text-red-500 text-sm mt-1">{(errors.address as any).city.message as string}</p>
+            {(errors.address as Record<string, { message?: string }>)?.city?.message && (
+              <p className="text-red-500 text-sm mt-1">{(errors.address as Record<string, { message?: string }>).city.message}</p>
             )}
           </div>
 
@@ -227,8 +227,8 @@ const PersonalInfoStep: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="NY"
             />
-            {(errors.address as any)?.state && (
-              <p className="text-red-500 text-sm mt-1">{(errors.address as any).state.message as string}</p>
+            {(errors.address as Record<string, { message?: string }>)?.state?.message && (
+              <p className="text-red-500 text-sm mt-1">{(errors.address as Record<string, { message?: string }>).state.message}</p>
             )}
           </div>
 
@@ -242,8 +242,8 @@ const PersonalInfoStep: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="10001"
             />
-            {(errors.address as any)?.zipCode && (
-              <p className="text-red-500 text-sm mt-1">{(errors.address as any).zipCode.message as string}</p>
+            {(errors.address as Record<string, { message?: string }>)?.zipCode?.message && (
+              <p className="text-red-500 text-sm mt-1">{(errors.address as Record<string, { message?: string }>).zipCode.message}</p>
             )}
           </div>
 
@@ -257,8 +257,8 @@ const PersonalInfoStep: React.FC = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="United States"
             />
-            {(errors.address as any)?.country && (
-              <p className="text-red-500 text-sm mt-1">{(errors.address as any).country.message as string}</p>
+            {(errors.address as Record<string, { message?: string }>)?.country?.message && (
+              <p className="text-red-500 text-sm mt-1">{(errors.address as Record<string, { message?: string }>).country.message}</p>
             )}
           </div>
         </div>
@@ -519,9 +519,9 @@ const ConfirmationStep: React.FC = () => {
             Address
           </h4>
           <div className="text-sm">
-            <p>{(formData.address as any)?.street}</p>
-            <p>{(formData.address as any)?.city}, {(formData.address as any)?.state} {(formData.address as any)?.zipCode}</p>
-            <p>{(formData.address as any)?.country}</p>
+            <p>{(formData.address as Record<string, string>)?.street}</p>
+            <p>{(formData.address as Record<string, string>)?.city}, {(formData.address as Record<string, string>)?.state} {(formData.address as Record<string, string>)?.zipCode}</p>
+            <p>{(formData.address as Record<string, string>)?.country}</p>
           </div>
         </div>
 
