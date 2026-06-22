@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { configureAppSecurity } from './security/app-security';
 
 // import { ValidationPipe, VersioningType } from '@nestjs/common';
 // import { NestExpressApplication } from '@nestjs/platform-express';
@@ -13,6 +14,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  configureAppSecurity(app);
 
   // app.enableVersioning({...});
 
@@ -70,16 +72,6 @@ async function bootstrap() {
   //   prefix: '/uploads/',
   // });
 
-  // app.enableCors({
-  //   origin:
-  //     process.env.NODE_ENV === 'production'
-  //       ? ['https://yourdomain.com']
-  //       : ['http://localhost:3000', 'http://localhost:3001'],
-  //   credentials: true,
-  //   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  //   allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Version'],
-  // });
-
   // app.useGlobalPipes(
   //   new ValidationPipe({
   //     whitelist: true,
@@ -93,4 +85,4 @@ async function bootstrap() {
 
 // initSentry();
 
-bootstrap();
+void bootstrap();
