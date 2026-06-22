@@ -204,6 +204,7 @@ jobs:
 
       - name: Install Soroban CLI
         run: cargo install --locked soroban-cli
+        continue-on-error: true
 
       - name: Build contracts
         working-directory: contract
@@ -231,6 +232,7 @@ jobs:
 
       - name: Install Soroban CLI
         run: cargo install --locked soroban-cli
+        continue-on-error: true
 
       - name: Build Contracts
         working-directory: contract
