@@ -1,31 +1,40 @@
 'use client';
 
-import React from 'react';
-import { Lock } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import Link from 'next/link';
+import { Loader2, ShieldAlert, Wallet } from 'lucide-react';
+import { useWalletContext } from '@/lib/wallet/WalletContext';
+import { ConnectWalletModal } from '@/components/wallet/ConnectWalletModal';
 
 export type EventAccessLevel = 'public' | 'registered' | 'organizer';
+export type EventRole = 'guest' | 'attendee' | 'organizer';
 
 export interface EventViewerStatus {
   isAuthenticated: boolean;
   isRegistered: boolean;
   isOrganizer: boolean;
+  role?: EventRole;
 }
 
 export interface EventAccessGateProps {
-  /** Required access level(s) for this UI section. */
+  /** Required access level(s) for this UI section */
   requiredAccess: EventAccessLevel | EventAccessLevel[];
-  /** Current viewer status for this event. */
+  /** Current viewer status for this event */
   viewerStatus: EventViewerStatus;
-  /** Content to render when access is granted. */
+  /** Content to render when access is granted */
   children: React.ReactNode;
-  /** Optional custom fallback when unauthorized. */
+  /** Optional custom fallback when unauthorized */
   fallback?: React.ReactNode;
-  /** Optional message for default fallback. */
+  /** Optional message for default fallback */
   unauthorizedMessage?: string;
-  /** Optional description for default fallback. */
+  /** Optional description for default fallback */
   unauthorizedDescription?: string;
-  /** Optional className for wrapper. */
+  /** Optional className for wrapper */
   className?: string;
+  /** Loading state while access is being resolved */
+  loading?: boolean;
+  /** Redirect destination for the fallback link */
+  redirectTo?: string;
 }
 
 export function hasEventAccess(
@@ -48,13 +57,12 @@ export function hasEventAccess(
   });
 }
 
-function getDefaultAccessLabel(requiredAccess: EventAccessLevel | EventAccessLevel[]): string {
+function getAccessLabel(requiredAccess: EventAccessLevel | EventAccessLevel[]): string {
   const required = Array.isArray(requiredAccess) ? requiredAccess : [requiredAccess];
 
-  if (required.includes('public')) return 'Public';
   if (required.includes('organizer')) return 'Organizer';
-  if (required.includes('registered')) return 'Registered attendee';
-  return 'Restricted';
+  if (required.includes('registered')) return 'Attendee';
+  return 'Public';
 }
 
 export function EventAccessGate({
@@ -65,8 +73,33 @@ export function EventAccessGate({
   unauthorizedMessage,
   unauthorizedDescription,
   className = '',
+  loading = false,
+  redirectTo = '/events',
 }: EventAccessGateProps) {
-  const allowed = hasEventAccess(requiredAccess, viewerStatus);
+  const wallet = useWalletContext();
+  const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
+
+  const allowed = useMemo(
+    () => hasEventAccess(requiredAccess, viewerStatus),
+    [requiredAccess, viewerStatus]
+  );
+
+  const needsWallet = !viewerStatus.isAuthenticated;
+
+  if (loading || wallet.status === 'connecting') {
+    return (
+      <div
+        className={`rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900 ${className}`.trim()}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          <span>Checking event access…</span>
+        </div>
+      </div>
+    );
+  }
 
   if (allowed) {
     return <div className={className}>{children}</div>;
@@ -76,27 +109,63 @@ export function EventAccessGate({
     return <div className={className}>{fallback}</div>;
   }
 
-  const accessLabel = getDefaultAccessLabel(requiredAccess);
-
   return (
-    <div
-      className={`rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200 ${className}`.trim()}
-      role="note"
-      aria-live="polite"
-    >
-      <div className="flex items-start gap-3">
-        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-200/70 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
-          <Lock className="h-4 w-4" aria-hidden />
-        </span>
-        <div>
-          <p className="text-sm font-semibold">
-            {unauthorizedMessage || 'You do not currently have access to this section.'}
-          </p>
-          <p className="mt-1 text-xs opacity-90">
-            {unauthorizedDescription || `Required access level: ${accessLabel}.`}
-          </p>
+    <>
+      <ConnectWalletModal
+        isOpen={isConnectModalOpen}
+        onClose={() => setIsConnectModalOpen(false)}
+      />
+
+      <div
+        className={`rounded-lg border border-amber-200 bg-amber-50/70 p-4 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200 ${className}`.trim()}
+        role="note"
+        aria-live="polite"
+      >
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-200/70 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+            {needsWallet ? (
+              <Wallet className="h-4 w-4" aria-hidden />
+            ) : (
+              <ShieldAlert className="h-4 w-4" aria-hidden />
+            )}
+          </span>
+
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              {unauthorizedMessage ||
+                (needsWallet
+                  ? 'Connect your wallet to access this event content.'
+                  : 'Access denied')}
+            </p>
+
+            <p className="mt-1 text-xs opacity-90">
+              {unauthorizedDescription ||
+                (needsWallet
+                  ? 'This event section is gated by wallet authentication.'
+                  : `Required role: ${getAccessLabel(requiredAccess)}.`)}
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-3">
+              {needsWallet && (
+                <button
+                  type="button"
+                  onClick={() => setIsConnectModalOpen(true)}
+                  className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                >
+                  Connect wallet
+                </button>
+              )}
+
+              <Link
+                href={redirectTo}
+                className="rounded-md border border-amber-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/30"
+              >
+                Back to events
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
