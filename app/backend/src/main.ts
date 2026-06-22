@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configureAppSecurity } from './security/app-security';
+import { setupOpenApiDocs } from './openapi';
 
 // import { ValidationPipe, VersioningType } from '@nestjs/common';
 // import { NestExpressApplication } from '@nestjs/platform-express';
@@ -10,7 +11,6 @@ import { configureAppSecurity } from './security/app-security';
 // import { createAdapter } from '@socket.io/redis-adapter';
 // import { createClient } from 'redis';
 // import { initSentry } from './monitoring/sentry';
-// import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -18,40 +18,7 @@ async function bootstrap() {
 
   // app.enableVersioning({...});
 
-  // const config = new DocumentBuilder()
-  //   .setTitle('Gatherra API')
-  //   .setDescription('The Gatherra Platform API description')
-  //   .setVersion('1.0')
-  //   .addTag('gatherra')
-  //   .build();
-
-  // const document = SwaggerModule.createDocument(app, config);
-  // SwaggerModule.setup('api/docs', app, document);
-
-  // const configV1 = new DocumentBuilder()
-  //   .setTitle('Gatherra API v1')
-  //   .setDescription('v1 of the Gatherra API (Deprecated)')
-  //   .setVersion('1.0')
-  //   .build();
-
-  // const documentV1 = SwaggerModule.createDocument(app, configV1, {
-  //   include: [AppModule],
-  //   deepScanRoutes: true,
-  // });
-
-  // SwaggerModule.setup('api/v1/docs', app, documentV1);
-
-  // const configV2 = new DocumentBuilder()
-  //   .setTitle('Gatherra API v2')
-  //   .setDescription('v2 of the Gatherra API (Latest)')
-  //   .setVersion('2.0')
-  //   .build();
-
-  // const documentV2 = SwaggerModule.createDocument(app, configV2, {
-  //   deepScanRoutes: true,
-  // });
-
-  // SwaggerModule.setup('api/v2/docs', app, documentV2);
+  setupOpenApiDocs(app);
 
   // const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
   // const pubClient = createClient({ url: redisUrl });

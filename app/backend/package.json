@@ -21,6 +21,8 @@
     "test:property": "jest --testPathPattern=\".*\\.property\\.spec\\.ts$\" --testTimeout=30000",
     "test:fuzz": "jest --testPathPattern=\".*\\.fuzz\\.spec\\.ts$\" --testTimeout=60000",
     "test:invariants": "jest --config jest.invariants.json --testTimeout=30000",
+    "openapi:generate": "ts-node -r tsconfig-paths/register scripts/check-openapi.ts --write",
+    "openapi:check": "ts-node -r tsconfig-paths/register scripts/check-openapi.ts",
     "migration:run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts run",
     "migration:revert": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts revert",
     "migration:dry-run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts dry-run",
@@ -128,7 +130,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "yaml": "^2.9.0"
   },
   "jest": {
     "moduleFileExtensions": [
