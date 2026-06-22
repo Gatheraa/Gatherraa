@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, ShieldAlert, Wallet } from 'lucide-react';
+import { Loader2, Lock, ShieldAlert, Wallet } from 'lucide-react';
 import { useWalletContext } from '@/lib/wallet/WalletContext';
 import { ConnectWalletModal } from '@/components/wallet/ConnectWalletModal';
 
@@ -17,23 +17,31 @@ export interface EventViewerStatus {
 }
 
 export interface EventAccessGateProps {
-  /** Required access level(s) for this UI section */
+  /** Required access level(s) for this UI section. */
   requiredAccess: EventAccessLevel | EventAccessLevel[];
-  /** Current viewer status for this event */
+
+  /** Current viewer status for this event. */
   viewerStatus: EventViewerStatus;
-  /** Content to render when access is granted */
+
+  /** Content to render when access is granted. */
   children: React.ReactNode;
-  /** Optional custom fallback when unauthorized */
+
+  /** Optional custom fallback when unauthorized. */
   fallback?: React.ReactNode;
-  /** Optional message for default fallback */
+
+  /** Optional message for default fallback. */
   unauthorizedMessage?: string;
-  /** Optional description for default fallback */
+
+  /** Optional description for default fallback. */
   unauthorizedDescription?: string;
-  /** Optional className for wrapper */
+
+  /** Optional className for wrapper. */
   className?: string;
-  /** Loading state while access is being resolved */
+
+  /** Loading state while access is being resolved. */
   loading?: boolean;
-  /** Redirect destination for the fallback link */
+
+  /** Redirect destination shown in fallback UI. */
   redirectTo?: string;
 }
 
@@ -57,11 +65,11 @@ export function hasEventAccess(
   });
 }
 
-function getAccessLabel(requiredAccess: EventAccessLevel | EventAccessLevel[]): string {
+function getDefaultAccessLabel(requiredAccess: EventAccessLevel | EventAccessLevel[]): string {
   const required = Array.isArray(requiredAccess) ? requiredAccess : [requiredAccess];
 
   if (required.includes('organizer')) return 'Organizer';
-  if (required.includes('registered')) return 'Attendee';
+  if (required.includes('registered')) return 'Registered attendee';
   return 'Public';
 }
 
@@ -85,6 +93,7 @@ export function EventAccessGate({
   );
 
   const needsWallet = !viewerStatus.isAuthenticated;
+  const accessLabel = getDefaultAccessLabel(requiredAccess);
 
   if (loading || wallet.status === 'connecting') {
     return (
@@ -102,11 +111,11 @@ export function EventAccessGate({
   }
 
   if (allowed) {
-    return <div className={className}>{children}</div>;
+    return <>{children}</>;
   }
 
   if (fallback) {
-    return <div className={className}>{fallback}</div>;
+    return <>{fallback}</>;
   }
 
   return (
@@ -142,18 +151,24 @@ export function EventAccessGate({
               {unauthorizedDescription ||
                 (needsWallet
                   ? 'This event section is gated by wallet authentication.'
-                  : `Required role: ${getAccessLabel(requiredAccess)}.`)}
+                  : `Required access level: ${accessLabel}.`)}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-3">
-              {needsWallet && (
+              {needsWallet ? (
                 <button
                   type="button"
                   onClick={() => setIsConnectModalOpen(true)}
-                  className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                  className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
+                  <Wallet className="h-4 w-4" aria-hidden />
                   Connect wallet
                 </button>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-md border border-amber-300 px-3 py-2 text-sm font-medium dark:border-amber-800">
+                  <Lock className="h-4 w-4" aria-hidden />
+                  Access restricted
+                </div>
               )}
 
               <Link
