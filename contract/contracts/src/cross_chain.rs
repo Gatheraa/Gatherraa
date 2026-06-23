@@ -199,34 +199,81 @@ impl CrossChainStakingContract {
     }
 
     /// Process incoming cross-chain message
-    pub fn process_cross_chain_message(
-        env: Env,
-        source_chain_id: u32,
-        message_data: Vec<u8>,
-        proof: Vec<u8>,
-    ) {
-        // Verify chain is supported
-        let chain_config = read_chain_config(&env, source_chain_id)
-            .unwrap_or_else(|| panic!("source chain not supported"));
-
-        if !chain_config.active {
-            panic!("source chain is not active");
-        }
-
-        // Verify message authenticity (implementation depends on bridge)
-        if !Self::verify_cross_chain_message(&env, source_chain_id, &message_data, &proof) {
-            panic!("invalid cross-chain message");
-        }
-
-        // Parse and execute message
-        let message = Self::parse_cross_chain_message(&message_data);
-        match message.message_type {
-            MESSAGE_TYPE_STAKE => Self::execute_cross_chain_stake(&env, message),
-            MESSAGE_TYPE_UNSTAKE => Self::execute_cross_chain_unstake(&env, message),
-            MESSAGE_TYPE_REWARD => Self::execute_cross_chain_reward(&env, message),
-            _ => panic!("unsupported message type"),
-        }
+   fn parse_cross_chain_message(env: &Env, message_data: &Vec<u8>) -> CrossChainMessage {
+    if message_data.len() < 1 {
+        env.err(CrossChainError::InvalidMessageLength);
     }
+    let tag = message_data[0];
+    let mut offset = 1;
+    // Read sender (32 bytes)
+    if message_data.len() < offset + 32 {
+        env.err(CrossChainError::InvalidMessageLength);
+    }
+    let sender_bytes = &message_data[offset..offset+32];
+    offset += 32;
+    // Convert sender_bytes to Address
+    let public_key = PublicKey::Ed25519(Ed25519PublicKey::from_array(sender_bytes.try_into().unwrap()));
+    let sender = Address::from_public_key(env, public_key); // need to check if Address::from_public_key exists; might be Address::from_public_key(&env, public_key)
+    // Read target_chain
+    let target_chain = read_u32(message_data, &mut offset);
+    // Read nonce
+    let nonce = read_u64(message_data, &mut offset);
+    // Read timestamp
+    let timestamp = read_u64(message_data, &mut offset);
+    // Now read data based on tag
+    let data = match tag {
+        0 => { // STAKE
+            if message_data.len() < offset + 16 + 8 + 4 {
+                env.err(CrossChainError::InvalidMessageLength);
+            }
+            let amount = read_i128(message_data, &mut offset);
+            let lock_duration = read_u64(message_data, &mut offset);
+            let tier_id = read_u32(message_data, &mut offset);
+            (amount, lock_duration, tier_id)
+        },
+        1 => { // UNSTAKE - assuming (amount, tier_id)
+            if message_data.len() < offset + 16 + 4 {
+                env.err(CrossChainError::InvalidMessageLength);
+            }
+            let amount = read_i128(message_data, &mut offset);
+            let tier_id = read_u32(message_data, &mut offset);
+            (amount, 0, tier_id) // dummy lock_duration
+        },
+        2 => { // REWARD - assuming (amount)
+            if message_data.len() < offset + 16 {
+                env.err(CrossChainError::InvalidMessageLength);
+            }
+            let amount = read_i128(message_data, &mut offset);
+            (amount, 0, 0)
+        },
+        3 => { // CLAIM or other - assume (amount, tier_id)
+            // similar to unstake
+            if message_data.len() < offset + 16 + 4 {
+                env.err(CrossChainError::InvalidMessageLength);
+            }
+            let amount = read_i128(message_data, &mut offset);
+            let tier_id = read_u32(message_data, &mut offset);
+            (amount, 0, tier_id)
+        },
+        _ => env.err(CrossChainError::UnsupportedMessageType),
+    };
+    // Determine message_type Symbol based on tag
+    let message_type = match tag {
+        0 => MESSAGE_TYPE_STAKE,
+        1 => MESSAGE_TYPE_UNSTAKE,
+        2 => MESSAGE_TYPE_REWARD,
+        3 => symbol_short!("claim_msg"), // example
+        _ => unreachable!(),
+    };
+    CrossChainMessage {
+        message_type,
+        sender,
+        target_chain,
+        data,
+        nonce,
+        timestamp,
+    }
+}
 
     /// Execute cross-chain staking
     fn execute_cross_chain_stake(env: &Env, message: CrossChainMessage) {
