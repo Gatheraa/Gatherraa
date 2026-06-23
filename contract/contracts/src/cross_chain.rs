@@ -1,7 +1,7 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
 
 use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
 #[contract]
 pub struct CrossChainStakingContract;
@@ -66,6 +66,7 @@ impl CrossChainStakingContract {
             chain_id,
             chain_name,
             bridge_address,
+            bridge_configured: true,
             gas_limit,
             confirmations,
             active: true,
@@ -109,7 +110,14 @@ impl CrossChainStakingContract {
 
         // Handle cross-chain staking
         if let Some(target_chain) = target_chain_id {
-            Self::handle_cross_chain_stake(&env, user, amount, lock_duration, tier_id, target_chain);
+            Self::handle_cross_chain_stake(
+                &env,
+                user,
+                amount,
+                lock_duration,
+                tier_id,
+                target_chain,
+            );
             env.storage().instance().remove(&REENTRANCY_GUARD);
             return;
         }
@@ -127,14 +135,16 @@ impl CrossChainStakingContract {
         // Transfer tokens
         let token_client = token::Client::new(&env, &config.staking_token);
         let contract_address = env.current_contract_address();
-        
+
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("stake_transfer_success"),), amount);
-            },
+                env.events()
+                    .publish((symbol_short!("stake_transfer_success"),), amount);
+            }
             _ => {
                 env.storage().instance().remove(&REENTRANCY_GUARD);
-                env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
+                env.events()
+                    .publish((symbol_short!("stake_transfer_failed"),), amount);
                 panic!("token transfer failed");
             }
         }
@@ -155,7 +165,7 @@ impl CrossChainStakingContract {
 
         write_user_info(&env, &user, &user_info);
         env.storage().instance().remove(&REENTRANCY_GUARD);
-        
+
         env.events().publish(
             (symbol_short!("stake"), user.clone()),
             (amount, tier_id, lock_duration),
@@ -312,7 +322,9 @@ impl CrossChainStakingContract {
             .get(&DataKey::MessageNonce)
             .unwrap_or(0u64);
         let new_nonce = current_nonce + 1;
-        env.storage().instance().set(&DataKey::MessageNonce, &new_nonce);
+        env.storage()
+            .instance()
+            .set(&DataKey::MessageNonce, &new_nonce);
         new_nonce
     }
 
