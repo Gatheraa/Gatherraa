@@ -1,7 +1,6 @@
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
-
-use soroban_sdk::{Address, Env, Vec, Symbol, token};
+use soroban_sdk::{token, Address, Env, Vec};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
@@ -162,6 +161,29 @@ pub fn write_chain_config(env: &Env, chain_id: u32, config: &ChainConfig) {
     env.storage()
         .persistent()
         .extend_ttl(&key, TTL_PERSISTENT, TTL_PERSISTENT);
+}
+
+pub fn read_bridge_validator(env: &Env, source_chain_id: u32, validator: &Address) -> bool {
+    let key = DataKey::BridgeValidator(source_chain_id, validator.clone());
+    let val = env.storage().persistent().get(&key);
+    if val.is_some() {
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_PERSISTENT, TTL_PERSISTENT);
+    }
+    val.unwrap_or(false)
+}
+
+pub fn write_bridge_validator(env: &Env, source_chain_id: u32, validator: &Address, active: bool) {
+    let key = DataKey::BridgeValidator(source_chain_id, validator.clone());
+    if active {
+        env.storage().persistent().set(&key, &true);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, TTL_PERSISTENT, TTL_PERSISTENT);
+    } else {
+        env.storage().persistent().remove(&key);
+    }
 }
 
 pub fn read_supported_chains(env: &Env) -> Vec<u32> {

@@ -1,7 +1,7 @@
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, IntoVal, Symbol, Val, Vec};
 
 use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
 #[contract]
 pub struct CrossChainStakingContract;
@@ -86,6 +86,28 @@ impl CrossChainStakingContract {
         }
     }
 
+    /// Add or remove a bridge validator authorized to attest messages from a source chain.
+    pub fn set_bridge_validator(env: Env, source_chain_id: u32, validator: Address, active: bool) {
+        let config = read_config(&env);
+        config.admin.require_auth();
+
+        read_chain_config(&env, source_chain_id)
+            .unwrap_or_else(|| panic!("source chain not supported"));
+
+        write_bridge_validator(&env, source_chain_id, &validator, active);
+        extend_instance(&env);
+
+        env.events().publish(
+            (symbol_short!("br_val"), source_chain_id, validator.clone()),
+            active,
+        );
+    }
+
+    /// Check whether an address is configured as a validator for a source chain.
+    pub fn is_bridge_validator(env: Env, source_chain_id: u32, validator: Address) -> bool {
+        read_bridge_validator(&env, source_chain_id, &validator)
+    }
+
     /// Stake tokens with cross-chain support
     pub fn stake(
         env: Env,
@@ -109,7 +131,14 @@ impl CrossChainStakingContract {
 
         // Handle cross-chain staking
         if let Some(target_chain) = target_chain_id {
-            Self::handle_cross_chain_stake(&env, user, amount, lock_duration, tier_id, target_chain);
+            Self::handle_cross_chain_stake(
+                &env,
+                user,
+                amount,
+                lock_duration,
+                tier_id,
+                target_chain,
+            );
             env.storage().instance().remove(&REENTRANCY_GUARD);
             return;
         }
@@ -127,14 +156,16 @@ impl CrossChainStakingContract {
         // Transfer tokens
         let token_client = token::Client::new(&env, &config.staking_token);
         let contract_address = env.current_contract_address();
-        
+
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("stake_transfer_success"),), amount);
-            },
+                env.events()
+                    .publish((symbol_short!("stake_transfer_success"),), amount);
+            }
             _ => {
                 env.storage().instance().remove(&REENTRANCY_GUARD);
-                env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
+                env.events()
+                    .publish((symbol_short!("stake_transfer_failed"),), amount);
                 panic!("token transfer failed");
             }
         }
@@ -155,7 +186,7 @@ impl CrossChainStakingContract {
 
         write_user_info(&env, &user, &user_info);
         env.storage().instance().remove(&REENTRANCY_GUARD);
-        
+
         env.events().publish(
             (symbol_short!("stake"), user.clone()),
             (amount, tier_id, lock_duration),
@@ -205,25 +236,50 @@ impl CrossChainStakingContract {
         message_data: Vec<u8>,
         proof: Vec<u8>,
     ) {
-        // Verify chain is supported
-        let chain_config = read_chain_config(&env, source_chain_id)
-            .unwrap_or_else(|| panic!("source chain not supported"));
+        let chain_config = Self::assert_source_chain_active(&env, source_chain_id);
 
-        if !chain_config.active {
-            panic!("source chain is not active");
+        if !Self::verify_cross_chain_message(
+            &env,
+            source_chain_id,
+            Some(&chain_config.bridge_address),
+            &message_data,
+            &proof,
+        ) {
+            return;
         }
 
-        // Verify message authenticity (implementation depends on bridge)
-        if !Self::verify_cross_chain_message(&env, source_chain_id, &message_data, &proof) {
-            panic!("invalid cross-chain message");
+        Self::execute_verified_cross_chain_message(&env, &message_data);
+    }
+
+    /// Process an incoming message attested by a configured source-chain bridge validator.
+    pub fn process_cross_chain_message_with_validator(
+        env: Env,
+        source_chain_id: u32,
+        validator: Address,
+        message_data: Vec<u8>,
+        proof: Vec<u8>,
+    ) {
+        Self::assert_source_chain_active(&env, source_chain_id);
+
+        if !Self::verify_cross_chain_message(
+            &env,
+            source_chain_id,
+            Some(&validator),
+            &message_data,
+            &proof,
+        ) {
+            return;
         }
 
-        // Parse and execute message
+        Self::execute_verified_cross_chain_message(&env, &message_data);
+    }
+
+    fn execute_verified_cross_chain_message(env: &Env, message_data: &Vec<u8>) {
         let message = Self::parse_cross_chain_message(&message_data);
         match message.message_type {
-            MESSAGE_TYPE_STAKE => Self::execute_cross_chain_stake(&env, message),
-            MESSAGE_TYPE_UNSTAKE => Self::execute_cross_chain_unstake(&env, message),
-            MESSAGE_TYPE_REWARD => Self::execute_cross_chain_reward(&env, message),
+            MESSAGE_TYPE_STAKE => Self::execute_cross_chain_stake(env, message),
+            MESSAGE_TYPE_UNSTAKE => Self::execute_cross_chain_unstake(env, message),
+            MESSAGE_TYPE_REWARD => Self::execute_cross_chain_reward(env, message),
             _ => panic!("unsupported message type"),
         }
     }
@@ -265,7 +321,9 @@ impl CrossChainStakingContract {
             .get(&DataKey::MessageNonce)
             .unwrap_or(0u64);
         let new_nonce = current_nonce + 1;
-        env.storage().instance().set(&DataKey::MessageNonce, &new_nonce);
+        env.storage()
+            .instance()
+            .set(&DataKey::MessageNonce, &new_nonce);
         new_nonce
     }
 
@@ -273,13 +331,148 @@ impl CrossChainStakingContract {
     fn verify_cross_chain_message(
         env: &Env,
         source_chain_id: u32,
+        validator: Option<&Address>,
         message_data: &Vec<u8>,
         proof: &Vec<u8>,
     ) -> bool {
-        // This would integrate with the specific bridge protocol
-        // For now, return true as placeholder
-        // In production, this would verify cryptographic proofs
+        let message_hash = Self::hash_cross_chain_message(env, message_data);
+
+        // Proof format: exactly SHA-256(message_data). The actual signer/PoP check
+        // is the Soroban Address authorization below. Bridge validators must sign
+        // the canonical args (source_chain_id, message_hash), which lets account
+        // and custom-account validators use the host's signature/auth verification.
+        if proof.is_empty() {
+            Self::emit_message_rejected(
+                env,
+                source_chain_id,
+                symbol_short!("no_proof"),
+                &message_hash,
+            );
+            return false;
+        }
+
+        if proof.len() != 32 {
+            Self::emit_message_rejected(
+                env,
+                source_chain_id,
+                symbol_short!("malform"),
+                &message_hash,
+            );
+            return false;
+        }
+
+        if !Self::proof_matches_hash(proof, &message_hash) {
+            Self::emit_message_rejected(
+                env,
+                source_chain_id,
+                symbol_short!("bad_hash"),
+                &message_hash,
+            );
+            return false;
+        }
+
+        let Some(validator) = validator else {
+            Self::emit_message_rejected(
+                env,
+                source_chain_id,
+                symbol_short!("no_val"),
+                &message_hash,
+            );
+            return false;
+        };
+
+        if !read_bridge_validator(env, source_chain_id, validator) {
+            Self::emit_message_rejected(
+                env,
+                source_chain_id,
+                symbol_short!("no_val"),
+                &message_hash,
+            );
+            return false;
+        }
+
+        validator.require_auth_for_args(Self::validator_auth_args(
+            env,
+            source_chain_id,
+            &message_hash,
+        ));
+        Self::emit_message_verified(env, source_chain_id, validator, &message_hash);
         true
+    }
+
+    fn assert_source_chain_active(env: &Env, source_chain_id: u32) -> ChainConfig {
+        let chain_config = read_chain_config(env, source_chain_id)
+            .unwrap_or_else(|| panic!("source chain not supported"));
+
+        if !chain_config.active {
+            panic!("source chain is not active");
+        }
+
+        chain_config
+    }
+
+    fn hash_cross_chain_message(env: &Env, message_data: &Vec<u8>) -> BytesN<32> {
+        env.crypto()
+            .sha256(&Self::vec_to_bytes(env, message_data))
+            .to_bytes()
+    }
+
+    fn vec_to_bytes(env: &Env, data: &Vec<u8>) -> Bytes {
+        let mut bytes = Bytes::new(env);
+        for byte in data.iter() {
+            bytes.push_back(byte);
+        }
+        bytes
+    }
+
+    fn proof_matches_hash(proof: &Vec<u8>, message_hash: &BytesN<32>) -> bool {
+        for index in 0u32..32 {
+            if proof.get(index) != message_hash.get(index) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn validator_auth_args(env: &Env, source_chain_id: u32, message_hash: &BytesN<32>) -> Vec<Val> {
+        let mut args = Vec::new(env);
+        args.push_back(source_chain_id.into_val(env));
+        args.push_back(message_hash.clone().into_val(env));
+        args
+    }
+
+    fn emit_message_verified(
+        env: &Env,
+        source_chain_id: u32,
+        validator: &Address,
+        message_hash: &BytesN<32>,
+    ) {
+        env.events().publish(
+            (symbol_short!("cc_verify"), source_chain_id),
+            (validator.clone(), message_hash.clone()),
+        );
+    }
+
+    fn execute_cross_chain_unstake(env: &Env, message: CrossChainMessage) {
+        env.events()
+            .publish((symbol_short!("cc_unstk"), message.sender), message.nonce);
+    }
+
+    fn execute_cross_chain_reward(env: &Env, message: CrossChainMessage) {
+        env.events()
+            .publish((symbol_short!("cc_reward"), message.sender), message.nonce);
+    }
+
+    fn emit_message_rejected(
+        env: &Env,
+        source_chain_id: u32,
+        reason: Symbol,
+        message_hash: &BytesN<32>,
+    ) {
+        env.events().publish(
+            (symbol_short!("cc_reject"), source_chain_id),
+            (reason, message_hash.clone()),
+        );
     }
 
     /// Parse cross-chain message
@@ -358,5 +551,155 @@ impl CrossChainStakingContract {
     /// Generic address validation
     fn validate_generic_address(_address: &Address) {
         // Generic validation for unknown chains
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::storage::{write_bridge_validator, write_chain_config, write_config};
+    use soroban_sdk::{
+        symbol_short,
+        testutils::{Address as _, Events},
+    };
+
+    const SOURCE_CHAIN_ID: u32 = 7;
+
+    fn setup_contract() -> (Env, Address, Address) {
+        let env = Env::default();
+        let admin = Address::generate(&env);
+        let validator = Address::generate(&env);
+        let token = Address::generate(&env);
+        let contract_id = env.register(CrossChainStakingContract, ());
+
+        env.as_contract(&contract_id, || {
+            write_config(
+                &env,
+                &Config {
+                    admin: admin.clone(),
+                    staking_token: token.clone(),
+                    reward_token: token,
+                    reward_rate: 1,
+                    chain_id: 1,
+                },
+            );
+            write_chain_config(
+                &env,
+                SOURCE_CHAIN_ID,
+                &ChainConfig {
+                    chain_id: SOURCE_CHAIN_ID,
+                    chain_name: symbol_short!("source"),
+                    bridge_address: validator.clone(),
+                    gas_limit: 100_000,
+                    confirmations: 3,
+                    active: true,
+                },
+            );
+            write_bridge_validator(&env, SOURCE_CHAIN_ID, &validator, true);
+        });
+
+        (env, validator, contract_id)
+    }
+
+    fn message_data(env: &Env) -> Vec<u8> {
+        Vec::from_array(env, [1u8, 2, 3, 4])
+    }
+
+    fn proof_for(env: &Env, message_data: &Vec<u8>) -> Vec<u8> {
+        let message_hash = CrossChainStakingContract::hash_cross_chain_message(env, message_data);
+        let mut proof = Vec::new(env);
+        for index in 0u32..32 {
+            proof.push_back(message_hash.get(index).unwrap());
+        }
+        proof
+    }
+
+    fn has_event(env: &Env, event_name: Symbol) -> bool {
+        let event_name: Val = event_name.into_val(env);
+        env.events()
+            .all()
+            .iter()
+            .any(|(_, topics, _)| topics.get(0) == Some(event_name))
+    }
+
+    #[test]
+    fn valid_validator_proof_is_verified() {
+        let (env, validator, contract_id) = setup_contract();
+        let client = CrossChainStakingContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let message = message_data(&env);
+        let proof = proof_for(&env, &message);
+
+        client.process_cross_chain_message_with_validator(
+            &SOURCE_CHAIN_ID,
+            &validator,
+            &message,
+            &proof,
+        );
+
+        assert!(has_event(&env, symbol_short!("cc_verify")));
+        assert!(!has_event(&env, symbol_short!("cc_reject")));
+        assert_eq!(env.auths().len(), 1);
+        assert_eq!(env.auths()[0].0, validator);
+    }
+
+    #[test]
+    fn invalid_hash_proof_is_rejected() {
+        let (env, validator, contract_id) = setup_contract();
+        let client = CrossChainStakingContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let message = message_data(&env);
+        let mut proof = proof_for(&env, &message);
+        proof.set(0, proof.get(0).unwrap() ^ 1);
+
+        client.process_cross_chain_message_with_validator(
+            &SOURCE_CHAIN_ID,
+            &validator,
+            &message,
+            &proof,
+        );
+
+        assert!(has_event(&env, symbol_short!("cc_reject")));
+        assert!(!has_event(&env, symbol_short!("cc_verify")));
+        assert!(env.auths().is_empty());
+    }
+
+    #[test]
+    fn empty_proof_is_rejected() {
+        let (env, validator, contract_id) = setup_contract();
+        let client = CrossChainStakingContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        client.process_cross_chain_message_with_validator(
+            &SOURCE_CHAIN_ID,
+            &validator,
+            &message_data(&env),
+            &Vec::new(&env),
+        );
+
+        assert!(has_event(&env, symbol_short!("cc_reject")));
+        assert!(!has_event(&env, symbol_short!("cc_verify")));
+        assert!(env.auths().is_empty());
+    }
+
+    #[test]
+    fn malformed_proof_is_rejected() {
+        let (env, validator, contract_id) = setup_contract();
+        let client = CrossChainStakingContractClient::new(&env, &contract_id);
+        env.mock_all_auths();
+
+        let malformed_proof = Vec::from_array(&env, [1u8, 2, 3]);
+        client.process_cross_chain_message_with_validator(
+            &SOURCE_CHAIN_ID,
+            &validator,
+            &message_data(&env),
+            &malformed_proof,
+        );
+
+        assert!(has_event(&env, symbol_short!("cc_reject")));
+        assert!(!has_event(&env, symbol_short!("cc_verify")));
+        assert!(env.auths().is_empty());
     }
 }

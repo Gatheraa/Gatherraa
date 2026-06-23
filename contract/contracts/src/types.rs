@@ -15,7 +15,7 @@ pub enum DataKey {
     SupportedChains,
     PendingMessages(Address),
     MessageNonce,
-    BridgeValidator(Address),
+    BridgeValidator(u32, Address),
 }
 
 #[contracttype]
