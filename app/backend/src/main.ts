@@ -1,10 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { RateLimitGuard } from './rate-limit/guards/rate-limit.guard';
 
 // import { ValidationPipe, VersioningType } from '@nestjs/common';
 // import { NestExpressApplication } from '@nestjs/platform-express';
 // import { join } from 'path';
-// import { RateLimitGuard } from './rate-limit/guards/rate-limit.guard';
 // import { IoAdapter } from '@nestjs/platform-socket.io';
 // import { createAdapter } from '@socket.io/redis-adapter';
 // import { createClient } from 'redis';
@@ -64,7 +64,7 @@ async function bootstrap() {
   //   subClient,
   // );
 
-  // app.useGlobalGuards(app.get(RateLimitGuard));
+  app.useGlobalGuards(app.get(RateLimitGuard));
 
   // app.useStaticAssets(join(__dirname, '..', 'uploads'), {
   //   prefix: '/uploads/',

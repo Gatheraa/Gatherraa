@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VersioningMiddleware } from './common/middleware/versioning.middleware';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { VersioningMiddleware } from './common/middleware/versioning.middleware'
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    RateLimitModule,
   ],
   controllers: [AppController],
   providers: [AppService],

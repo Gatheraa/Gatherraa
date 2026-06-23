@@ -1,6 +1,6 @@
 import { SetMetadata, applyDecorators, UseGuards } from '@nestjs/common';
 import { RateLimitConfig, RATE_LIMIT_PRESETS } from './rate-limit.config';
-import { RateLimitGuard } from './rate-limit.guard';
+import { RateLimitGuard } from './guards/rate-limit.guard';
 
 export const RATE_LIMIT_CONFIG_KEY = 'RATE_LIMIT_CONFIG';
 

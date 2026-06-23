@@ -13,6 +13,11 @@ export interface RateLimitViolationLog {
   windowMs: number;
 }
 
+export interface SuspiciousRateLimitPattern {
+  type: string;
+  description: string;
+}
+
 @Injectable()
 export class RateLimitMonitoringService {
   private readonly logger = new Logger(RateLimitMonitoringService.name);
@@ -139,7 +144,7 @@ export class RateLimitMonitoringService {
     }, {} as Record<string, number>);
   }
 
-  async detectSuspiciousPatterns(timeWindowMs: number = 300000): Promise<Array<{type: string, description: string}>> {
+  async detectSuspiciousPatterns(timeWindowMs: number = 300000): Promise<SuspiciousRateLimitPattern[]> {
     const now = new Date();
     const windowStart = new Date(now.getTime() - timeWindowMs);
     
@@ -147,7 +152,7 @@ export class RateLimitMonitoringService {
       log => log.timestamp >= windowStart
     );
 
-    const patterns = [];
+    const patterns: SuspiciousRateLimitPattern[] = [];
 
     // Detect high-frequency violations from single IP
     const ipCounts = this.getTopIps(recentViolations, 1);
