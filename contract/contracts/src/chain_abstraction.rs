@@ -216,22 +216,32 @@ impl ChainAbstraction {
         }
     }
 
-    /// Validate Ethereum-compatible address
+    /// Validate Ethereum-compatible address.
+    ///
+    /// Note: This repo currently uses Soroban `Address` (32-byte) inputs for bridge addresses,
+    /// not chain-native string representations. Therefore, we can only enforce the shared
+    /// security invariant: reject the all-zero placeholder address.
     fn validate_ethereum_address(address: &Address) -> bool {
-        // Basic validation - in production, would include checksum validation
-        true // Placeholder
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Validate Stellar address
+    /// Validate Stellar address.
+    ///
+    /// Note: Same limitation as `validate_ethereum_address` (Soroban `Address` input).
     fn validate_stellar_address(address: &Address) -> bool {
-        // Stellar address validation (G... format, 56 characters)
-        true // Placeholder
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Validate generic address
-    fn validate_generic_address(_address: &Address) -> bool {
-        true // Placeholder
+    /// Validate generic address (unknown chain).
+    fn validate_generic_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
+
+    // Validate the configured bridge address is not a default placeholder.
+    // This prevents accepting Address::default() as a fallback bridge address.
+
+
+
 
     /// Get chain-specific bridge address
     pub fn get_chain_bridge_address(env: Env, chain_id: u32) -> Option<Address> {

@@ -37,15 +37,22 @@ pub enum CommonError {
 /// Common result type for contract operations
 pub type ContractResult<T> = Result<T, CommonError>;
 
-/// Validation utilities — stub
+/// Validation utilities
 pub struct ValidationUtils;
 impl ValidationUtils {
-    pub fn validate_address(_address: &Address) -> bool { true }
+    /// Reject all-zero / default placeholder addresses.
+    pub fn validate_address(address: &Address) -> bool {
+        // In Soroban, an `Address::default()` is represented by all-zero bytes.
+        // Reject those as a security invariant (bridge_address default placeholders).
+        address.to_bytes().iter().any(|&b| b != 0)
+    }
+
     pub fn validate_symbol(symbol: &Symbol) -> bool {
         let s = symbol.to_string();
         !s.is_empty() && s.len() <= 32
     }
 }
+
 
 /// String utilities — stub
 pub struct StringUtils;

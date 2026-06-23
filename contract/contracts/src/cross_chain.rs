@@ -384,26 +384,32 @@ impl CrossChainStakingContract {
         Self::validate_address(env, address);
     }
 
-    /// Ethereum address validation
-    fn validate_ethereum_address(address: &Address) {
-        // Ethereum-specific validation logic
-        // For now, basic validation
+    /// Ethereum address validation.
+    ///
+    /// Note: Soroban `Address` inputs are not chain-native string forms, so we
+    /// cannot enforce EIP-55 checksum / 0x prefix / length here.
+    /// We can, however, reject the all-zero default placeholder address.
+    fn validate_ethereum_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Stellar address validation
-    fn validate_stellar_address(address: &Address) {
-        // Stellar-specific validation logic
-        // For now, basic validation
+    /// Stellar address validation.
+    ///
+    /// Note: same limitation as `validate_ethereum_address` (Soroban Address type).
+    fn validate_stellar_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Polygon address validation
-    fn validate_polygon_address(address: &Address) {
-        // Polygon-specific validation logic
-        // For now, basic validation
+    /// Polygon address validation.
+    ///
+    /// Note: same limitation as `validate_ethereum_address` (Soroban Address type).
+    fn validate_polygon_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Generic address validation
-    fn validate_generic_address(_address: &Address) {
-        // Generic validation for unknown chains
+    /// Generic address validation.
+    fn validate_generic_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
+
 }
