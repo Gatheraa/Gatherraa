@@ -95,6 +95,7 @@
     "redis": "^5.11.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.2",
     "siwe": "^3.0.0",
     "socket.io": "^4.8.1",
     "stripe": "^16.9.0",
@@ -147,7 +148,9 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "testTimeout": 10000,
-    "transformIgnorePatterns": ["node_modules/(?!(uuid)/)"],
+    "transformIgnorePatterns": [
+      "node_modules/(?!(uuid)/)"
+    ],
     "testPathIgnorePatterns": [
       "task-queue/",
       "privacy/",
