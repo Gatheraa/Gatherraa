@@ -1,25 +1,27 @@
 //! Gathera Escrow Contract
-//! 
+//!
 //! This contract implements a secure escrow system for the Gathera platform.
 //! It facilitates secure transactions between parties with conditional release
 //! mechanisms and dispute resolution capabilities.
-//! 
+//!
 //! ## Key Features
-//! 
+//!
 //! - Secure fund escrow with multi-sig support
 //! - Conditional release mechanisms
 //! - Dispute resolution system
 //! - Time-based auto-release
 //! - Integration with ticket contract for event-based escrows
-//! 
+//!
 //! ## Modules
-//! 
+//!
 //! - `contract`: Main contract implementation
 //! - `storage`: Escrow data storage structures
 //! - `validation`: Input validation and security checks
 //! - `dispute`: Dispute resolution logic
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Symbol, Env, String, Vec};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol, Vec,
+};
 
 /// Errors that can occur during escrow operations
 #[contracterror]
@@ -53,6 +55,7 @@ pub enum EscrowError {
 #[repr(u32)]
 pub enum EscrowStatus {
     Pending = 0,
+    Created = 6,
     Funded = 1,
     Completed = 2,
     Disputed = 3,
@@ -62,7 +65,7 @@ pub enum EscrowStatus {
 
 /// Escrow data structure
 #[contracttype]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Escrow {
     /// Unique escrow identifier
     pub escrow_id: Symbol,
@@ -88,7 +91,7 @@ pub struct Escrow {
 
 /// Dispute data structure
 #[contracttype]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Dispute {
     /// Unique dispute identifier
     pub dispute_id: Symbol,
@@ -108,20 +111,23 @@ pub struct Dispute {
 #[contract]
 pub struct EscrowContract;
 
+#[cfg(test)]
+mod security_tests;
+
 #[contractimpl]
 impl EscrowContract {
     /// Create a new escrow
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `beneficiary` - Address of the beneficiary
     /// * `amount` - Amount to escrow
     /// * `expires_at` - Expiration timestamp
     /// * `terms` - Escrow terms and conditions
     /// * `required_confirmations` - Number of confirmations needed for release
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Escrow ID of the newly created escrow
     pub fn create_escrow(
         env: Env,
@@ -131,18 +137,25 @@ impl EscrowContract {
         terms: String,
         required_confirmations: u32,
     ) -> Result<Symbol, EscrowError> {
-        let _ = (env, beneficiary, amount, expires_at, terms, required_confirmations);
+        let _ = (
+            env,
+            beneficiary,
+            amount,
+            expires_at,
+            terms,
+            required_confirmations,
+        );
         Err(EscrowError::NotImplemented)
     }
 
     /// Fund an existing escrow
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `escrow_id` - Identifier for the escrow
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if funding was successful
     pub fn fund_escrow(env: Env, escrow_id: Symbol) -> Result<bool, EscrowError> {
         let _ = (env, escrow_id);
@@ -150,13 +163,13 @@ impl EscrowContract {
     }
 
     /// Release funds from escrow
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `escrow_id` - Identifier for the escrow
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if release was successful
     pub fn release_funds(env: Env, escrow_id: Symbol) -> Result<bool, EscrowError> {
         let _ = (env, escrow_id);
@@ -164,14 +177,14 @@ impl EscrowContract {
     }
 
     /// Create a dispute for an escrow
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `escrow_id` - Identifier for the escrow
     /// * `reason` - Dispute reason
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Dispute ID of the newly created dispute
     pub fn create_dispute(
         env: Env,
@@ -183,14 +196,14 @@ impl EscrowContract {
     }
 
     /// Resolve a dispute
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `dispute_id` - Identifier for the dispute
     /// * `resolution` - Dispute resolution details
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if resolution was successful
     pub fn resolve_dispute(
         env: Env,
@@ -202,13 +215,13 @@ impl EscrowContract {
     }
 
     /// Get escrow information
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `escrow_id` - Identifier for the escrow
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Escrow data structure
     pub fn get_escrow(env: Env, escrow_id: Symbol) -> Result<Escrow, EscrowError> {
         let _ = (env, escrow_id);
