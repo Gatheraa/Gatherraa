@@ -1,4 +1,5 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec, BytesN};
+use gathera_common::ValidationUtils;
+use soroban_sdk::{contract, contractimpl, Address, Env, String, Symbol, Vec};
 
 use crate::storage::{StorageCache, *};
 use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage, ETHEREUM_CHAIN_ID, STELLAR_CHAIN_ID, POLYGON_CHAIN_ID, ARBITRUM_CHAIN_ID, OPTIMISM_CHAIN_ID, BASE_CHAIN_ID};
@@ -203,34 +204,43 @@ impl ChainAbstraction {
         }
     }
 
-    /// Validate address format for specific chain
+    /// Validate Soroban address format for a specific chain.
+    ///
+    /// EVM addresses are not representable as `soroban_sdk::Address`, so this
+    /// compatibility entrypoint converts the Soroban address to its StrKey form
+    /// and applies the same chain-specific string validator used by
+    /// `validate_chain_address_string`.
     pub fn validate_chain_address(env: Env, chain_id: u32, address: &Address) -> bool {
+        let address_string = address.to_string();
+        Self::validate_chain_address_string(env, chain_id, address_string)
+    }
+
+    /// Validate a raw chain address string for a specific chain.
+    pub fn validate_chain_address_string(env: Env, chain_id: u32, address: String) -> bool {
         match chain_id {
-            ETHEREUM_CHAIN_ID => Self::validate_ethereum_address(address),
-            POLYGON_CHAIN_ID => Self::validate_ethereum_address(address),
-            ARBITRUM_CHAIN_ID => Self::validate_ethereum_address(address),
-            OPTIMISM_CHAIN_ID => Self::validate_ethereum_address(address),
-            BASE_CHAIN_ID => Self::validate_ethereum_address(address),
-            STELLAR_CHAIN_ID => Self::validate_stellar_address(address),
-            _ => Self::validate_generic_address(address),
+            ETHEREUM_CHAIN_ID => Self::validate_ethereum_address(&env, &address),
+            POLYGON_CHAIN_ID => Self::validate_ethereum_address(&env, &address),
+            ARBITRUM_CHAIN_ID => Self::validate_ethereum_address(&env, &address),
+            OPTIMISM_CHAIN_ID => Self::validate_ethereum_address(&env, &address),
+            BASE_CHAIN_ID => Self::validate_ethereum_address(&env, &address),
+            STELLAR_CHAIN_ID => Self::validate_stellar_address(&address),
+            _ => Self::validate_generic_address(&address),
         }
     }
 
     /// Validate Ethereum-compatible address
-    fn validate_ethereum_address(address: &Address) -> bool {
-        // Basic validation - in production, would include checksum validation
-        true // Placeholder
+    fn validate_ethereum_address(env: &Env, address: &String) -> bool {
+        ValidationUtils::validate_evm_address(env, address)
     }
 
     /// Validate Stellar address
-    fn validate_stellar_address(address: &Address) -> bool {
-        // Stellar address validation (G... format, 56 characters)
-        true // Placeholder
+    fn validate_stellar_address(address: &String) -> bool {
+        ValidationUtils::validate_stellar_address(address)
     }
 
     /// Validate generic address
-    fn validate_generic_address(_address: &Address) -> bool {
-        true // Placeholder
+    fn validate_generic_address(address: &String) -> bool {
+        ValidationUtils::validate_generic_address(address)
     }
 
     /// Get chain-specific bridge address
