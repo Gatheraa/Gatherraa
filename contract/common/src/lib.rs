@@ -1,7 +1,13 @@
 //! Gathera common utilities
 //! Minimal stub — full implementation pending Soroban SDK migration
 
-use soroban_sdk::{Address, Symbol, String, Env};
+use soroban_sdk::{Address, Env, String, Symbol};
+
+/// Fixed-point scaling factor used for staking reward-per-token arithmetic.
+///
+/// Reward accounting multiplies rates by this value before division so
+/// fractional rewards retain deterministic integer precision across contracts.
+pub const PRECISION: i128 = 1_000_000_000;
 
 /// Common status enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

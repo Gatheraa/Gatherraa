@@ -1,7 +1,6 @@
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
-
-
-use soroban_sdk::{Address, Env, Vec, Symbol, token};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
+use gathera_common::PRECISION;
+use soroban_sdk::{token, Address, Env, Symbol, Vec};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days

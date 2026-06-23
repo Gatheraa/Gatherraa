@@ -6,8 +6,6 @@ use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessa
 #[contract]
 pub struct CrossChainStakingContract;
 
-const PRECISION: i128 = 1_000_000_000;
-
 /// Reentrancy guard key
 const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
 
