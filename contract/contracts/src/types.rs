@@ -52,6 +52,7 @@ pub struct ChainConfig {
     pub chain_id: u32,
     pub chain_name: Symbol,
     pub bridge_address: Address,
+    pub bridge_configured: bool,
     pub gas_limit: u32,
     pub confirmations: u32,
     pub active: bool,

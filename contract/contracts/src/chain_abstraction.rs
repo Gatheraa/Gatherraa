@@ -39,6 +39,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("ethereum"),
                 bridge_address: Address::default(), // To be set by admin
+                bridge_configured: false,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: true,
@@ -47,6 +48,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("stellar"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 100000,
                 confirmations: 3,
                 active: true,
@@ -55,6 +57,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("polygon"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 200000,
                 confirmations: 5,
                 active: true,
@@ -63,6 +66,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("arbitrum"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 250000,
                 confirmations: 8,
                 active: true,
@@ -71,6 +75,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("optimism"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -79,6 +84,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("base"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -87,6 +93,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("unknown"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: false,
@@ -101,8 +108,12 @@ impl ChainAbstraction {
 
         match (source_config, target_config) {
             (Some(source), Some(target)) => {
-                // Both chains must be active
-                if !source.active || !target.active {
+                // Both chains must be active and have configured bridge addresses.
+                if !source.active
+                    || !source.bridge_configured
+                    || !target.active
+                    || !target.bridge_configured
+                {
                     return false;
                 }
 
@@ -120,7 +131,12 @@ impl ChainAbstraction {
         let source_config = read_chain_config(env, source_chain);
         let target_config = read_chain_config(env, target_chain);
 
-        source_config.is_some() && target_config.is_some()
+        source_config
+            .map(|config| config.bridge_configured)
+            .unwrap_or(false)
+            && target_config
+                .map(|config| config.bridge_configured)
+                .unwrap_or(false)
     }
 
     /// Get chain-specific gas price
@@ -236,7 +252,13 @@ impl ChainAbstraction {
     /// Get chain-specific bridge address
     pub fn get_chain_bridge_address(env: Env, chain_id: u32) -> Option<Address> {
         let config = read_chain_config(&env, chain_id);
-        config.map(|c| c.bridge_address)
+        config.and_then(|c| {
+            if c.bridge_configured {
+                Some(c.bridge_address)
+            } else {
+                None
+            }
+        })
     }
 
     /// Update bridge address for a chain
@@ -245,7 +267,8 @@ impl ChainAbstraction {
         config.admin.require_auth();
 
         if let Some(mut chain_config) = read_chain_config(&env, chain_id) {
-            chain_config.bridge_address = bridge_address;
+            chain_config.bridge_address = bridge_address.clone();
+            chain_config.bridge_configured = true;
             write_chain_config(&env, chain_id, &chain_config);
 
             env.events().publish(
@@ -262,7 +285,7 @@ impl ChainAbstraction {
 
         for chain_id in supported_chains.iter() {
             if let Some(config) = read_chain_config(&env, chain_id) {
-                if config.active {
+                if config.active && config.bridge_configured {
                     active_chains.push_back(chain_id);
                 }
             }
@@ -327,5 +350,68 @@ impl ChainAbstraction {
         read_chain_config(&env, chain_id).map(|config| {
             (config.chain_name, config.gas_limit, config.confirmations, config.active)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{testutils::Address as _, vec};
+
+    #[test]
+    fn default_chain_is_inactive_until_bridge_address_is_configured() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register(ChainAbstraction, ());
+        let supported_chains = vec![&env, ETHEREUM_CHAIN_ID];
+
+        env.as_contract(&contract_id, || {
+            let admin = Address::generate(&env);
+            let staking_token = Address::generate(&env);
+            let reward_token = Address::generate(&env);
+            write_config(
+                &env,
+                &Config {
+                    admin,
+                    staking_token,
+                    reward_token,
+                    reward_rate: 1,
+                    chain_id: STELLAR_CHAIN_ID,
+                },
+            );
+            write_supported_chains(&env, &supported_chains);
+
+            let default_config =
+                ChainAbstraction::get_default_chain_config(&env, &ETHEREUM_CHAIN_ID);
+            assert!(default_config.active);
+            assert!(!default_config.bridge_configured);
+
+            write_chain_config(&env, ETHEREUM_CHAIN_ID, &default_config);
+            assert_eq!(ChainAbstraction::get_active_chains(env.clone()).len(), 0);
+            assert_eq!(
+                ChainAbstraction::get_chain_bridge_address(env.clone(), ETHEREUM_CHAIN_ID),
+                None
+            );
+
+            let bridge_address = Address::generate(&env);
+            ChainAbstraction::update_bridge_address(
+                env.clone(),
+                ETHEREUM_CHAIN_ID,
+                bridge_address.clone(),
+            );
+
+            let active_chains = ChainAbstraction::get_active_chains(env.clone());
+            assert_eq!(active_chains.len(), 1);
+            assert_eq!(active_chains.get(0), Some(ETHEREUM_CHAIN_ID));
+
+            let configured = read_chain_config(&env, ETHEREUM_CHAIN_ID).unwrap();
+            assert!(configured.bridge_configured);
+            assert_eq!(configured.bridge_address, bridge_address);
+            assert_eq!(
+                ChainAbstraction::get_chain_bridge_address(env.clone(), ETHEREUM_CHAIN_ID),
+                Some(bridge_address)
+            );
+        });
     }
 }

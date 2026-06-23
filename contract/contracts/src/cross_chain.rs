@@ -66,6 +66,7 @@ impl CrossChainStakingContract {
             chain_id,
             chain_name,
             bridge_address,
+            bridge_configured: true,
             gas_limit,
             confirmations,
             active: true,
@@ -174,8 +175,8 @@ impl CrossChainStakingContract {
         let chain_config = read_chain_config(env, target_chain_id)
             .unwrap_or_else(|| panic!("target chain not configured"));
 
-        if !chain_config.active {
-            panic!("target chain is not active");
+        if !chain_config.active || !chain_config.bridge_configured {
+            panic!("target chain bridge is not active");
         }
 
         // Create cross-chain message
@@ -209,8 +210,8 @@ impl CrossChainStakingContract {
         let chain_config = read_chain_config(&env, source_chain_id)
             .unwrap_or_else(|| panic!("source chain not supported"));
 
-        if !chain_config.active {
-            panic!("source chain is not active");
+        if !chain_config.active || !chain_config.bridge_configured {
+            panic!("source chain bridge is not active");
         }
 
         // Verify message authenticity (implementation depends on bridge)
