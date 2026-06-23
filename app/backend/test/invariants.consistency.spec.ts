@@ -1,4 +1,4 @@
-import { fc, test } from 'fast-check';
+import fc from 'fast-check';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +12,11 @@ import { ConfigService } from '@nestjs/config';
 import { SessionsService } from '../src/sessions/sessions.service';
 import { WebhookService } from '../src/webhooks/services/webhook.service';
 import { ArbitraryGenerators, PropertyTestHelpers } from './utils/property-test-utils';
+import { ReferralsService } from '../src/referrals/referrals.service';
+import { ReferralCode } from '../src/referrals/entities/referral-code.entity';
+import { Referral } from '../src/referrals/entities/referral.entity';
+import { ReferralReward } from '../src/referrals/entities/referral-reward.entity';
+import { ReferralAccount } from '../src/referrals/entities/referral-account.entity';
 
 describe('Data Consistency Invariant Tests', () => {
   let eventsService: EventsService;
@@ -20,6 +25,11 @@ describe('Data Consistency Invariant Tests', () => {
   let eventRepository: Repository<Event>;
   let userRepository: Repository<User>;
   let module: TestingModule;
+  let referralsService: ReferralsService;
+  let codesRepo: Repository<ReferralCode>;
+  let referralsRepo: Repository<Referral>;
+  let rewardsRepo: Repository<ReferralReward>;
+  let accountsRepo: Repository<ReferralAccount>;
 
   beforeAll(async () => {
     module = await Test.createTestingModule({
@@ -73,6 +83,40 @@ describe('Data Consistency Invariant Tests', () => {
             trigger: jest.fn(),
           },
         },
+        ReferralsService,
+        {
+          provide: getRepositoryToken(ReferralCode),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(Referral),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+            count: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(ReferralReward),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(ReferralAccount),
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -81,6 +125,11 @@ describe('Data Consistency Invariant Tests', () => {
     authService = module.get<AuthService>(AuthService);
     eventRepository = module.get<Repository<Event>>(getRepositoryToken(Event));
     userRepository = module.get<Repository<User>>(getRepositoryToken(User));
+    referralsService = module.get<ReferralsService>(ReferralsService);
+    codesRepo = module.get<Repository<ReferralCode>>(getRepositoryToken(ReferralCode));
+    referralsRepo = module.get<Repository<Referral>>(getRepositoryToken(Referral));
+    rewardsRepo = module.get<Repository<ReferralReward>>(getRepositoryToken(ReferralReward));
+    accountsRepo = module.get<Repository<ReferralAccount>>(getRepositoryToken(ReferralAccount));
   });
 
   afterAll(async () => {
@@ -89,7 +138,7 @@ describe('Data Consistency Invariant Tests', () => {
 
   describe('Event-User Relationship Invariants', () => {
     it('should maintain organizer relationship consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.event(),
           ArbitraryGenerators.organizerUser(),
@@ -114,7 +163,7 @@ describe('Data Consistency Invariant Tests', () => {
     });
 
     it('should prevent orphan events', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.event(),
           async (event) => {
@@ -137,7 +186,7 @@ describe('Data Consistency Invariant Tests', () => {
 
   describe('User Role Invariants', () => {
     it('should maintain role hierarchy consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           async (user) => {
@@ -167,7 +216,7 @@ describe('Data Consistency Invariant Tests', () => {
     });
 
     it('should maintain wallet address uniqueness invariants', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           async (user) => {
@@ -191,7 +240,7 @@ describe('Data Consistency Invariant Tests', () => {
 
   describe('Event Date Invariants', () => {
     it('should maintain temporal consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.event(),
           async (event) => {
@@ -221,7 +270,7 @@ describe('Data Consistency Invariant Tests', () => {
     });
 
     it('should handle edge case date combinations', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           fc.date(),
           fc.option(fc.date()),
@@ -252,7 +301,7 @@ describe('Data Consistency Invariant Tests', () => {
 
   describe('Authentication Token Invariants', () => {
     it('should maintain token payload consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           fc.string({ minLength: 32 }),
@@ -284,7 +333,7 @@ describe('Data Consistency Invariant Tests', () => {
     });
 
     it('should maintain token expiration consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           async (user) => {
@@ -328,7 +377,7 @@ describe('Data Consistency Invariant Tests', () => {
 
   describe('Profile Completion Invariants', () => {
     it('should maintain completion percentage bounds', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           async (user) => {
@@ -349,7 +398,7 @@ describe('Data Consistency Invariant Tests', () => {
     });
 
     it('should maintain completion calculation consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           async (user) => {
@@ -378,7 +427,7 @@ describe('Data Consistency Invariant Tests', () => {
 
   describe('Cross-Service Data Consistency', () => {
     it('should maintain user consistency across services', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.user(),
           async (user) => {
@@ -401,7 +450,7 @@ describe('Data Consistency Invariant Tests', () => {
     });
 
     it('should maintain event ownership consistency', async () => {
-      await test(
+      await fc.assert(
         fc.asyncProperty(
           ArbitraryGenerators.event(),
           ArbitraryGenerators.organizerUser(),
@@ -421,6 +470,126 @@ describe('Data Consistency Invariant Tests', () => {
           }
         ),
         { numRuns: 50 }
+      );
+    });
+  });
+
+  describe('Referral Reward Idempotency', () => {
+    it('distributeReward should not create duplicate state on replay', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.uuid(),
+          fc.double({ min: 10, max: 1000 }),
+          fc.date({ min: new Date('2020-01-01'), max: new Date('2025-01-01') }),
+          async (rewardId, amount, pastDate) => {
+            const beneficiary = PropertyTestHelpers.createMockUser({ createdAt: pastDate });
+
+            const reward: any = {
+              id: rewardId,
+              beneficiary,
+              amount,
+              distributed: false,
+              idempotencyKey: null,
+              referral: {
+                id: fc.sample(fc.uuid(), 1)[0],
+                referee: { createdAt: pastDate },
+              },
+              createdAt: new Date(),
+            };
+
+            let currentReward = { ...reward };
+            let saveCount = 0;
+
+            jest.spyOn(userRepository, 'findOne').mockResolvedValue(beneficiary);
+            jest.spyOn(rewardsRepo, 'findOne').mockImplementation(() => Promise.resolve(currentReward));
+            jest.spyOn(rewardsRepo, 'save').mockImplementation(async (r: any) => {
+              currentReward = { ...r, distributed: true };
+              saveCount++;
+              return currentReward;
+            });
+            jest.spyOn(rewardsRepo, 'create').mockImplementation((dto: any) => dto as any);
+            jest.spyOn(accountsRepo, 'findOne').mockResolvedValue(null);
+            jest.spyOn(accountsRepo, 'create').mockImplementation((dto: any) => dto as any);
+            jest.spyOn(accountsRepo, 'save').mockImplementation((a: any) => Promise.resolve(a));
+
+            const r1 = await referralsService.distributeReward(rewardId);
+            const r2 = await referralsService.distributeReward(rewardId);
+            const r3 = await referralsService.distributeReward(rewardId);
+
+            expect(saveCount).toBe(1);
+            expect(r1.id).toBe(rewardId);
+            expect(r2.id).toBe(rewardId);
+            expect(r3.id).toBe(rewardId);
+          }
+        ),
+        { numRuns: 50 },
+      );
+    });
+  });
+
+  describe('Referral Redeem Idempotency', () => {
+    it('redeemCode should not create duplicate referral on replay', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.uniqueArray(fc.uuid(), { minLength: 2, maxLength: 2 }),
+          fc.string({ minLength: 6, maxLength: 8 }),
+          fc.string({ minLength: 8, maxLength: 16 }),
+          async ([referrerId, refereeId], codeStr, idempotencyKey) => {
+            const referrer = PropertyTestHelpers.createMockUser({ id: referrerId, roles: [UserRole.ORGANIZER] });
+            const referee = PropertyTestHelpers.createMockUser({ id: refereeId, roles: [UserRole.USER] });
+
+            const code: any = {
+              id: fc.sample(fc.uuid(), 1)[0],
+              code: codeStr,
+              owner: referrer,
+              active: true,
+              uses: 0,
+              maxUses: null,
+              metadata: null,
+              createdAt: new Date(),
+            };
+
+            let savedReferral: any = null;
+            let referralSaveCount = 0;
+            const savedRewards: any[] = [];
+
+            jest.spyOn(userRepository, 'findOne').mockResolvedValue(referee);
+            jest.spyOn(codesRepo, 'findOne').mockResolvedValue(code);
+            jest.spyOn(referralsRepo, 'count').mockResolvedValue(0);
+            jest.spyOn(referralsRepo, 'findOne').mockImplementation(async (query: any) => {
+              if (query.where?.code && query.where?.referee) return savedReferral;
+              return null;
+            });
+            jest.spyOn(referralsRepo, 'create').mockImplementation((dto: any) => dto as any);
+            jest.spyOn(referralsRepo, 'save').mockImplementation(async (r: any) => {
+              savedReferral = r;
+              referralSaveCount++;
+              return r;
+            });
+            jest.spyOn(rewardsRepo, 'findOne').mockImplementation((query: any) => {
+              const id = query.where?.id ?? query.where?.idempotencyKey;
+              return Promise.resolve(savedRewards.find(r => r.id === id || r.idempotencyKey === id) ?? null);
+            });
+            jest.spyOn(rewardsRepo, 'create').mockImplementation((dto: any) => dto as any);
+            jest.spyOn(rewardsRepo, 'save').mockImplementation(async (r: any) => {
+              const saved = { ...r, id: r.id || fc.sample(fc.uuid(), 1)[0] };
+              savedRewards.push(saved);
+              return saved;
+            });
+            jest.spyOn(accountsRepo, 'findOne').mockResolvedValue(null);
+            jest.spyOn(accountsRepo, 'create').mockImplementation((dto: any) => dto as any);
+            jest.spyOn(accountsRepo, 'save').mockImplementation((a: any) => Promise.resolve(a));
+
+            const result1 = await referralsService.redeemCode(refereeId, codeStr, { idempotencyKey });
+            const result2 = await referralsService.redeemCode(refereeId, codeStr, { idempotencyKey });
+            const result3 = await referralsService.redeemCode(refereeId, codeStr, { idempotencyKey });
+
+            expect(referralSaveCount).toBe(1);
+            expect(result1.referral.id).toBe(result2.referral.id);
+            expect(result2.referral.id).toBe(result3.referral.id);
+          }
+        ),
+        { numRuns: 50 },
       );
     });
   });
