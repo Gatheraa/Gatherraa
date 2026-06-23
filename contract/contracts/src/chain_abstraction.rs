@@ -1,7 +1,10 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec, BytesN};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
 
 use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage, ETHEREUM_CHAIN_ID, STELLAR_CHAIN_ID, POLYGON_CHAIN_ID, ARBITRUM_CHAIN_ID, OPTIMISM_CHAIN_ID, BASE_CHAIN_ID};
+use crate::types::{
+    ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo, ARBITRUM_CHAIN_ID,
+    BASE_CHAIN_ID, ETHEREUM_CHAIN_ID, OPTIMISM_CHAIN_ID, POLYGON_CHAIN_ID, STELLAR_CHAIN_ID,
+};
 
 #[contract]
 pub struct ChainAbstraction;
@@ -9,11 +12,7 @@ pub struct ChainAbstraction;
 #[contractimpl]
 impl ChainAbstraction {
     /// Initialize chain abstraction layer
-    pub fn initialize_chain_abstraction(
-        env: Env,
-        admin: Address,
-        supported_chains: Vec<u32>,
-    ) {
+    pub fn initialize_chain_abstraction(env: Env, admin: Address, supported_chains: Vec<u32>) {
         let config = read_config(&env);
         config.admin.require_auth();
 
@@ -26,10 +25,8 @@ impl ChainAbstraction {
             write_chain_config(&env, chain_id, &chain_config);
         }
 
-        env.events().publish(
-            (symbol_short!("chain_abstraction_init"),),
-            supported_chains,
-        );
+        env.events()
+            .publish((symbol_short!("chain_abstraction_init"),), supported_chains);
     }
 
     /// Get default configuration for a chain
@@ -39,6 +36,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("ethereum"),
                 bridge_address: Address::default(), // To be set by admin
+                bridge_configured: false,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: true,
@@ -47,6 +45,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("stellar"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 100000,
                 confirmations: 3,
                 active: true,
@@ -55,6 +54,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("polygon"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 200000,
                 confirmations: 5,
                 active: true,
@@ -63,6 +63,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("arbitrum"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 250000,
                 confirmations: 8,
                 active: true,
@@ -71,6 +72,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("optimism"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -79,6 +81,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("base"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -87,6 +90,7 @@ impl ChainAbstraction {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("unknown"),
                 bridge_address: Address::default(),
+                bridge_configured: false,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: false,
@@ -116,11 +120,19 @@ impl ChainAbstraction {
     /// Check if bridge exists between chains
     fn bridge_exists(env: &Env, source_chain: u32, target_chain: u32) -> bool {
         // This would check if there's a valid bridge configuration
-        // For now, assume all active chains have bridge connectivity
+        // Only allow chains that have an explicit bridge configured.
         let source_config = read_chain_config(env, source_chain);
         let target_config = read_chain_config(env, target_chain);
 
-        source_config.is_some() && target_config.is_some()
+        match (source_config, target_config) {
+            (Some(source), Some(target)) => {
+                source.active
+                    && target.active
+                    && source.bridge_configured
+                    && target.bridge_configured
+            }
+            _ => false,
+        }
     }
 
     /// Get chain-specific gas price
@@ -146,13 +158,13 @@ impl ChainAbstraction {
     /// Get chain-specific block time
     pub fn get_chain_block_time(env: Env, chain_id: u32) -> u64 {
         match chain_id {
-            ETHEREUM_CHAIN_ID => 12,      // 12 seconds
-            POLYGON_CHAIN_ID => 2,        // 2 seconds
-            ARBITRUM_CHAIN_ID => 1,       // 1 second
-            OPTIMISM_CHAIN_ID => 2,       // 2 seconds
-            BASE_CHAIN_ID => 2,           // 2 seconds
-            STELLAR_CHAIN_ID => 5,        // 5 seconds
-            _ => 12,                      // Default 12 seconds
+            ETHEREUM_CHAIN_ID => 12, // 12 seconds
+            POLYGON_CHAIN_ID => 2,   // 2 seconds
+            ARBITRUM_CHAIN_ID => 1,  // 1 second
+            OPTIMISM_CHAIN_ID => 2,  // 2 seconds
+            BASE_CHAIN_ID => 2,      // 2 seconds
+            STELLAR_CHAIN_ID => 5,   // 5 seconds
+            _ => 12,                 // Default 12 seconds
         }
     }
 
@@ -236,7 +248,13 @@ impl ChainAbstraction {
     /// Get chain-specific bridge address
     pub fn get_chain_bridge_address(env: Env, chain_id: u32) -> Option<Address> {
         let config = read_chain_config(&env, chain_id);
-        config.map(|c| c.bridge_address)
+        config.and_then(|c| {
+            if c.bridge_configured {
+                Some(c.bridge_address)
+            } else {
+                None
+            }
+        })
     }
 
     /// Update bridge address for a chain
@@ -246,6 +264,7 @@ impl ChainAbstraction {
 
         if let Some(mut chain_config) = read_chain_config(&env, chain_id) {
             chain_config.bridge_address = bridge_address;
+            chain_config.bridge_configured = true;
             write_chain_config(&env, chain_id, &chain_config);
 
             env.events().publish(
@@ -262,7 +281,7 @@ impl ChainAbstraction {
 
         for chain_id in supported_chains.iter() {
             if let Some(config) = read_chain_config(&env, chain_id) {
-                if config.active {
+                if config.active && config.bridge_configured {
                     active_chains.push_back(chain_id);
                 }
             }
@@ -286,8 +305,9 @@ impl ChainAbstraction {
         amount: i128,
     ) -> u128 {
         let gas_price = Self::get_chain_gas_price(env, source_chain);
-        let gas_limit = Self::estimate_cross_chain_gas_limit(env, source_chain, target_chain, amount);
-        
+        let gas_limit =
+            Self::estimate_cross_chain_gas_limit(env, source_chain, target_chain, amount);
+
         gas_price * gas_limit as u128
     }
 
@@ -310,7 +330,7 @@ impl ChainAbstraction {
 
         // Add overhead for cross-chain operations
         let cross_chain_overhead = 50000;
-        
+
         // Add amount-based overhead (for larger amounts)
         let amount_overhead = if amount > 1000000000000 { 10000 } else { 0 };
 
@@ -325,7 +345,83 @@ impl ChainAbstraction {
     /// Get chain metadata
     pub fn get_chain_metadata(env: Env, chain_id: u32) -> Option<(Symbol, u32, u32, bool)> {
         read_chain_config(&env, chain_id).map(|config| {
-            (config.chain_name, config.gas_limit, config.confirmations, config.active)
+            (
+                config.chain_name,
+                config.gas_limit,
+                config.confirmations,
+                config.active,
+            )
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::testutils::Address as _;
+
+    fn seed_admin_config(env: &Env, admin: &Address) {
+        write_config(
+            env,
+            &Config {
+                admin: admin.clone(),
+                staking_token: Address::generate(env),
+                reward_token: Address::generate(env),
+                reward_rate: 10,
+                chain_id: ETHEREUM_CHAIN_ID,
+            },
+        );
+    }
+
+    #[test]
+    fn default_chain_configs_start_unconfigured() {
+        let env = Env::default();
+        let config = ChainAbstraction::get_default_chain_config(&env, &ETHEREUM_CHAIN_ID);
+
+        assert_eq!(config.bridge_address, Address::default());
+        assert!(!config.bridge_configured);
+        assert!(config.active);
+    }
+
+    #[test]
+    fn active_chains_remain_hidden_until_bridge_is_configured() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        seed_admin_config(&env, &admin);
+
+        let mut supported_chains = Vec::new(&env);
+        supported_chains.push_back(ETHEREUM_CHAIN_ID);
+        supported_chains.push_back(STELLAR_CHAIN_ID);
+
+        ChainAbstraction::initialize_chain_abstraction(
+            env.clone(),
+            admin.clone(),
+            supported_chains,
+        );
+
+        let active_before = ChainAbstraction::get_active_chains(env.clone());
+        assert_eq!(active_before.len(), 0);
+        assert_eq!(
+            ChainAbstraction::get_chain_bridge_address(env.clone(), ETHEREUM_CHAIN_ID),
+            None
+        );
+        assert!(!ChainAbstraction::validate_chain_compatibility(
+            env.clone(),
+            ETHEREUM_CHAIN_ID,
+            STELLAR_CHAIN_ID,
+        ));
+
+        let bridge = Address::generate(&env);
+        ChainAbstraction::update_bridge_address(env.clone(), ETHEREUM_CHAIN_ID, bridge.clone());
+
+        let active_after = ChainAbstraction::get_active_chains(env.clone());
+        assert_eq!(active_after.len(), 1);
+        assert_eq!(active_after.get(0), Some(ETHEREUM_CHAIN_ID));
+        assert_eq!(
+            ChainAbstraction::get_chain_bridge_address(env.clone(), ETHEREUM_CHAIN_ID),
+            Some(bridge)
+        );
     }
 }
