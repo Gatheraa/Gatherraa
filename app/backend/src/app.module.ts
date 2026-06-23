@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VersioningMiddleware } from './common/middleware/versioning.middleware';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { VersioningMiddleware } from './common/middleware/versioning.middleware'
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

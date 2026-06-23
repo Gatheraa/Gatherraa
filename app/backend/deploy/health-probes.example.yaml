@@ -1,0 +1,26 @@
+# Example probe snippets for the backend container.
+
+# Kubernetes container probe fields.
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 3000
+  periodSeconds: 10
+  timeoutSeconds: 2
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 3000
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+---
+# Cloud Run service template probe field.
+startupProbe:
+  httpGet:
+    path: /healthz
+    port: 3000
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 12
