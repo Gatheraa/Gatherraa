@@ -1,10 +1,37 @@
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
-
-use soroban_sdk::{Address, Env, Vec, Symbol, token};
+use soroban_sdk::{token, Address, Env, Symbol, Vec};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
+pub const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
+
+pub struct ReentrancyGuard<'a> {
+    env: &'a Env,
+}
+
+impl<'a> ReentrancyGuard<'a> {
+    pub fn enter(env: &'a Env) -> Self {
+        if env.storage().instance().has(&REENTRANCY_GUARD) {
+            panic!("reentrant call detected");
+        }
+
+        env.storage().instance().set(&REENTRANCY_GUARD, &true);
+        Self { env }
+    }
+}
+
+impl Drop for ReentrancyGuard<'_> {
+    fn drop(&mut self) {
+        self.env.storage().instance().remove(&REENTRANCY_GUARD);
+    }
+}
+
+pub fn assert_reentrancy_guard(env: &Env) {
+    if !env.storage().instance().has(&REENTRANCY_GUARD) {
+        panic!("reentrancy guard required");
+    }
+}
 
 // Batch storage operations for better gas efficiency
 pub struct StorageCache {
@@ -227,6 +254,8 @@ pub fn write_message_nonce(env: &Env, nonce: u64) {
 }
 
 pub fn update_reward(env: &Env, user: Option<&Address>) {
+    assert_reentrancy_guard(env);
+
     let config = read_config(env);
     let reward_token = token::Client::new(env, &config.reward_token);
     let staking_token = token::Client::new(env, &config.staking_token);

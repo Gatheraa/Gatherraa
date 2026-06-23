@@ -1,15 +1,12 @@
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
 
 use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
 #[contract]
 pub struct CrossChainStakingContract;
 
 const PRECISION: i128 = 1_000_000_000;
-
-/// Reentrancy guard key
-const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
 
 /// Cross-chain message types
 const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_msg");
@@ -95,22 +92,23 @@ impl CrossChainStakingContract {
         tier_id: u32,
         target_chain_id: Option<u32>,
     ) {
-        // Reentrancy protection
-        if env.storage().instance().has(&REENTRANCY_GUARD) {
-            panic!("reentrant call detected");
-        }
-        env.storage().instance().set(&REENTRANCY_GUARD, &true);
+        let _guard = ReentrancyGuard::enter(&env);
 
         user.require_auth();
         if amount <= 0 {
-            env.storage().instance().remove(&REENTRANCY_GUARD);
             panic!("amount must be > 0");
         }
 
         // Handle cross-chain staking
         if let Some(target_chain) = target_chain_id {
-            Self::handle_cross_chain_stake(&env, user, amount, lock_duration, tier_id, target_chain);
-            env.storage().instance().remove(&REENTRANCY_GUARD);
+            Self::handle_cross_chain_stake(
+                &env,
+                user,
+                amount,
+                lock_duration,
+                tier_id,
+                target_chain,
+            );
             return;
         }
 
@@ -127,14 +125,15 @@ impl CrossChainStakingContract {
         // Transfer tokens
         let token_client = token::Client::new(&env, &config.staking_token);
         let contract_address = env.current_contract_address();
-        
+
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("stake_transfer_success"),), amount);
-            },
+                env.events()
+                    .publish((symbol_short!("stake_transfer_success"),), amount);
+            }
             _ => {
-                env.storage().instance().remove(&REENTRANCY_GUARD);
-                env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
+                env.events()
+                    .publish((symbol_short!("stake_transfer_failed"),), amount);
                 panic!("token transfer failed");
             }
         }
@@ -154,8 +153,7 @@ impl CrossChainStakingContract {
         user_info.tier_id = tier_id;
 
         write_user_info(&env, &user, &user_info);
-        env.storage().instance().remove(&REENTRANCY_GUARD);
-        
+
         env.events().publish(
             (symbol_short!("stake"), user.clone()),
             (amount, tier_id, lock_duration),
@@ -265,7 +263,9 @@ impl CrossChainStakingContract {
             .get(&DataKey::MessageNonce)
             .unwrap_or(0u64);
         let new_nonce = current_nonce + 1;
-        env.storage().instance().set(&DataKey::MessageNonce, &new_nonce);
+        env.storage()
+            .instance()
+            .set(&DataKey::MessageNonce, &new_nonce);
         new_nonce
     }
 
@@ -358,5 +358,100 @@ impl CrossChainStakingContract {
     /// Generic address validation
     fn validate_generic_address(_address: &Address) {
         // Generic validation for unknown chains
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use soroban_sdk::{contract, contractimpl, testutils::Address as _, Address, Env, Symbol};
+
+    const TARGET_CONTRACT: Symbol = symbol_short!("target");
+    const REENTRY_ATTEMPTED: Symbol = symbol_short!("attempt");
+    const REENTRY_BLOCKED: Symbol = symbol_short!("blocked");
+
+    #[contract]
+    pub struct ReentrantToken;
+
+    #[contractimpl]
+    impl ReentrantToken {
+        pub fn initialize(env: Env, target_contract: Address) {
+            env.storage()
+                .instance()
+                .set(&TARGET_CONTRACT, &target_contract);
+            env.storage().instance().set(&REENTRY_ATTEMPTED, &false);
+            env.storage().instance().set(&REENTRY_BLOCKED, &false);
+        }
+
+        pub fn total_supply(_env: Env) -> i128 {
+            1_000_000
+        }
+
+        pub fn transfer(env: Env, from: Address, _to: Address, _amount: i128) {
+            env.storage().instance().set(&REENTRY_ATTEMPTED, &true);
+
+            let target_contract: Address = env.storage().instance().get(&TARGET_CONTRACT).unwrap();
+            let staking_client = CrossChainStakingContractClient::new(&env, &target_contract);
+            let reentry = staking_client.try_stake(&from, &1, &1, &1, &Option::<u32>::None);
+
+            env.storage()
+                .instance()
+                .set(&REENTRY_BLOCKED, &reentry.is_err());
+        }
+
+        pub fn balance(_env: Env, _id: Address) -> i128 {
+            1_000_000
+        }
+
+        pub fn reentry_attempted(env: Env) -> bool {
+            env.storage()
+                .instance()
+                .get(&REENTRY_ATTEMPTED)
+                .unwrap_or(false)
+        }
+
+        pub fn reentry_blocked(env: Env) -> bool {
+            env.storage()
+                .instance()
+                .get(&REENTRY_BLOCKED)
+                .unwrap_or(false)
+        }
+    }
+
+    #[test]
+    fn token_transfer_callback_reentrant_stake_is_blocked() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let admin = Address::generate(&env);
+        let user = Address::generate(&env);
+        let staking_contract = env.register(CrossChainStakingContract, ());
+        let token_contract = env.register(ReentrantToken, ());
+
+        let token_client = ReentrantTokenClient::new(&env, &token_contract);
+        token_client.initialize(&staking_contract);
+
+        env.as_contract(&staking_contract, || {
+            write_config(
+                &env,
+                &Config {
+                    admin: admin.clone(),
+                    staking_token: token_contract.clone(),
+                    reward_token: token_contract.clone(),
+                    reward_rate: 1,
+                    chain_id: 2,
+                },
+            );
+            write_last_update_time(&env, env.ledger().timestamp());
+        });
+
+        let staking_client = CrossChainStakingContractClient::new(&env, &staking_contract);
+        staking_client.stake(&user, &100, &60, &1, &Option::<u32>::None);
+
+        assert!(token_client.reentry_attempted());
+        assert!(token_client.reentry_blocked());
+        env.as_contract(&staking_contract, || {
+            assert!(read_user_info(&env, &user).is_some());
+        });
     }
 }
