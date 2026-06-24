@@ -228,20 +228,34 @@ pub fn write_message_nonce(env: &Env, nonce: u64) {
 
 pub fn update_reward(env: &Env, user: Option<&Address>) {
     let config = read_config(env);
-    let _reward_token = token::Client::new(env, &config.reward_token);
-    let total_shares = read_total_shares(env);
+    let reward_token = token::Client::new(env, &config.reward_token);
+    let staking_token = token::Client::new(env, &config.staking_token);
+    
+    // TODO: I'm not sure why total_supply is used, the method does not exist.
+    // let total_supply = staking_token.total_supply();
+    // if total_supply > 0 {
+    //     let reward_per_token = (config.reward_rate * PRECISION) / total_supply;
 
-    if total_shares > 0 {
-        let reward_per_token = (config.reward_rate * crate::cross_chain::PRECISION) / total_shares;
+    let total_staked = staking_token.balance(&env.current_contract_address());
+    if total_staked > 0 {
+
+        let numerator = config.reward_rate.checked_mul(PRECISION).expect("reward_rate * PRECISION overflow");
+        let reward_per_token = numerator.checked_div(total_staked).expect("division by zero in reward_per_token");
+
         let mut reward_per_token_stored = read_reward_per_token_stored(env);
-        reward_per_token_stored += reward_per_token;
+        reward_per_token_stored = reward_per_token_stored.checked_add(reward_per_token).expect("reward_per_token_stored overflow");
         write_reward_per_token_stored(env, reward_per_token_stored);
 
         if let Some(user_addr) = user {
             if let Some(mut user_info) = read_user_info(env, user_addr) {
-                let rewards = (user_info.shares * reward_per_token_stored) / crate::cross_chain::PRECISION
-                    - user_info.reward_per_token_paid;
-                user_info.rewards += rewards;
+
+                let user_info_reward_per_token = user_info.shares.checked_mul(reward_per_token_stored).expect("shares * reward_per_token_stored overflow");
+
+                let user_info_reward_per_token_div = user_info_reward_per_token.checked_div(PRECISION).expect("PRECISION is zero");
+
+                let reward_delta = user_info_reward_per_token_div.checked_sub(user_info.reward_per_token_paid).expect("reward delta underflow — stored < paid");
+
+                user_info.rewards = user_info.rewards.checked_add(reward_delta).expect("user rewards overflow");
                 user_info.reward_per_token_paid = reward_per_token_stored;
                 write_user_info(env, user_addr, &user_info);
             }
