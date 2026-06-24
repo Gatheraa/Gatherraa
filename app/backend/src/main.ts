@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configureAppSecurity } from './security/app-security';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 // import { ValidationPipe, VersioningType } from '@nestjs/common';
 // import { NestExpressApplication } from '@nestjs/platform-express';
@@ -15,6 +16,7 @@ import { configureAppSecurity } from './security/app-security';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   configureAppSecurity(app);
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
   // app.enableVersioning({...});
 
