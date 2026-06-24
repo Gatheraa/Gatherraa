@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import apiClient from '../../../apiClient';
 import { queryKeys } from '../../keys/queryKeys';
 
-interface Payment {
+export interface Payment {
   id: string;
   reference: string;
   bookingId: string;

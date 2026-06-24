@@ -1,7 +1,7 @@
 use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
 
 
-use soroban_sdk::{Address, Env, Vec, Symbol, token};
+use soroban_sdk::{Address, Env, Vec, token};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
@@ -170,7 +170,7 @@ pub fn read_supported_chains(env: &Env) -> Vec<u32> {
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
     }
     val.unwrap_or_else(|| Vec::new(env))
 }
@@ -180,7 +180,7 @@ pub fn write_supported_chains(env: &Env, chains: &Vec<u32>) {
     env.storage().instance().set(&key, chains);
     env.storage()
         .instance()
-        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage> {
@@ -189,7 +189,7 @@ pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
     }
     val.unwrap_or_else(|| Vec::new(env))
 }
@@ -199,7 +199,7 @@ pub fn write_pending_messages(env: &Env, user: &Address, messages: &Vec<CrossCha
     env.storage().instance().set(&key, messages);
     env.storage()
         .instance()
-        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn write_pending_message(env: &Env, message: &CrossChainMessage) {
@@ -256,7 +256,6 @@ pub fn update_reward(env: &Env, user: Option<&Address>) {
                 let reward_delta = user_info_reward_per_token_div.checked_sub(user_info.reward_per_token_paid).expect("reward delta underflow — stored < paid");
 
                 user_info.rewards = user_info.rewards.checked_add(reward_delta).expect("user rewards overflow");
-
                 user_info.reward_per_token_paid = reward_per_token_stored;
                 write_user_info(env, user_addr, &user_info);
             }
@@ -265,3 +264,5 @@ pub fn update_reward(env: &Env, user: Option<&Address>) {
 
     write_last_update_time(env, env.ledger().timestamp());
 }
+
+

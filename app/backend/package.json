@@ -20,7 +20,9 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:property": "jest --testPathPattern=\".*\\.property\\.spec\\.ts$\" --testTimeout=30000",
     "test:fuzz": "jest --testPathPattern=\".*\\.fuzz\\.spec\\.ts$\" --testTimeout=60000",
-    "test:invariants": "jest --testPathPattern=\".*\\.invariants\\.spec\\.ts$\" --testTimeout=30000",
+    "test:invariants": "jest --config jest.invariants.json --testTimeout=30000",
+    "openapi:generate": "ts-node -r tsconfig-paths/register scripts/check-openapi.ts --write",
+    "openapi:check": "ts-node -r tsconfig-paths/register scripts/check-openapi.ts",
     "migration:run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts run",
     "migration:revert": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts revert",
     "migration:dry-run": "ts-node -r tsconfig-paths/register ./src/migrations/runner.ts dry-run",
@@ -95,6 +97,7 @@
     "redis": "^5.11.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.35.2",
     "siwe": "^3.0.0",
     "socket.io": "^4.8.1",
     "stripe": "^16.9.0",
@@ -119,7 +122,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "fast-check": "^3.15.0",
     "globals": "^16.0.0",
-    "jest": "^30.0.0",
+    "jest": "^29.0.0",
     "prettier": "^3.4.2",
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
@@ -128,7 +131,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "yaml": "^2.9.0"
   },
   "jest": {
     "moduleFileExtensions": [
@@ -147,7 +151,9 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "testTimeout": 10000,
-    "transformIgnorePatterns": ["node_modules/(?!(uuid)/)"],
+    "transformIgnorePatterns": [
+      "node_modules/(?!(uuid)/)"
+    ],
     "testPathIgnorePatterns": [
       "task-queue/",
       "privacy/",

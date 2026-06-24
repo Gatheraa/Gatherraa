@@ -1,8 +1,8 @@
-import { fc } from 'fast-check';
-import { User, UserRole } from '../src/users/entities/user.entity';
-import { Event } from '../src/events/entities/event.entity';
-import { CreateEventDto } from '../src/events/dto/create-event.dto';
-import { UpdateEventDto } from '../src/events/dto/update-event.dto';
+import fc from 'fast-check';
+import { User, UserRole, ProfileVisibility } from '../../src/users/entities/user.entity';
+import { Event } from '../../src/events/entities/event.entity';
+import { CreateEventDto } from '../../src/events/dto/create-event.dto';
+import { UpdateEventDto } from '../../src/events/dto/update-event.dto';
 
 export class ArbitraryGenerators {
   static user() {

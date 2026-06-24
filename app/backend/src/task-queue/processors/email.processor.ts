@@ -2,9 +2,11 @@
 // Handles sending emails through the queue
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import * as nodemailer from 'nodemailer';
+import { TaskQueueService } from '../services/task-queue.service';
+import { NotificationsGateway } from '../../notifications/gateway/notifications.gateway';
 
 export interface EmailJobData {
   to: string;
@@ -24,15 +26,18 @@ export interface EmailJobData {
  * Processor for email jobs
  * Sends emails with retry logic and error handling
  */
-@Processor('email')
+@Processor('email', { concurrency: 5 })
 @Injectable()
-export class EmailProcessor {
+export class EmailProcessor extends WorkerHost {
   private readonly logger = new Logger(EmailProcessor.name);
   private transporter: nodemailer.Transporter;
 
-  constructor() {
+  constructor(
+    private readonly taskQueueService: TaskQueueService,
+    private readonly notificationsGateway: NotificationsGateway,
+  ) {
+    super();
     // Initialize email transporter
-    // In production, this should be configured via environment variables
     this.transporter = nodemailer.createTransport({
       service: process.env.EMAIL_SERVICE || 'gmail',
       auth: {
@@ -50,8 +55,7 @@ export class EmailProcessor {
   /**
    * Process email sending job
    */
-  @Process({ concurrency: 5 })
-  async handleEmailJob(job: Job<EmailJobData>) {
+  async process(job: Job<EmailJobData>): Promise<any> {
     const jobId = job.id;
     const { to, subject, template, context } = job.data;
 
@@ -95,19 +99,37 @@ export class EmailProcessor {
         error.stack,
       );
 
-      // Provide detailed error for logging
-      throw {
-        message: error.message,
-        code: error.code,
-        statusCode: error.responseCode,
-        originalError: error,
-      };
+      throw error;
+    }
+  }
+
+  /**
+   * Domain Aware failure hook for Email Failures
+   */
+  @OnWorkerEvent('failed')
+  async onJobFailed(job: Job, error: Error) {
+    const maxAttempts = job.opts.attempts ?? 1;
+
+    if (job.attemptsMade >= maxAttempts) {
+      this.logger.warn(`Email Job ${job.id} failed permanently. Routing to DLQ and notifying admin.`);
+      
+      // 1. Move to Dead Letter Queue
+      await this.taskQueueService.moveToDeadLetterQueue(job, error.message);
+
+      // 2. Emit WebSocket event to admin room
+      if (this.notificationsGateway?.server) {
+        this.notificationsGateway.server.to('admin_room').emit('admin_job_failed_permanently', {
+          queueName: job.queueName,
+          jobId: job.id,
+          errorMessage: error.message,
+          failedAt: new Date(),
+        });
+      }
     }
   }
 
   /**
    * Render email template with context
-   * In production, use a proper template engine like Handlebars or EJS
    */
   private renderEmailTemplate(
     template: string,
@@ -115,7 +137,6 @@ export class EmailProcessor {
   ): string {
     let html = template;
 
-    // Simple variable replacement
     for (const [key, value] of Object.entries(context)) {
       const regex = new RegExp(`{{${key}}}`, 'g');
       html = html.replace(regex, String(value));

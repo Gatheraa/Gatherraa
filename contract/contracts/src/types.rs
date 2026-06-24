@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Symbol, Vec};
+use soroban_sdk::{contracttype, symbol_short, Address, Env, Symbol, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -86,7 +86,7 @@ pub const OPTIMISM_CHAIN_ID: u32 = 5;
 pub const BASE_CHAIN_ID: u32 = 6;
 
 // Message types
-pub const MESSAGE_TYPE_STAKE: Symbol = Symbol::short("stake_msg");
-pub const MESSAGE_TYPE_UNSTAKE: Symbol = Symbol::short("unstake_msg");
-pub const MESSAGE_TYPE_REWARD: Symbol = Symbol::short("reward_msg");
-pub const MESSAGE_TYPE_MIGRATE: Symbol = Symbol::short("migrate_msg");
+pub const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_msg");
+pub fn message_type_unstake(env: &Env) -> Symbol { Symbol::new(env, "unstake_msg") }
+pub fn message_type_reward(env: &Env) -> Symbol { Symbol::new(env, "reward_msg") }
+pub fn message_type_migrate(env: &Env) -> Symbol { Symbol::new(env, "migrate_msg") }

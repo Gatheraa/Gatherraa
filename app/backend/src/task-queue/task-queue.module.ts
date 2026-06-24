@@ -12,7 +12,6 @@ import { ScheduledTaskProcessor } from './processors/scheduled-task.processor';
 import { WaitlistNotificationProcessor } from './processors/waitlist-notification.processor';
 import { WaitlistExpiryProcessor } from './processors/waitlist-expiry.processor';
 import { WaitlistInviteProcessor } from './processors/waitlist-invite.processor';
-import { RolesGuard } from '../auth/guards/roles.guard';
 import { TaskQueueController } from './task-queue.controller';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AnalyticsModule } from '../analytics/analytics.module';

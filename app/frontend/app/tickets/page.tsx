@@ -8,6 +8,7 @@ import { CheckCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
 import TicketPreview from '@/components/ticket-preview/TicketPreview';
 import FormInput from '@/components/forms/FormInput';
 import { Button } from '@/components/ui/atoms/Button/Button';
+import TicketMintingTracker from '@/src/components/TicketMintingTracker';
 
 const transferSchema = z.object({
   recipient: z
@@ -357,6 +358,20 @@ export default function TicketsPage() {
           )}
         </div>
       </div>
-    </main>
+   <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-950/95">
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+            On-Chain Minting
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+            NFT Ticket Minting Status
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+            Track the lifecycle of NFT ticket minting on Stellar/Soroban.
+          </p>
+          <div className="mt-6">
+            <TicketMintingTracker />
+          </div>
+        </div>
+       </main>
   );
 }
