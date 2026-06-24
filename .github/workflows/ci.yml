@@ -85,7 +85,7 @@ jobs:
 
   # --- Backend Jobs ---
   backend-test:
-    name: Backend Tests
+    name: Backend Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,9 +101,38 @@ jobs:
         working-directory: app/backend
         run: npm ci
 
-      - name: Run tests
+      - name: Run unit tests
         working-directory: app/backend
         run: npm test
+
+  backend-e2e:
+    name: Backend E2E Tests (Module Organization)
+    runs-on: ubuntu-latest
+    needs: [backend-test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app/backend
+        run: npm ci
+
+      - name: Run e2e tests
+        working-directory: app/backend
+        run: npm run test:e2e
+
+      - name: Upload e2e test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-test-results
+          path: app/backend/test-results/
 
   # --- Frontend Jobs ---
   frontend-lint:
@@ -224,7 +253,7 @@ jobs:
   # --- Deployment & Verification (#348, #351) ---
   deploy-and-verify:
     name: Deploy & Verify Contracts
-    needs: [contract-lint, contract-test, backend-test, security-audit]
+    needs: [contract-lint, contract-test, backend-test, backend-e2e, security-audit]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
@@ -251,4 +280,3 @@ jobs:
         continue-on-error: true
         env:
           SOROBAN_NETWORK: testnet
-
