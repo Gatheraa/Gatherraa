@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { BullModule } from '@nestjs/bullmq';
+import { FanoutProcessor } from './queues/fanout.processor';
+import { NOTIFICATION_FANOUT_QUEUE } from './queues/fanout.types';
 import { NotificationsService } from './notifications.service';
 import { NotificationsGateway } from './gateway/notifications.gateway';
 import {
@@ -44,6 +47,21 @@ import { User } from '../users/entities/user.entity';
         signOptions: { expiresIn: '7d' },
       }),
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get<string>('REDIS_HOST') ?? 'localhost',
+          port: configService.get<number>('REDIS_PORT') ?? 6379,
+          password: configService.get<string>('REDIS_PASSWORD'),
+          db: configService.get<number>('REDIS_DB') ?? 0,
+          maxRetriesPerRequest: null,
+          enableReadyCheck: false,
+        },
+      }),
+    }),
+    BullModule.registerQueue({ name: NOTIFICATION_FANOUT_QUEUE }),
   ],
   providers: [
     NotificationsService,
@@ -56,6 +74,7 @@ import { User } from '../users/entities/user.entity';
     DeliveryService,
     AnalyticsService,
     PreferencesService,
+    FanoutProcessor,
   ],
   exports: [NotificationsService, NotificationsGateway],
   controllers: [NotificationsController],

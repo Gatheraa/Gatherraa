@@ -3,6 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { NOTIFICATION_FANOUT_QUEUE, FanoutJobData } from './queues/fanout.types';
 import { Notification, NotificationType, NotificationCategory, NotificationStatus } from './entities/notification.entity';
 import { NotificationPreferences } from './entities/notification-preferences.entity';
 import { NotificationTemplate } from './entities/notification-template.entity';
@@ -57,6 +60,7 @@ export class NotificationsService {
     private deliveryService: DeliveryService,
     private analyticsService: AnalyticsService,
     private preferencesService: PreferencesService,
+    @InjectQueue(NOTIFICATION_FANOUT_QUEUE) private fanoutQueue: Queue,
   ) {}
 
   /**
@@ -292,45 +296,41 @@ export class NotificationsService {
   }
 
   /**
-   * Send notifications to multiple users
+   * Send notifications to multiple users via topic-based fanout.
+   *
+   * Enqueues a single BullMQ job instead of N individual jobs. The
+   * FanoutProcessor fans out to recipients in batches of 100, using one
+   * bulk INSERT per batch to eliminate per-row DB lock contention.
    */
-  async sendBulkNotifications(dto: CreateBulkNotificationDto): Promise<Notification[]> {
+  async sendBulkNotifications(dto: CreateBulkNotificationDto): Promise<{ queued: number; topicKey: string }> {
     try {
-      const notifications: Notification[] = [];
+      const topicKey = `fanout:${dto.category}:${Date.now()}`;
 
-      for (const userId of dto.userIds) {
-        try {
-          // Check rate limit
-          await this.checkRateLimit(userId);
+      const jobData: FanoutJobData = {
+        topicKey,
+        category: dto.category,
+        title: dto.title,
+        message: dto.message,
+        type: dto.types?.[0] ?? NotificationType.IN_APP,
+        templateId: dto.templateId,
+        data: dto.data as Record<string, unknown> | undefined,
+        recipientIds: dto.userIds,
+        scheduledFor: dto.scheduledFor?.toISOString(),
+      };
 
-          const notification = await this.createNotification({
-            userId,
-            type: dto.types[0] || NotificationType.IN_APP,
-            category: dto.category,
-            title: dto.title,
-            message: dto.message,
-            templateId: dto.templateId,
-            data: dto.data,
-            scheduledFor: dto.scheduledFor,
-          });
+      await this.fanoutQueue.add('fanout', jobData, {
+        jobId: topicKey,
+        delay: dto.scheduledFor ? Math.max(0, dto.scheduledFor.getTime() - Date.now()) : undefined,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      });
 
-          notifications.push(notification);
+      this.logger.log(`Fanout job enqueued: ${topicKey} for ${dto.userIds.length} recipients`);
+      await this.analyticsService.logBulkNotificationSent(dto.category, dto.userIds.length);
 
-          // Send if not scheduled
-          if (!dto.scheduledFor) {
-            await this.sendNotification(notification);
-          }
-        } catch (error) {
-          this.logger.error(`Failed to send to user ${userId}: ${error.message}`);
-        }
-      }
-
-      // Log bulk send
-      await this.analyticsService.logBulkNotificationSent(dto.category, notifications.length);
-
-      return notifications;
+      return { queued: dto.userIds.length, topicKey };
     } catch (error) {
-      this.logger.error(`Failed to send bulk notifications: ${error.message}`);
+      this.logger.error(`Failed to enqueue bulk notifications: ${error.message}`);
       throw error;
     }
   }
