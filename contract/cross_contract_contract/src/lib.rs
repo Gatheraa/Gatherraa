@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, Address, BytesN, Env, Vec};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, BytesN, Env, Vec};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -12,6 +12,8 @@ pub enum CrossContractError {
     InvalidMessage = 5,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossChainMessage {
     pub source_chain: BytesN<32>,
     pub target_chain: BytesN<32>,

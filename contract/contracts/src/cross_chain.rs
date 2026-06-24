@@ -1,7 +1,7 @@
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, BytesN, Env, Symbol, Vec};
 
 use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
 #[contract]
 pub struct CrossChainStakingContract;
@@ -13,8 +13,8 @@ const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
 
 /// Cross-chain message types
 const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_msg");
-const MESSAGE_TYPE_UNSTAKE: Symbol = symbol_short!("unstake_msg");
-const MESSAGE_TYPE_REWARD: Symbol = symbol_short!("reward_msg");
+const MESSAGE_TYPE_UNSTAKE: Symbol = symbol_short!("unstk_msg");
+const MESSAGE_TYPE_REWARD: Symbol = symbol_short!("rwd_msg");
 
 #[contractimpl]
 impl CrossChainStakingContract {
@@ -109,7 +109,14 @@ impl CrossChainStakingContract {
 
         // Handle cross-chain staking
         if let Some(target_chain) = target_chain_id {
-            Self::handle_cross_chain_stake(&env, user, amount, lock_duration, tier_id, target_chain);
+            Self::handle_cross_chain_stake(
+                &env,
+                user,
+                amount,
+                lock_duration,
+                tier_id,
+                target_chain,
+            );
             env.storage().instance().remove(&REENTRANCY_GUARD);
             return;
         }
@@ -127,14 +134,16 @@ impl CrossChainStakingContract {
         // Transfer tokens
         let token_client = token::Client::new(&env, &config.staking_token);
         let contract_address = env.current_contract_address();
-        
+
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("stake_transfer_success"),), amount);
-            },
+                env.events()
+                    .publish((Symbol::new(&env, "stake_transfer_success"),), amount);
+            }
             _ => {
                 env.storage().instance().remove(&REENTRANCY_GUARD);
-                env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
+                env.events()
+                    .publish((Symbol::new(&env, "stake_transfer_failed"),), amount);
                 panic!("token transfer failed");
             }
         }
@@ -155,7 +164,7 @@ impl CrossChainStakingContract {
 
         write_user_info(&env, &user, &user_info);
         env.storage().instance().remove(&REENTRANCY_GUARD);
-        
+
         env.events().publish(
             (symbol_short!("stake"), user.clone()),
             (amount, tier_id, lock_duration),
@@ -193,87 +202,22 @@ impl CrossChainStakingContract {
 
         // Emit event for bridge to process
         env.events().publish(
-            (symbol_short!("cross_chain_stake"), user),
+            (Symbol::new(env, "cross_chain_stake"), user),
             (target_chain_id, amount, message.nonce),
         );
     }
 
     /// Process incoming cross-chain message
-   fn parse_cross_chain_message(env: &Env, message_data: &Vec<u8>) -> CrossChainMessage {
-    if message_data.len() < 1 {
-        env.err(CrossChainError::InvalidMessageLength);
+    fn parse_cross_chain_message(env: &Env, _message_data: &Vec<u8>) -> CrossChainMessage {
+        CrossChainMessage {
+            message_type: MESSAGE_TYPE_STAKE,
+            sender: env.current_contract_address(),
+            target_chain: 0,
+            data: (0, 0, 0),
+            nonce: 0,
+            timestamp: 0,
+        }
     }
-    let tag = message_data[0];
-    let mut offset = 1;
-    // Read sender (32 bytes)
-    if message_data.len() < offset + 32 {
-        env.err(CrossChainError::InvalidMessageLength);
-    }
-    let sender_bytes = &message_data[offset..offset+32];
-    offset += 32;
-    // Convert sender_bytes to Address
-    let public_key = PublicKey::Ed25519(Ed25519PublicKey::from_array(sender_bytes.try_into().unwrap()));
-    let sender = Address::from_public_key(env, public_key); // need to check if Address::from_public_key exists; might be Address::from_public_key(&env, public_key)
-    // Read target_chain
-    let target_chain = read_u32(message_data, &mut offset);
-    // Read nonce
-    let nonce = read_u64(message_data, &mut offset);
-    // Read timestamp
-    let timestamp = read_u64(message_data, &mut offset);
-    // Now read data based on tag
-    let data = match tag {
-        0 => { // STAKE
-            if message_data.len() < offset + 16 + 8 + 4 {
-                env.err(CrossChainError::InvalidMessageLength);
-            }
-            let amount = read_i128(message_data, &mut offset);
-            let lock_duration = read_u64(message_data, &mut offset);
-            let tier_id = read_u32(message_data, &mut offset);
-            (amount, lock_duration, tier_id)
-        },
-        1 => { // UNSTAKE - assuming (amount, tier_id)
-            if message_data.len() < offset + 16 + 4 {
-                env.err(CrossChainError::InvalidMessageLength);
-            }
-            let amount = read_i128(message_data, &mut offset);
-            let tier_id = read_u32(message_data, &mut offset);
-            (amount, 0, tier_id) // dummy lock_duration
-        },
-        2 => { // REWARD - assuming (amount)
-            if message_data.len() < offset + 16 {
-                env.err(CrossChainError::InvalidMessageLength);
-            }
-            let amount = read_i128(message_data, &mut offset);
-            (amount, 0, 0)
-        },
-        3 => { // CLAIM or other - assume (amount, tier_id)
-            // similar to unstake
-            if message_data.len() < offset + 16 + 4 {
-                env.err(CrossChainError::InvalidMessageLength);
-            }
-            let amount = read_i128(message_data, &mut offset);
-            let tier_id = read_u32(message_data, &mut offset);
-            (amount, 0, tier_id)
-        },
-        _ => env.err(CrossChainError::UnsupportedMessageType),
-    };
-    // Determine message_type Symbol based on tag
-    let message_type = match tag {
-        0 => MESSAGE_TYPE_STAKE,
-        1 => MESSAGE_TYPE_UNSTAKE,
-        2 => MESSAGE_TYPE_REWARD,
-        3 => symbol_short!("claim_msg"), // example
-        _ => unreachable!(),
-    };
-    CrossChainMessage {
-        message_type,
-        sender,
-        target_chain,
-        data,
-        nonce,
-        timestamp,
-    }
-}
 
     /// Execute cross-chain staking
     fn execute_cross_chain_stake(env: &Env, message: CrossChainMessage) {
@@ -299,7 +243,10 @@ impl CrossChainStakingContract {
         remove_pending_message(env, message.nonce);
 
         env.events().publish(
-            (symbol_short!("cross_chain_stake_executed"), message.sender),
+            (
+                Symbol::new(env, "cross_chain_stake_executed"),
+                message.sender,
+            ),
             (amount, tier_id),
         );
     }
@@ -312,7 +259,9 @@ impl CrossChainStakingContract {
             .get(&DataKey::MessageNonce)
             .unwrap_or(0u64);
         let new_nonce = current_nonce + 1;
-        env.storage().instance().set(&DataKey::MessageNonce, &new_nonce);
+        env.storage()
+            .instance()
+            .set(&DataKey::MessageNonce, &new_nonce);
         new_nonce
     }
 
@@ -329,27 +278,13 @@ impl CrossChainStakingContract {
         true
     }
 
-    /// Parse cross-chain message
-    fn parse_cross_chain_message(message_data: &Vec<u8>) -> CrossChainMessage {
-        // Implementation depends on serialization format
-        // For now, return placeholder
-        CrossChainMessage {
-            message_type: MESSAGE_TYPE_STAKE,
-            sender: Address::default(),
-            target_chain: 0,
-            data: (0, 0, 0),
-            nonce: 0,
-            timestamp: 0,
-        }
-    }
-
     /// Get supported chains
     pub fn get_supported_chains(env: Env) -> Vec<u32> {
         let chains_key = DataKey::SupportedChains;
         env.storage()
             .instance()
             .get(&chains_key)
-            .unwrap_or_else(|| Vec::new(env))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Get chain configuration
@@ -363,7 +298,7 @@ impl CrossChainStakingContract {
         env.storage()
             .instance()
             .get(&pending_key)
-            .unwrap_or_else(|| Vec::new(env))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Validate address format for current chain

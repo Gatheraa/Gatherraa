@@ -87,6 +87,6 @@ pub const BASE_CHAIN_ID: u32 = 6;
 
 // Message types
 pub const MESSAGE_TYPE_STAKE: Symbol = Symbol::short("stake_msg");
-pub const MESSAGE_TYPE_UNSTAKE: Symbol = Symbol::short("unstake_msg");
-pub const MESSAGE_TYPE_REWARD: Symbol = Symbol::short("reward_msg");
-pub const MESSAGE_TYPE_MIGRATE: Symbol = Symbol::short("migrate_msg");
+pub const MESSAGE_TYPE_UNSTAKE: Symbol = Symbol::short("unstk_msg");
+pub const MESSAGE_TYPE_REWARD: Symbol = Symbol::short("rwd_msg");
+pub const MESSAGE_TYPE_MIGRATE: Symbol = Symbol::short("mig_msg");

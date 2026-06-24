@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, Address, BytesN, Env};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, BytesN, Env};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -12,6 +12,8 @@ pub enum ZKTicketError {
     TicketAlreadyUsed = 5,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ZKTicket {
     pub owner: Address,
     pub event_id: BytesN<32>,

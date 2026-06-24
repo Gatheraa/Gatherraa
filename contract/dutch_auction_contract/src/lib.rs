@@ -1,6 +1,6 @@
 #![no_std]
 
-use soroban_sdk::{contract, contracterror, contractimpl, Address, Env};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env};
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -14,6 +14,8 @@ pub enum DutchAuctionError {
     InsufficientFunds = 7,
 }
 
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Auction {
     pub seller: Address,
     pub start_price: i128,

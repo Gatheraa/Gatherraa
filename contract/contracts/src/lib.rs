@@ -1,37 +1,38 @@
+#![no_std]
+
 //! Gathera Contracts Integration Layer
-//! 
+//!
 //! This crate provides integration utilities and orchestration for all Gathera
 //! smart contracts. It serves as the main entry point for complex operations
 //! that span multiple contracts and provides unified interfaces for common
 //! workflows.
-//! 
+//!
 //! ## Key Features
-//! 
+//!
 //! - Cross-contract orchestration
 //! - Unified client interfaces
 //! - Common workflow implementations
 //! - Integration testing utilities
 //! - Contract deployment helpers
-//! 
+//!
 //! ## Modules
-//! 
+//!
 //! - `orchestration`: Cross-contract workflow management
 //! - `clients`: Unified client interfaces
 //! - `deployment`: Contract deployment utilities
 //! - `workflows`: Common business workflows
 
-use soroban_sdk::{Address, Symbol, Env, String, Vec, Map};
+use soroban_sdk::{Address, Env, Map, String, Symbol, Vec};
 
 pub mod chain_abstraction;
-pub mod contract;
 pub mod cross_chain;
 pub mod storage;
 pub mod types;
 
-/// Re-export contract clients for easy access
-pub use ticket_contract::SoulboundTicketContract;
 pub use escrow_contract::EscrowContract;
 pub use multisig_wallet_contract::MultisigWalletContract;
+/// Re-export contract clients for easy access
+pub use ticket_contract::SoulboundTicketContract;
 
 /// Re-export common types
 pub use gathera_common::*;
@@ -51,7 +52,7 @@ pub mod orchestration {
         }
 
         /// Create a complete event ticketing setup with escrow
-        /// 
+        ///
         /// This workflow combines:
         /// 1. Event creation
         /// 2. Ticket issuance
@@ -101,14 +102,14 @@ pub mod clients {
     use super::*;
 
     /// Unified Gathera platform client
-    pub struct GatheraClient {
+    pub struct GatheraClient<'a> {
         env: Env,
-        ticket_client: ticket_contract::SoulboundTicketContractClient,
-        escrow_client: escrow_contract::EscrowContractClient,
-        multisig_client: multisig_wallet_contract::MultisigWalletContractClient,
+        ticket_client: ticket_contract::SoulboundTicketContractClient<'a>,
+        escrow_client: escrow_contract::EscrowContractClient<'a>,
+        multisig_client: multisig_wallet_contract::MultisigWalletContractClient<'a>,
     }
 
-    impl GatheraClient {
+    impl<'a> GatheraClient<'a> {
         pub fn new(
             env: Env,
             ticket_address: Address,
@@ -117,18 +118,24 @@ pub mod clients {
         ) -> Self {
             Self {
                 env: env.clone(),
-                ticket_client: ticket_contract::SoulboundTicketContractClient::new(&env, &ticket_address),
+                ticket_client: ticket_contract::SoulboundTicketContractClient::new(
+                    &env,
+                    &ticket_address,
+                ),
                 escrow_client: escrow_contract::EscrowContractClient::new(&env, &escrow_address),
-                multisig_client: multisig_wallet_contract::MultisigWalletContractClient::new(&env, &multisig_address),
+                multisig_client: multisig_wallet_contract::MultisigWalletContractClient::new(
+                    &env,
+                    &multisig_address,
+                ),
             }
         }
 
         /// Get all contract addresses
         pub fn get_addresses(&self) -> (Address, Address, Address) {
             (
-                self.ticket_client.address,
-                self.escrow_client.address,
-                self.multisig_client.address,
+                self.ticket_client.address.clone(),
+                self.escrow_client.address.clone(),
+                self.multisig_client.address.clone(),
             )
         }
     }
@@ -159,7 +166,10 @@ pub mod deployment {
         }
 
         /// Deploy all Gathera contracts
-        pub fn deploy_all(&self, config: DeploymentConfig) -> Result<DeploymentResult, DeploymentError> {
+        pub fn deploy_all(
+            &self,
+            config: DeploymentConfig,
+        ) -> Result<DeploymentResult, DeploymentError> {
             let _ = config;
             Err(DeploymentError::DeploymentFailed(String::from_str(
                 &self.env,

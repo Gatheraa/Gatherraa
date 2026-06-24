@@ -1,10 +1,11 @@
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
-
-use soroban_sdk::{Address, Env, Vec, Symbol, token};
+use soroban_sdk::token::{self, TokenInterface};
+use soroban_sdk::{Address, Env, Symbol, Vec};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
+const PRECISION: i128 = 1_000_000_000;
 
 // Batch storage operations for better gas efficiency
 pub struct StorageCache {
@@ -170,9 +171,9 @@ pub fn read_supported_chains(env: &Env) -> Vec<u32> {
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
     }
-    val.unwrap_or_else(|| Vec::new(env))
+    val.unwrap_or_else(|| Vec::new(&env.clone()))
 }
 
 pub fn write_supported_chains(env: &Env, chains: &Vec<u32>) {
@@ -180,7 +181,7 @@ pub fn write_supported_chains(env: &Env, chains: &Vec<u32>) {
     env.storage().instance().set(&key, chains);
     env.storage()
         .instance()
-        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage> {
@@ -189,9 +190,9 @@ pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
     }
-    val.unwrap_or_else(|| Vec::new(env))
+    val.unwrap_or_else(|| Vec::new(&env.clone()))
 }
 
 pub fn write_pending_messages(env: &Env, user: &Address, messages: &Vec<CrossChainMessage>) {
@@ -199,7 +200,7 @@ pub fn write_pending_messages(env: &Env, user: &Address, messages: &Vec<CrossCha
     env.storage().instance().set(&key, messages);
     env.storage()
         .instance()
-        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn write_pending_message(env: &Env, message: &CrossChainMessage) {
@@ -230,7 +231,7 @@ pub fn update_reward(env: &Env, user: Option<&Address>) {
     let config = read_config(env);
     let reward_token = token::Client::new(env, &config.reward_token);
     let staking_token = token::Client::new(env, &config.staking_token);
-    let total_supply = staking_token.total_supply();
+    let total_supply = staking_token.balance(&env.current_contract_address());
 
     if total_supply > 0 {
         let reward_per_token = (config.reward_rate * PRECISION) / total_supply;
