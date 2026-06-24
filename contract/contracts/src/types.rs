@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Symbol, Vec};
+use soroban_sdk::{Address, Symbol, Vec, contracttype, symbol_short};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -51,7 +51,7 @@ pub struct UserInfo {
 pub struct ChainConfig {
     pub chain_id: u32,
     pub chain_name: Symbol,
-    pub bridge_address: Address,
+    pub bridge_address: Option<Address>,
     pub gas_limit: u32,
     pub confirmations: u32,
     pub active: bool,
@@ -61,7 +61,7 @@ pub struct ChainConfig {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CrossChainMessage {
     pub message_type: Symbol,
-    pub sender: Address,
+    pub sender: Option<Address>,
     pub target_chain: u32,
     pub data: (i128, u64, u32), // (amount, lock_duration, tier_id)
     pub nonce: u64,
@@ -86,7 +86,7 @@ pub const OPTIMISM_CHAIN_ID: u32 = 5;
 pub const BASE_CHAIN_ID: u32 = 6;
 
 // Message types
-pub const MESSAGE_TYPE_STAKE: Symbol = Symbol::short("stake_msg");
-pub const MESSAGE_TYPE_UNSTAKE: Symbol = Symbol::short("unstake_msg");
-pub const MESSAGE_TYPE_REWARD: Symbol = Symbol::short("reward_msg");
-pub const MESSAGE_TYPE_MIGRATE: Symbol = Symbol::short("migrate_msg");
+pub const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_m");
+pub const MESSAGE_TYPE_UNSTAKE: Symbol = symbol_short!("unstake_m");
+pub const MESSAGE_TYPE_REWARD: Symbol = symbol_short!("reward_m");
+pub const MESSAGE_TYPE_MIGRATE: Symbol = symbol_short!("migrate_m");

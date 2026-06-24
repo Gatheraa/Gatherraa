@@ -5,6 +5,9 @@ use soroban_sdk::{Address, Env, Vec, Symbol, token};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
+const PRECISION: i128 = 1_000_000_000;
+const MAX_REWARD_RATE: i128 = 1_000_000_000_000; 
+const MAX_STAKE: i128 = i128::MAX / MAX_REWARD_RATE / 1_000;
 
 // Batch storage operations for better gas efficiency
 pub struct StorageCache {
@@ -166,11 +169,11 @@ pub fn write_chain_config(env: &Env, chain_id: u32, config: &ChainConfig) {
 
 pub fn read_supported_chains(env: &Env) -> Vec<u32> {
     let key = DataKey::SupportedChains;
-    let val = env.storage().instance().get(&key);
+    let val: Option<Vec<u32>> = env.storage().instance().get(&key);
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
     }
     val.unwrap_or_else(|| Vec::new(env))
 }
@@ -180,7 +183,7 @@ pub fn write_supported_chains(env: &Env, chains: &Vec<u32>) {
     env.storage().instance().set(&key, chains);
     env.storage()
         .instance()
-        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl( TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage> {
@@ -189,7 +192,7 @@ pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
     }
     val.unwrap_or_else(|| Vec::new(env))
 }
@@ -199,11 +202,11 @@ pub fn write_pending_messages(env: &Env, user: &Address, messages: &Vec<CrossCha
     env.storage().instance().set(&key, messages);
     env.storage()
         .instance()
-        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn write_pending_message(env: &Env, message: &CrossChainMessage) {
-    let user = message.sender.clone();
+    let user = message.sender.as_ref().unwrap().clone();
     let mut messages = read_pending_messages(env, &user);
     messages.push_back(message.clone());
     write_pending_messages(env, &user, &messages);
@@ -230,19 +233,33 @@ pub fn update_reward(env: &Env, user: Option<&Address>) {
     let config = read_config(env);
     let reward_token = token::Client::new(env, &config.reward_token);
     let staking_token = token::Client::new(env, &config.staking_token);
-    let total_supply = staking_token.total_supply();
+    
+    // TODO: I'm not sure why total_supply is used, the method does not exist.
+    // let total_supply = staking_token.total_supply();
+    // if total_supply > 0 {
+    //     let reward_per_token = (config.reward_rate * PRECISION) / total_supply;
 
-    if total_supply > 0 {
-        let reward_per_token = (config.reward_rate * PRECISION) / total_supply;
+    let total_staked = staking_token.balance(&env.current_contract_address());
+    if total_staked > 0 {
+
+        let numerator = config.reward_rate.checked_mul(PRECISION).expect("reward_rate * PRECISION overflow");
+        let reward_per_token = numerator.checked_div(total_staked).expect("division by zero in reward_per_token");
+
         let mut reward_per_token_stored = read_reward_per_token_stored(env);
-        reward_per_token_stored += reward_per_token;
+        reward_per_token_stored = reward_per_token_stored.checked_add(reward_per_token).expect("reward_per_token_stored overflow");
         write_reward_per_token_stored(env, reward_per_token_stored);
 
         if let Some(user_addr) = user {
             if let Some(mut user_info) = read_user_info(env, user_addr) {
-                let rewards = (user_info.shares * reward_per_token_stored) / PRECISION
-                    - user_info.reward_per_token_paid;
-                user_info.rewards += rewards;
+
+                let user_info_reward_per_token = user_info.shares.checked_mul(reward_per_token_stored).expect("shares * reward_per_token_stored overflow");
+
+                let user_info_reward_per_token_div = user_info_reward_per_token.checked_div(PRECISION).expect("PRECISION is zero");
+
+                let reward_delta = user_info_reward_per_token_div.checked_sub(user_info.reward_per_token_paid).expect("reward delta underflow — stored < paid");
+
+                user_info.rewards = user_info.rewards.checked_add(reward_delta).expect("user rewards overflow");
+
                 user_info.reward_per_token_paid = reward_per_token_stored;
                 write_user_info(env, user_addr, &user_info);
             }

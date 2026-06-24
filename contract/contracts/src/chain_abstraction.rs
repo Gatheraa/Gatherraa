@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec, BytesN};
+use soroban_sdk::{Address, BytesN, Env, Symbol, Vec, contract, contractimpl, symbol_short};
 
 use crate::storage::{StorageCache, *};
 use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage, ETHEREUM_CHAIN_ID, STELLAR_CHAIN_ID, POLYGON_CHAIN_ID, ARBITRUM_CHAIN_ID, OPTIMISM_CHAIN_ID, BASE_CHAIN_ID};
@@ -22,23 +22,23 @@ impl ChainAbstraction {
 
         // Configure default chain settings
         for chain_id in supported_chains.iter() {
-            let chain_config = Self::get_default_chain_config(&env, chain_id);
+            let chain_config = Self::get_default_chain_config(&env, &chain_id);
             write_chain_config(&env, chain_id, &chain_config);
         }
 
         env.events().publish(
-            (symbol_short!("chain_abstraction_init"),),
+            (symbol_short!("chain_abs"),),
             supported_chains,
         );
     }
 
     /// Get default configuration for a chain
     fn get_default_chain_config(env: &Env, chain_id: &u32) -> ChainConfig {
-        match chain_id {
+        match *chain_id {
             ETHEREUM_CHAIN_ID => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("ethereum"),
-                bridge_address: Address::default(), // To be set by admin
+                bridge_address: None, // To be set by admin
                 gas_limit: 300000,
                 confirmations: 12,
                 active: true,
@@ -46,7 +46,7 @@ impl ChainAbstraction {
             STELLAR_CHAIN_ID => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("stellar"),
-                bridge_address: Address::default(),
+                bridge_address: None,
                 gas_limit: 100000,
                 confirmations: 3,
                 active: true,
@@ -54,7 +54,7 @@ impl ChainAbstraction {
             POLYGON_CHAIN_ID => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("polygon"),
-                bridge_address: Address::default(),
+                bridge_address: None,
                 gas_limit: 200000,
                 confirmations: 5,
                 active: true,
@@ -62,7 +62,7 @@ impl ChainAbstraction {
             ARBITRUM_CHAIN_ID => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("arbitrum"),
-                bridge_address: Address::default(),
+                bridge_address: None,
                 gas_limit: 250000,
                 confirmations: 8,
                 active: true,
@@ -70,7 +70,7 @@ impl ChainAbstraction {
             OPTIMISM_CHAIN_ID => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("optimism"),
-                bridge_address: Address::default(),
+                bridge_address: None,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -78,7 +78,7 @@ impl ChainAbstraction {
             BASE_CHAIN_ID => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("base"),
-                bridge_address: Address::default(),
+                bridge_address: None,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -86,7 +86,7 @@ impl ChainAbstraction {
             _ => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("unknown"),
-                bridge_address: Address::default(),
+                bridge_address: None,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: false,
@@ -175,7 +175,7 @@ impl ChainAbstraction {
         source_chain: u32,
         target_chain: u32,
     ) -> i128 {
-        let source_decimals = Self::get_chain_decimals(env, source_chain);
+        let source_decimals = Self::get_chain_decimals(env.clone(), source_chain);
         let target_decimals = Self::get_chain_decimals(env, target_chain);
 
         if source_decimals == target_decimals {
@@ -236,7 +236,7 @@ impl ChainAbstraction {
     /// Get chain-specific bridge address
     pub fn get_chain_bridge_address(env: Env, chain_id: u32) -> Option<Address> {
         let config = read_chain_config(&env, chain_id);
-        config.map(|c| c.bridge_address)
+        config.map(|c| c.bridge_address.unwrap())
     }
 
     /// Update bridge address for a chain
@@ -245,11 +245,11 @@ impl ChainAbstraction {
         config.admin.require_auth();
 
         if let Some(mut chain_config) = read_chain_config(&env, chain_id) {
-            chain_config.bridge_address = bridge_address;
+            chain_config.bridge_address = Some(bridge_address.clone());
             write_chain_config(&env, chain_id, &chain_config);
 
             env.events().publish(
-                (symbol_short!("bridge_address_updated"),),
+                (symbol_short!("bridge_up"),),
                 (chain_id, bridge_address),
             );
         }
@@ -285,7 +285,7 @@ impl ChainAbstraction {
         target_chain: u32,
         amount: i128,
     ) -> u128 {
-        let gas_price = Self::get_chain_gas_price(env, source_chain);
+        let gas_price = Self::get_chain_gas_price(env.clone(), source_chain);
         let gas_limit = Self::estimate_cross_chain_gas_limit(env, source_chain, target_chain, amount);
         
         gas_price * gas_limit as u128
