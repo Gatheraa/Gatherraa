@@ -115,7 +115,7 @@ export class IdentityVerificationService {
           ...dto.metadata,
         };
       }
-      verification.rejectionReason = null;
+      verification.rejectionReason = undefined;
     }
 
     const saved = await this.verificationRepo.save(verification);
@@ -158,7 +158,7 @@ export class IdentityVerificationService {
 
     verification.status = VerificationStatus.PENDING;
     verification.attemptCount += 1;
-    verification.rejectionReason = null;
+    verification.rejectionReason = undefined;
 
     const saved = await this.verificationRepo.save(verification);
 
