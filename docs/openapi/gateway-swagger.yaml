@@ -1,5 +1,14 @@
 openapi: 3.0.0
 paths:
+  /:
+    get:
+      operationId: AppController_getHello
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - App
   /identity-verification/summary:
     get:
       operationId: IdentityVerificationController_getSummary
@@ -84,15 +93,6 @@ paths:
         '201':
           description: ''
       tags: *a1
-  /:
-    get:
-      operationId: AppController_getHello
-      parameters: []
-      responses:
-        '200':
-          description: ''
-      tags:
-        - App
 info:
   title: Gatheraa API v2
   description: Runtime generated OpenAPI specification for Gatheraa API v2

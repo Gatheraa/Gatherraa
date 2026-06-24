@@ -21,6 +21,7 @@ import { VerificationHistory } from './identity-verification/entities/verificati
       database: ':memory:',
       entities: [IdentityVerification, VerificationHistory],
       synchronize: true,
+      retryAttempts: 0,
     }),
     ScheduleModule.forRoot(),
     IdentityVerificationModule,
