@@ -1,6 +1,7 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -11,6 +12,12 @@ import { IdentityVerificationModule } from './identity-verification/identity-ver
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    TypeOrmModule.forRoot({
+      type: 'sqlite',
+      database: ':memory:', // Use in-memory for schema generation to avoid env issues
+      autoLoadEntities: true,
+      synchronize: true,
     }),
     ScheduleModule.forRoot(),
     IdentityVerificationModule,

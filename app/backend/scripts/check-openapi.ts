@@ -12,7 +12,7 @@ function normalize(content: string) {
 }
 
 async function generateOpenApiYaml() {
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
 
   try {
     await app.init();
