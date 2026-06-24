@@ -1,5 +1,89 @@
 openapi: 3.0.0
 paths:
+  /identity-verification/summary:
+    get:
+      operationId: IdentityVerificationController_getSummary
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: &a1
+        - IdentityVerification
+  /identity-verification/steps:
+    get:
+      operationId: IdentityVerificationController_getSteps
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: *a1
+  /identity-verification/history:
+    get:
+      operationId: IdentityVerificationController_getHistory
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: *a1
+  /identity-verification/steps/{step}/submit:
+    post:
+      operationId: IdentityVerificationController_submitStep
+      parameters:
+        - name: step
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitStepDto'
+      responses:
+        '201':
+          description: ''
+      tags: *a1
+  /identity-verification/steps/{step}/retry:
+    post:
+      operationId: IdentityVerificationController_retryStep
+      parameters:
+        - name: step
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '201':
+          description: ''
+      tags: *a1
+  /identity-verification/steps/{step}:
+    patch:
+      operationId: IdentityVerificationController_updateStepStatus
+      parameters:
+        - name: step
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStepDto'
+      responses:
+        '200':
+          description: ''
+      tags: *a1
+  /identity-verification/initialize:
+    post:
+      operationId: IdentityVerificationController_initializeSteps
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags: *a1
   /:
     get:
       operationId: AppController_getHello
@@ -17,4 +101,10 @@ info:
 tags: []
 servers: []
 components:
-  schemas: {}
+  schemas:
+    SubmitStepDto:
+      type: object
+      properties: {}
+    UpdateStepDto:
+      type: object
+      properties: {}

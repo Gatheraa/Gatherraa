@@ -8,6 +8,9 @@ import { AppService } from './app.service';
 import { VersioningMiddleware } from './common/middleware/versioning.middleware';
 import { IdentityVerificationModule } from './identity-verification/identity-verification.module';
 
+import { IdentityVerification } from './identity-verification/entities/identity-verification.entity';
+import { VerificationHistory } from './identity-verification/entities/verification-history.entity';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -15,8 +18,8 @@ import { IdentityVerificationModule } from './identity-verification/identity-ver
     }),
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: ':memory:', // Use in-memory for schema generation to avoid env issues
-      autoLoadEntities: true,
+      database: ':memory:',
+      entities: [IdentityVerification, VerificationHistory],
       synchronize: true,
     }),
     ScheduleModule.forRoot(),
