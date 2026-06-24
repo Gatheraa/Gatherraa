@@ -556,4 +556,39 @@ export class TaskQueueService {
       throw error;
     }
   }
+  /**
+   * Move an exhausted, permanently failed job to the Dead Letter Queue
+   */
+  async moveToDeadLetterQueue(job: Job, failReason: string): Promise<Job> {
+    const dlqJobId = `dlq-${job.queueName}-${job.id}`;
+
+    
+    this.logger.warn(
+      `Routing permanently failed job ${job.id} from queue [${job.queueName}] to Dead Letter Queue.`
+    );
+
+    try {
+      const dlqJob = await this.deadLetterQueue.add(
+        'dead-letter-job',
+        {
+          originalJobId: job.id,
+          originalQueue: job.queueName,
+          originalData: job.data,
+          failReason: failReason,
+          failedAt: new Date(),
+          attemptsMade: job.attemptsMade,
+        },
+        {
+          jobId: dlqJobId,
+          removeOnComplete: false,
+          removeOnFail: false,
+        }
+      );
+      return dlqJob;
+    } catch (error) {
+      this.logger.error(`Failed to route job to Dead Letter Queue: ${error.message}`);
+      throw error;
+    }
+  }
+
 }
