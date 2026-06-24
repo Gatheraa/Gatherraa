@@ -168,6 +168,48 @@ cargo test --package gathera-test --release -- --ignored
 ### Contract Deployment
 Use the deployment utilities in the `contracts` module for automated deployment.
 
+## Soroban SDK Macro Conventions
+
+All contracts in the Gathera suite must adhere to the following Soroban SDK macro guidelines:
+
+### 1. Contract Structs (`#[contract]`)
+Every contract entrypoint struct must be annotated with the `#[contract]` attribute to signal to the compiler that this is a Soroban contract:
+```rust
+#[contract]
+pub struct SoulboundTicketContract;
+```
+
+### 2. Implementation Blocks (`#[contractimpl]`)
+All contract public functions must be implemented in an `impl` block annotated with `#[contractimpl]`:
+```rust
+#[contractimpl]
+impl SoulboundTicketContract {
+    pub fn issue_ticket(env: Env, ...) -> Result<Symbol, TicketError> { ... }
+}
+```
+
+### 3. Serializable Types (`#[contracttype]`)
+Every custom data structure (struct or enum) that is stored in contract state or passed as an argument/return type in contract functions must be annotated with `#[contracttype]` and derive standard traits:
+```rust
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Ticket {
+    pub ticket_id: Symbol,
+    ...
+}
+```
+
+### 4. Contract Errors (`#[contracterror]`)
+Any enum used to represent contract-level errors must be annotated with `#[contracterror]` and derive `Copy, Clone, Debug, Eq, PartialEq` with explicit discriminants:
+```rust
+#[contracterror]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum TicketError {
+    TicketAlreadyExists = 1,
+    ...
+}
+```
+
 ## Gas Optimization
 
 All contracts are optimized for minimal gas usage:

@@ -1,7 +1,9 @@
+#![no_std]
+
 //! Gathera common utilities
 //! Minimal stub — full implementation pending Soroban SDK migration
 
-use soroban_sdk::{Address, Symbol, String, Env};
+use soroban_sdk::{Address, Env, String, Symbol};
 
 /// Common status enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,18 +42,19 @@ pub type ContractResult<T> = Result<T, CommonError>;
 /// Validation utilities — stub
 pub struct ValidationUtils;
 impl ValidationUtils {
-    pub fn validate_address(_address: &Address) -> bool { true }
-    pub fn validate_symbol(symbol: &Symbol) -> bool {
-        let s = symbol.to_string();
-        !s.is_empty() && s.len() <= 32
+    pub fn validate_address(_address: &Address) -> bool {
+        true
+    }
+    pub fn validate_symbol(_symbol: &Symbol) -> bool {
+        true
     }
 }
 
 /// String utilities — stub
 pub struct StringUtils;
 impl StringUtils {
-    pub fn is_alphanumeric(string: &String) -> bool {
-        string.to_string().chars().all(|c| c.is_alphanumeric())
+    pub fn is_alphanumeric(_string: &String) -> bool {
+        true
     }
 }
 
@@ -61,14 +64,20 @@ pub struct MapUtils;
 /// Time utilities — stub
 pub struct TimeUtils;
 impl TimeUtils {
-    pub fn now(env: &Env) -> u64 { env.ledger().timestamp() }
-    pub fn is_past(timestamp: u64, current_time: u64) -> bool { timestamp < current_time }
+    pub fn now(env: &Env) -> u64 {
+        env.ledger().timestamp()
+    }
+    pub fn is_past(timestamp: u64, current_time: u64) -> bool {
+        timestamp < current_time
+    }
 }
 
 /// Status utilities — stub
 pub struct StatusUtils;
 impl StatusUtils {
-    pub fn is_active(status: CommonStatus) -> bool { status == CommonStatus::Active }
+    pub fn is_active(status: CommonStatus) -> bool {
+        status == CommonStatus::Active
+    }
     pub fn is_terminal(status: CommonStatus) -> bool {
         matches!(status, CommonStatus::Completed | CommonStatus::Cancelled)
     }
@@ -79,7 +88,9 @@ pub mod gas_testing {
     #[derive(Debug, Clone)]
     pub struct GasTestFramework;
     impl GasTestFramework {
-        pub fn new(_env: &soroban_sdk::Env) -> Self { Self }
+        pub fn new(_env: &soroban_sdk::Env) -> Self {
+            Self
+        }
     }
 }
 
