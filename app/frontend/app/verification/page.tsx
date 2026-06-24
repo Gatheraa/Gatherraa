@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Shield,
-  ChevronRight,
   CheckCircle2,
   RefreshCw,
   Loader2,
@@ -13,7 +12,6 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-import { SkeletonPage } from '@/components/ui';
 import { VerificationSteps } from '@/components/identity-verification/VerificationSteps';
 import { VerificationHistory } from '@/components/identity-verification/VerificationHistory';
 import { identityVerificationApi } from '@/lib/api/identity-verification';
