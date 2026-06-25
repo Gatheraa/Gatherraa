@@ -1,0 +1,6 @@
+{
+  "operation": "escrow_resolve_dispute",
+  "baseline_gas": 110000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

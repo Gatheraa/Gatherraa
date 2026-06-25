@@ -1,0 +1,6 @@
+{
+  "operation": "escrow_create_small_milestones",
+  "baseline_gas": 135000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

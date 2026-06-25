@@ -1,0 +1,6 @@
+{
+  "operation": "escrow_lock",
+  "baseline_gas": 55000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

@@ -1,0 +1,6 @@
+{
+  "operation": "ticket_metadata_query",
+  "baseline_gas": 18000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

@@ -1,0 +1,6 @@
+{
+  "operation": "ticket_initialize",
+  "baseline_gas": 45000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

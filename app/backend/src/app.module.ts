@@ -5,7 +5,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VersioningMiddleware } from './common/middleware/versioning.middleware';
-import { IdentityVerificationModule } from './identity-verification/identity-verification.module';
 
 @Module({
   imports: [
@@ -13,7 +12,6 @@ import { IdentityVerificationModule } from './identity-verification/identity-ver
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
-    IdentityVerificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

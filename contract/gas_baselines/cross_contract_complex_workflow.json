@@ -1,0 +1,6 @@
+{
+  "operation": "cross_contract_complex_workflow",
+  "baseline_gas": 320000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

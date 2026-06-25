@@ -1,7 +1,7 @@
 use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
 
 
-use soroban_sdk::{Address, Env, Vec, token};
+use soroban_sdk::{Address, Env, Vec, Symbol, token};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
@@ -170,7 +170,7 @@ pub fn read_supported_chains(env: &Env) -> Vec<u32> {
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
     }
     val.unwrap_or_else(|| Vec::new(env))
 }
@@ -180,7 +180,7 @@ pub fn write_supported_chains(env: &Env, chains: &Vec<u32>) {
     env.storage().instance().set(&key, chains);
     env.storage()
         .instance()
-        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage> {
@@ -189,7 +189,7 @@ pub fn read_pending_messages(env: &Env, user: &Address) -> Vec<CrossChainMessage
     if val.is_some() {
         env.storage()
             .instance()
-            .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
+            .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
     }
     val.unwrap_or_else(|| Vec::new(env))
 }
@@ -199,7 +199,7 @@ pub fn write_pending_messages(env: &Env, user: &Address, messages: &Vec<CrossCha
     env.storage().instance().set(&key, messages);
     env.storage()
         .instance()
-        .extend_ttl(TTL_INSTANCE, TTL_INSTANCE);
+        .extend_ttl(&key, TTL_INSTANCE, TTL_INSTANCE);
 }
 
 pub fn write_pending_message(env: &Env, message: &CrossChainMessage) {
@@ -228,18 +228,19 @@ pub fn write_message_nonce(env: &Env, nonce: u64) {
 
 pub fn update_reward(env: &Env, user: Option<&Address>) {
     let config = read_config(env);
-    let _reward_token = token::Client::new(env, &config.reward_token);
-    let total_shares = read_total_shares(env);
+    let reward_token = token::Client::new(env, &config.reward_token);
+    let staking_token = token::Client::new(env, &config.staking_token);
+    let total_supply = staking_token.total_supply();
 
-    if total_shares > 0 {
-        let reward_per_token = (config.reward_rate * crate::cross_chain::PRECISION) / total_shares;
+    if total_supply > 0 {
+        let reward_per_token = (config.reward_rate * PRECISION) / total_supply;
         let mut reward_per_token_stored = read_reward_per_token_stored(env);
         reward_per_token_stored += reward_per_token;
         write_reward_per_token_stored(env, reward_per_token_stored);
 
         if let Some(user_addr) = user {
             if let Some(mut user_info) = read_user_info(env, user_addr) {
-                let rewards = (user_info.shares * reward_per_token_stored) / crate::cross_chain::PRECISION
+                let rewards = (user_info.shares * reward_per_token_stored) / PRECISION
                     - user_info.reward_per_token_paid;
                 user_info.rewards += rewards;
                 user_info.reward_per_token_paid = reward_per_token_stored;
@@ -250,5 +251,3 @@ pub fn update_reward(env: &Env, user: Option<&Address>) {
 
     write_last_update_time(env, env.ledger().timestamp());
 }
-
-
