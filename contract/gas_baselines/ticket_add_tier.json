@@ -1,0 +1,6 @@
+{
+  "operation": "ticket_add_tier",
+  "baseline_gas": 75000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

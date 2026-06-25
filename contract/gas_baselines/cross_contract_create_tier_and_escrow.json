@@ -1,0 +1,6 @@
+{
+  "operation": "cross_contract_create_tier_and_escrow",
+  "baseline_gas": 210000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

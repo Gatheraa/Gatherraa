@@ -1,0 +1,6 @@
+{
+  "operation": "escrow_create_with_referral",
+  "baseline_gas": 120000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

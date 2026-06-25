@@ -12,7 +12,6 @@ import ReviewList from '../../../components/reviews/review-list';
 import ReviewForm from '../../../components/reviews/review-form';
 import { useAuth } from '../../../hooks/useAuth';
 import AttendanceAnalyticsWidget from '../../../components/dashboard/AttendanceAnalyticsWidget';
-import TicketPlans from '../../../components/ticket-plans/TicketPlans';
 
 /** API may include aggregates not yet on the base `Event` type */
 type EventDetailPayload = Event & {
@@ -163,9 +162,6 @@ export default function EventDetailPage() {
             )}
           </div>
         </div>
-
-        {/* Ticket Plans */}
-        <TicketPlans eventId={eventId} />
 
         {/* Organizer Attendance Analytics */}
         {isOrganizer && (

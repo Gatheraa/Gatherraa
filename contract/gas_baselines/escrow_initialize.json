@@ -1,0 +1,6 @@
+{
+  "operation": "escrow_initialize",
+  "baseline_gas": 40000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

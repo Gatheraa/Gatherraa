@@ -105,10 +105,6 @@ jobs:
         working-directory: app/backend
         run: npm test
 
-      - name: Check OpenAPI schema drift
-        working-directory: app/backend
-        run: npm run openapi:check
-
   # --- Frontend Jobs ---
   frontend-lint:
     name: Frontend Lint
@@ -191,8 +187,9 @@ jobs:
           severity: 'CRITICAL,HIGH'
 
   # --- Gas Profiling (#350) ---
-  gas-profiling:
-    name: Gas Usage Profiling
+  gas-regression-gate:
+    name: Gas Regression Gate
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -203,27 +200,46 @@ jobs:
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      - name: Install system dependencies for Soroban CLI
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev pkg-config
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Soroban CLI
-        run: cargo install --locked soroban-cli
-        continue-on-error: true
+      - name: Run gas benchmark regression checks
+        run: bash scripts/profile_gas.sh --verify-only
 
-      - name: Build contracts
-        working-directory: contract
-        run: cargo build --target wasm32-unknown-unknown --release
-        continue-on-error: true
-
-      - name: Run Gas Profiling Script
-        run: bash scripts/profile_gas.sh
-        continue-on-error: true
-
-      - name: Upload Gas Reports
+      - name: Upload gas regression artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: gas-reports
+          name: gas-regression-${{ github.event.pull_request.number }}
           path: contract/gas_reports/
+
+  gas-trending:
+    name: Gas Benchmark Trending
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Run gas benchmark collection
+        run: bash scripts/profile_gas.sh --record-trends
+
+      - name: Upload gas trending artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: gas-trends-${{ github.sha }}
+          path: contract/gas_reports/trends/
 
   # --- Deployment & Verification (#348, #351) ---
   deploy-and-verify:

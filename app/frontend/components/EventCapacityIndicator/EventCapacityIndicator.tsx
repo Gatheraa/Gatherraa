@@ -95,7 +95,7 @@ export default function EventCapacityIndicator({
           <span style={{ color: "#9ca3af" }}> / {totalCapacity} registered</span>
         </span>
         <span style={{ fontSize: "13px", color: isFull ? "#ef4444" : "#6b7280", fontWeight: 500 }}>
-          {isFull ? "Sold out" : `${spotsLeft} left`}
+          {isFull ? "Sold out" : \ left}
         </span>
       </div>
 
@@ -104,7 +104,7 @@ export default function EventCapacityIndicator({
         aria-valuenow={currentCount}
         aria-valuemin={0}
         aria-valuemax={totalCapacity}
-        aria-label={`${percentage}% capacity filled`}
+        aria-label={\% capacity filled}
         style={{
           background: "#f3f4f6",
           borderRadius: "999px",
@@ -115,7 +115,7 @@ export default function EventCapacityIndicator({
       >
         <div
           style={{
-            width: `${percentage}%`,
+            width: \%,
             height: "100%",
             background: getBarColor(),
             borderRadius: "999px",
@@ -137,7 +137,7 @@ export default function EventCapacityIndicator({
             fontWeight: 600,
             padding: "4px 10px",
             borderRadius: "999px",
-            border: isFull ? "1px solid #fecaca" : "1px solid #fed7aa",
+            border: 1px solid \,
           }}
         >
           {isFull ? "Event Full" : "Almost Full"}

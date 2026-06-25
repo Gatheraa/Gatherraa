@@ -23,7 +23,6 @@ import { type ActivityItem } from "@/components/dashboard/ActivityPanel";
 import ActivityPanel from "@/components/dashboard/ActivityPanel";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import DataTable from "@/components/DataTable";
-import { AttendanceHeatmap } from "@/components/attendance/AttendanceHeatmap";
 
 const DashboardPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -267,19 +266,6 @@ const DashboardPage = () => {
       component: (
         <div className="px-4 py-2 overflow-auto">
           <DataTable />
-        </div>
-      ),
-    },
-    {
-      id: "attendance-heatmap",
-      type: "chart",
-      title: "Venue Attendance",
-      subtitle: "Live Density Matrix",
-      icon: Users,
-      colSpan: { default: 12, lg: 12 },
-      component: (
-        <div className="p-4 overflow-hidden">
-          <AttendanceHeatmap />
         </div>
       ),
     },

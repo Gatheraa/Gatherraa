@@ -83,12 +83,6 @@ export const ROUTE_RULES: Record<string, RouteRule> = {
     skeletonVariant: "generic",
     label: "Payments",
   },
-  "/verification": {
-    requiredRole: "user",
-    redirectTo: "/login",
-    skeletonVariant: "profile",
-    label: "Identity Verification",
-  },
 
   // ── Organizer routes ─────────────────────────────────────────────────────
   "/events/create": {

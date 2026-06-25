@@ -20,7 +20,7 @@
 //! - `validation`: Transaction validation logic
 //! - `governance`: Owner management and voting
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Symbol, Env, String, Vec};
+use soroban_sdk::{contract, contracterror, contractimpl, Address, Symbol, Env, String, Vec, Map};
 
 /// Errors that can occur during multisig operations
 #[contracterror]
@@ -51,7 +51,6 @@ pub enum MultisigError {
 }
 
 /// Transaction status enumeration
-#[contracttype]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum TransactionStatus {
@@ -63,7 +62,6 @@ pub enum TransactionStatus {
 }
 
 /// Transaction data structure
-#[contracttype]
 #[derive(Debug, Clone)]
 pub struct Transaction {
     /// Unique transaction identifier
@@ -89,7 +87,6 @@ pub struct Transaction {
 }
 
 /// Multi-signature wallet configuration
-#[contracttype]
 #[derive(Debug, Clone)]
 pub struct MultisigConfig {
     /// List of wallet owners
@@ -103,7 +100,6 @@ pub struct MultisigConfig {
 }
 
 /// Main contract implementation
-#[contract]
 pub struct MultisigWalletContract;
 
 #[contractimpl]

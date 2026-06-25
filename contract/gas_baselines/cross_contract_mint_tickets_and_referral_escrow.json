@@ -1,0 +1,6 @@
+{
+  "operation": "cross_contract_mint_tickets_and_referral_escrow",
+  "baseline_gas": 230000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}

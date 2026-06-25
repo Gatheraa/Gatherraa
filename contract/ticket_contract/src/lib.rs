@@ -17,7 +17,7 @@
 //! - `storage`: Data storage structures
 //! - `validation`: Input validation logic
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol};
+use soroban_sdk::{contract, contracterror, contractimpl, Address, Env, String, Symbol};
 
 /// Errors that can occur during ticket operations
 #[contracterror]
@@ -42,7 +42,6 @@ pub enum TicketError {
 }
 
 /// Ticket data structure
-#[contracttype]
 #[derive(Debug, Clone)]
 pub struct Ticket {
     /// Unique ticket identifier
@@ -58,7 +57,6 @@ pub struct Ticket {
 }
 
 /// Main contract implementation
-#[contract]
 pub struct SoulboundTicketContract;
 
 #[contractimpl]

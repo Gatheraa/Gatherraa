@@ -1,0 +1,6 @@
+{
+  "operation": "ticket_batch_mint_100",
+  "baseline_gas": 750000,
+  "tolerance_percentage": 10,
+  "contract_version": 1
+}
