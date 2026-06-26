@@ -2,8 +2,9 @@
 // Handles recurring and scheduled tasks
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
+import { TaskQueueService } from '../services/task-queue.service';
 import { SessionsService } from '../../sessions/sessions.service';
 import { ReportService } from '../../analytics/services/report.service';
 import { AnalyticsService } from '../../analytics/services/analytics.service';
@@ -26,7 +27,7 @@ export interface ScheduledTaskJobData {
  */
 @Processor('scheduled-tasks')
 @Injectable()
-export class ScheduledTaskProcessor {
+export class ScheduledTaskProcessor extends WorkerHost {
   private readonly logger = new Logger(ScheduledTaskProcessor.name);
 
   private taskHandlers: Map<string, (payload: any) => Promise<any>> = new Map();
@@ -40,7 +41,9 @@ export class ScheduledTaskProcessor {
     private readonly cacheWarmupService: CacheWarmupService,
     private readonly blockchainAuditService: BlockchainAuditService,
     private readonly advancedAnalyticsService: AdvancedAnalyticsService,
+    private readonly taskQueueService: TaskQueueService,
   ) {
+    super();
     this.registerTaskHandlers();
   }
 
@@ -74,8 +77,7 @@ export class ScheduledTaskProcessor {
   /**
    * Process scheduled task
    */
-  @Process()
-  async handleScheduledTask(job: Job<ScheduledTaskJobData>) {
+  async process(job: Job<ScheduledTaskJobData>) {
     const jobId = job.id;
     const { taskName, payload } = job.data;
 
@@ -262,5 +264,20 @@ export class ScheduledTaskProcessor {
       metrics,
       timestamp: new Date(),
     };
+  }
+
+  /**
+   * Handle job failures and route to DLQ if max attempts reached
+   */
+  @OnWorkerEvent('failed')
+  async onJobFailed(job: Job, error: Error) {
+    const maxAttempts = job.opts.attempts ?? 1;
+
+    if (job.attemptsMade >= maxAttempts) {
+      this.logger.warn(
+        `Scheduled Task Job ${job.id} failed permanently after ${job.attemptsMade} attempts. Routing to DLQ.`,
+      );
+      await this.taskQueueService.moveToDeadLetterQueue(job, error.message);
+    }
   }
 }
