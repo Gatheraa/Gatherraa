@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Star, Send } from 'lucide-react';
+import { Send, AlertCircle } from 'lucide-react';
 import { reviewsApi } from '../../lib/api/reviews';
 import FileUpload, { UploadedFile } from './file-upload';
+import { StarRating } from '@/components/ui/molecules/StarRating';
 
 const reviewSchema = z.object({
   rating: z.number().min(1).max(5),
@@ -24,10 +25,10 @@ interface ReviewFormProps {
 
 export default function ReviewForm({ eventId, onSubmit, onCancel }: ReviewFormProps) {
   const [rating, setRating] = useState(0);
-  const [hoveredRating, setHoveredRating] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const {
     register,
@@ -46,19 +47,23 @@ export default function ReviewForm({ eventId, onSubmit, onCancel }: ReviewFormPr
 
   const content = watch('content');
 
-  const handleRatingClick = (value: number) => {
+  const handleRatingChange = (value: number) => {
     setRating(value);
     setValue('rating', value, { shouldValidate: true });
+    if (submitError && value > 0) {
+      setSubmitError(null);
+    }
   };
 
   const onSubmitForm = async (data: ReviewFormData) => {
     if (rating === 0) {
-      alert('Please select a rating');
+      setSubmitError('Please select a star rating for this event.');
       return;
     }
 
     setIsSubmitting(true);
     setUploadError(null);
+    setSubmitError(null);
 
     try {
       // Create review with files in a single request
@@ -82,7 +87,7 @@ export default function ReviewForm({ eventId, onSubmit, onCancel }: ReviewFormPr
       onSubmit?.();
     } catch (error) {
       console.error('Failed to submit review:', error);
-      alert('Failed to submit review. Please try again.');
+      setSubmitError('Failed to submit review. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -95,30 +100,27 @@ export default function ReviewForm({ eventId, onSubmit, onCancel }: ReviewFormPr
           Write a Review
         </h2>
 
+        {submitError && (
+          <div className="mb-4 flex items-center gap-2 rounded-md bg-red-50 p-3 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800/50">
+            <AlertCircle className="h-5 w-5 shrink-0" />
+            <p className="text-sm font-medium">{submitError}</p>
+          </div>
+        )}
+
         {/* Rating */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Rating <span className="text-red-500">*</span>
           </label>
           <div className="flex items-center gap-1">
-            {[1, 2, 3, 4, 5].map((value) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => handleRatingClick(value)}
-                onMouseEnter={() => setHoveredRating(value)}
-                onMouseLeave={() => setHoveredRating(0)}
-                className="focus:outline-none"
-              >
-                <Star
-                  className={`w-8 h-8 transition-colors ${
-                    value <= (hoveredRating || rating)
-                      ? 'fill-yellow-400 text-yellow-400'
-                      : 'fill-gray-300 text-gray-300 dark:fill-gray-600 dark:text-gray-600'
-                  }`}
-                />
-              </button>
-            ))}
+            <StarRating
+              value={rating}
+              max={5}
+              size="lg"
+              interactive
+              onChange={handleRatingChange}
+              aria-label="Select star rating"
+            />
           </div>
           {errors.rating && (
             <p className="mt-1 text-sm text-red-600 dark:text-red-400">

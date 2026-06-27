@@ -1,10 +1,11 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan, In } from 'typeorm';
 import { WaitlistEntry, WaitlistStatus } from '../../waitlist/entities';
 import { WaitlistService } from '../../waitlist/services/waitlist.service';
+import { TaskQueueService } from '../services/task-queue.service';
 
 @Processor('waitlist:expiry')
 export class WaitlistExpiryProcessor extends WorkerHost {
@@ -14,6 +15,7 @@ export class WaitlistExpiryProcessor extends WorkerHost {
         @InjectRepository(WaitlistEntry)
         private readonly entryRepository: Repository<WaitlistEntry>,
         private readonly waitlistService: WaitlistService,
+        private readonly taskQueueService: TaskQueueService,
     ) {
         super();
     }
@@ -89,5 +91,15 @@ export class WaitlistExpiryProcessor extends WorkerHost {
         }
 
         return { success: true };
+    }
+
+    @OnWorkerEvent('failed')
+    async onJobFailed(job: Job, error: Error) {
+        const maxAttempts = job.opts.attempts ?? 1;
+
+        if (job.attemptsMade >= maxAttempts) {
+            this.logger.warn(`Waitlist Expiry Job ${job.id} failed permanently. Routing to DLQ.`);
+            await this.taskQueueService.moveToDeadLetterQueue(job, error.message);
+        }
     }
 }

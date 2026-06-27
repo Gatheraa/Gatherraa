@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Star } from 'lucide-react';
 
 export interface StarRatingProps {
@@ -32,6 +32,8 @@ export function StarRating({
   onChange,
   'aria-label': ariaLabel,
 }: StarRatingProps) {
+  const [hoverValue, setHoverValue] = useState(0);
+  
   const iconClass = sizeClasses[size];
   const filledColor = 'fill-[#facc15] text-[#facc15]'; // amber-400
   const emptyColor =
@@ -42,16 +44,22 @@ export function StarRating({
       className="inline-flex items-center gap-0.5"
       role={interactive ? 'group' : 'img'}
       aria-label={ariaLabel ?? (interactive ? undefined : `Rating: ${value} out of ${max} stars`)}
+      onMouseLeave={() => interactive && setHoverValue(0)}
     >
       {Array.from({ length: max }, (_, i) => {
         const starValue = i + 1;
-        const isFilled = value >= starValue;
+        // Determine if star is filled by hover state (if interactive) or actual value
+        const isFilled = interactive && hoverValue > 0 ? hoverValue >= starValue : value >= starValue;
+        
         if (interactive && onChange) {
           return (
             <button
               key={starValue}
               type="button"
               onClick={() => onChange(starValue)}
+              onMouseEnter={() => setHoverValue(starValue)}
+              onFocus={() => setHoverValue(starValue)}
+              onBlur={() => setHoverValue(0)}
               className={`focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] focus-visible:ring-offset-1 rounded p-0.5 ${iconClass}`}
               aria-label={`${starValue} star${starValue !== 1 ? 's' : ''}`}
             >

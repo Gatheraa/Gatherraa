@@ -2,11 +2,12 @@
 // Handles image transformations and processing through the queue
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as sharp from 'sharp';
+import { TaskQueueService } from '../services/task-queue.service';
 
 export interface ImageProcessingJobData {
   url: string;
@@ -31,18 +32,22 @@ export interface ImageProcessingJobData {
  * Processor for image processing jobs
  * Transforms images using Sharp with progress tracking
  */
-@Processor('image-processing')
+@Processor('image-processing', { concurrency: 3 })
 @Injectable()
-export class ImageProcessor {
+export class ImageProcessor extends WorkerHost {
   private readonly logger = new Logger(ImageProcessor.name);
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private readonly taskQueueService: TaskQueueService,
+  ) {
+    super();
+  }
 
   /**
    * Process image transformations job
    */
-  @Process({ concurrency: 3 })
-  async handleImageProcessing(job: Job<ImageProcessingJobData>) {
+  async process(job: Job<ImageProcessingJobData>) {
     const jobId = job.id;
     const { url, transformations, outputFormat = 'webp', quality = 80 } =
       job.data;
@@ -197,6 +202,21 @@ export class ImageProcessor {
           `Unknown transformation type: ${transformation.type}`,
         );
         return pipeline;
+    }
+  }
+
+  /**
+   * Handle job failures and route to DLQ if max attempts reached
+   */
+  @OnWorkerEvent('failed')
+  async onJobFailed(job: Job, error: Error) {
+    const maxAttempts = job.opts.attempts ?? 1;
+
+    if (job.attemptsMade >= maxAttempts) {
+      this.logger.warn(
+        `Image Processing Job ${job.id} failed permanently after ${job.attemptsMade} attempts. Routing to DLQ.`,
+      );
+      await this.taskQueueService.moveToDeadLetterQueue(job, error.message);
     }
   }
 }

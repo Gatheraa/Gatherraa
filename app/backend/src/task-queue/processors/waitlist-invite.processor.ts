@@ -1,13 +1,17 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Logger } from '@nestjs/common';
 import { WaitlistService } from '../../waitlist/services/waitlist.service';
+import { TaskQueueService } from '../services/task-queue.service';
 
 @Processor('waitlist:invite')
 export class WaitlistInviteProcessor extends WorkerHost {
     private readonly logger = new Logger(WaitlistInviteProcessor.name);
 
-    constructor(private readonly waitlistService: WaitlistService) {
+    constructor(
+        private readonly waitlistService: WaitlistService,
+        private readonly taskQueueService: TaskQueueService,
+    ) {
         super();
     }
 
@@ -21,6 +25,16 @@ export class WaitlistInviteProcessor extends WorkerHost {
         } catch (error) {
             this.logger.error(`Failed to process waitlist invite: ${error.message}`);
             throw error;
+        }
+    }
+
+    @OnWorkerEvent('failed')
+    async onJobFailed(job: Job, error: Error) {
+        const maxAttempts = job.opts.attempts ?? 1;
+
+        if (job.attemptsMade >= maxAttempts) {
+            this.logger.warn(`Waitlist Invite Job ${job.id} failed permanently. Routing to DLQ.`);
+            await this.taskQueueService.moveToDeadLetterQueue(job, error.message);
         }
     }
 }

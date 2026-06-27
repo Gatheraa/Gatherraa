@@ -1,4 +1,4 @@
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, Symbol, Vec};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol, Vec, token};
 
 use crate::storage::{StorageCache, *};
 use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
@@ -6,15 +6,15 @@ use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessa
 #[contract]
 pub struct CrossChainStakingContract;
 
-const PRECISION: i128 = 1_000_000_000;
+pub(crate) const PRECISION: i128 = 1_000_000_000;
 
 /// Reentrancy guard key
 const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
 
 /// Cross-chain message types
 const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_msg");
-const MESSAGE_TYPE_UNSTAKE: Symbol = symbol_short!("unstake_msg");
-const MESSAGE_TYPE_REWARD: Symbol = symbol_short!("reward_msg");
+fn message_type_unstake(env: &Env) -> Symbol { Symbol::new(env, "unstake_msg") }
+fn message_type_reward(env: &Env) -> Symbol { Symbol::new(env, "reward_msg") }
 
 #[contractimpl]
 impl CrossChainStakingContract {
@@ -130,11 +130,11 @@ impl CrossChainStakingContract {
         
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((symbol_short!("stake_transfer_success"),), amount);
+                env.events().publish((Symbol::new(&env, "stake_transfer_success"),), amount);
             },
             _ => {
                 env.storage().instance().remove(&REENTRANCY_GUARD);
-                env.events().publish((symbol_short!("stake_transfer_failed"),), amount);
+                env.events().publish((Symbol::new(&env, "stake_transfer_failed"),), amount);
                 panic!("token transfer failed");
             }
         }
@@ -193,39 +193,9 @@ impl CrossChainStakingContract {
 
         // Emit event for bridge to process
         env.events().publish(
-            (symbol_short!("cross_chain_stake"), user),
+            (Symbol::new(env, "cross_chain_stake"), user),
             (target_chain_id, amount, message.nonce),
         );
-    }
-
-    /// Process incoming cross-chain message
-    pub fn process_cross_chain_message(
-        env: Env,
-        source_chain_id: u32,
-        message_data: Vec<u8>,
-        proof: Vec<u8>,
-    ) {
-        // Verify chain is supported
-        let chain_config = read_chain_config(&env, source_chain_id)
-            .unwrap_or_else(|| panic!("source chain not supported"));
-
-        if !chain_config.active {
-            panic!("source chain is not active");
-        }
-
-        // Verify message authenticity (implementation depends on bridge)
-        if !Self::verify_cross_chain_message(&env, source_chain_id, &message_data, &proof) {
-            panic!("invalid cross-chain message");
-        }
-
-        // Parse and execute message
-        let message = Self::parse_cross_chain_message(&message_data);
-        match message.message_type {
-            MESSAGE_TYPE_STAKE => Self::execute_cross_chain_stake(&env, message),
-            MESSAGE_TYPE_UNSTAKE => Self::execute_cross_chain_unstake(&env, message),
-            MESSAGE_TYPE_REWARD => Self::execute_cross_chain_reward(&env, message),
-            _ => panic!("unsupported message type"),
-        }
     }
 
     /// Execute cross-chain staking
@@ -252,7 +222,7 @@ impl CrossChainStakingContract {
         remove_pending_message(env, message.nonce);
 
         env.events().publish(
-            (symbol_short!("cross_chain_stake_executed"), message.sender),
+            (Symbol::new(env, "cross_chain_stake_executed"), message.sender),
             (amount, tier_id),
         );
     }
@@ -283,17 +253,26 @@ impl CrossChainStakingContract {
     }
 
     /// Parse cross-chain message
-    fn parse_cross_chain_message(message_data: &Vec<u8>) -> CrossChainMessage {
+    fn parse_cross_chain_message(_message_data: &Vec<u8>) -> CrossChainMessage {
         // Implementation depends on serialization format
         // For now, return placeholder
         CrossChainMessage {
             message_type: MESSAGE_TYPE_STAKE,
-            sender: Address::default(),
+            sender: Self::get_placeholder_address(),
             target_chain: 0,
             data: (0, 0, 0),
             nonce: 0,
             timestamp: 0,
         }
+    }
+
+    fn get_placeholder_address() -> Address {
+        panic!("placeholder address not available without env")
+    }
+
+    /// Get staking token client
+    fn get_staking_token_client<'a>(env: &'a Env, config: &'a Config) -> token::Client<'a> {
+        token::Client::new(env, &config.staking_token)
     }
 
     /// Get supported chains
@@ -302,7 +281,7 @@ impl CrossChainStakingContract {
         env.storage()
             .instance()
             .get(&chains_key)
-            .unwrap_or_else(|| Vec::new(env))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Get chain configuration
@@ -316,7 +295,7 @@ impl CrossChainStakingContract {
         env.storage()
             .instance()
             .get(&pending_key)
-            .unwrap_or_else(|| Vec::new(env))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Validate address format for current chain
@@ -337,26 +316,32 @@ impl CrossChainStakingContract {
         Self::validate_address(env, address);
     }
 
-    /// Ethereum address validation
-    fn validate_ethereum_address(address: &Address) {
-        // Ethereum-specific validation logic
-        // For now, basic validation
+    /// Ethereum address validation.
+    ///
+    /// Note: Soroban `Address` inputs are not chain-native string forms, so we
+    /// cannot enforce EIP-55 checksum / 0x prefix / length here.
+    /// We can, however, reject the all-zero default placeholder address.
+    fn validate_ethereum_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Stellar address validation
-    fn validate_stellar_address(address: &Address) {
-        // Stellar-specific validation logic
-        // For now, basic validation
+    /// Stellar address validation.
+    ///
+    /// Note: same limitation as `validate_ethereum_address` (Soroban Address type).
+    fn validate_stellar_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Polygon address validation
-    fn validate_polygon_address(address: &Address) {
-        // Polygon-specific validation logic
-        // For now, basic validation
+    /// Polygon address validation.
+    ///
+    /// Note: same limitation as `validate_ethereum_address` (Soroban Address type).
+    fn validate_polygon_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Generic address validation
-    fn validate_generic_address(_address: &Address) {
-        // Generic validation for unknown chains
+    /// Generic address validation.
+    fn validate_generic_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
+
 }

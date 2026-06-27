@@ -8,6 +8,7 @@ import { CheckCircle, AlertTriangle, ArrowLeft } from 'lucide-react';
 import TicketPreview from '@/components/ticket-preview/TicketPreview';
 import FormInput from '@/components/forms/FormInput';
 import { Button } from '@/components/ui/atoms/Button/Button';
+import TicketMintingTracker from '@/src/components/TicketMintingTracker';
 
 const transferSchema = z.object({
   recipient: z
@@ -49,6 +50,9 @@ const sampleTickets: Ticket[] = [
 
 export default function TicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>(sampleTickets);
+  const [search, setSearch] = useState<string>('');
+  const [eventFilter, setEventFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'date-asc' | 'date-desc' | 'name-asc' | 'name-desc'>('date-asc');
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [confirmationData, setConfirmationData] = useState<TransferFormValues | null>(null);
   const [step, setStep] = useState<'form' | 'review' | 'success' | 'error'>('form');
@@ -58,6 +62,45 @@ export default function TicketsPage() {
     () => tickets.find((ticket) => ticket.id === selectedTicketId) ?? null,
     [selectedTicketId, tickets],
   );
+
+  const events = useMemo(() => {
+    const set = new Set<string>();
+    tickets.forEach((t) => set.add(t.event));
+    return ['all', ...Array.from(set)];
+  }, [tickets]);
+
+  const parseDate = (d: string) => {
+    try {
+      // remove interpunct and extra whitespace
+      const cleaned = d.replace(/·/g, ' ').replace(/\s+/g, ' ');
+      const parsed = new Date(cleaned);
+      return isNaN(parsed.getTime()) ? new Date(0) : parsed;
+    } catch (e) {
+      return new Date(0);
+    }
+  };
+
+  const filteredTickets = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    let list = tickets.filter((t) => {
+      if (eventFilter !== 'all' && t.event !== eventFilter) return false;
+      if (!s) return true;
+      return (
+        t.name.toLowerCase().includes(s) ||
+        t.event.toLowerCase().includes(s) ||
+        t.holder.toLowerCase().includes(s)
+      );
+    });
+
+    list.sort((a, b) => {
+      if (sortBy === 'date-asc') return parseDate(a.date).getTime() - parseDate(b.date).getTime();
+      if (sortBy === 'date-desc') return parseDate(b.date).getTime() - parseDate(a.date).getTime();
+      if (sortBy === 'name-asc') return a.name.localeCompare(b.name);
+      return b.name.localeCompare(a.name);
+    });
+
+    return list;
+  }, [tickets, search, eventFilter, sortBy]);
 
   const {
     register,
@@ -243,24 +286,64 @@ export default function TicketsPage() {
           </p>
         </div>
 
-        <div className="grid gap-8 xl:grid-cols-[1.4fr_0.85fr]">
+        <div className="grid gap-8 xl:grid-cols-[1.6fr_0.8fr]">
           <div className="space-y-6">
-            {tickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm shadow-slate-900/5 transition-all duration-200 hover:border-slate-300 dark:border-slate-700/60 dark:bg-slate-950/95"
-              >
-                <TicketPreview ticket={ticket} />
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm text-slate-600 dark:text-slate-400">
-                    Current Holder: <span className="font-mono text-slate-900 dark:text-slate-100">{ticket.holder}</span>
-                  </div>
-                  <Button onClick={() => openTransfer(ticket.id)}>
-                    Transfer this ticket
-                  </Button>
-                </div>
+            {/* Controls: search / filter / sort */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex w-full gap-3">
+                <input
+                  aria-label="Search tickets"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name, event, or holder"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm shadow-sm dark:bg-slate-900 dark:border-slate-700"
+                />
+                <select
+                  aria-label="Filter by event"
+                  value={eventFilter}
+                  onChange={(e) => setEventFilter(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm dark:bg-slate-900 dark:border-slate-700"
+                >
+                  {events.map((ev) => (
+                    <option key={ev} value={ev}>
+                      {ev === 'all' ? 'All events' : ev}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Sort tickets"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as any)}
+                  className="hidden rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm sm:block dark:bg-slate-900 dark:border-slate-700"
+                >
+                  <option value="date-asc">Date ↑</option>
+                  <option value="date-desc">Date ↓</option>
+                  <option value="name-asc">Name A→Z</option>
+                  <option value="name-desc">Name Z→A</option>
+                </select>
               </div>
-            ))}
+            </div>
+
+            {/* Grid of tickets */}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredTickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className="rounded-2xl border border-slate-200/80 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:scale-[1.01] dark:border-slate-700/60 dark:bg-slate-950/95"
+                  onClick={() => openTransfer(ticket.id)}
+                >
+                  <TicketPreview ticket={ticket} />
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <div className="text-xs text-slate-600 dark:text-slate-400">
+                      {ticket.event}
+                    </div>
+                    <Button size="sm" onClick={(e: any) => { e.stopPropagation(); openTransfer(ticket.id); }}>
+                      Transfer
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           {selectedTicket ? (
@@ -275,6 +358,20 @@ export default function TicketsPage() {
           )}
         </div>
       </div>
-    </main>
+   <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur dark:border-slate-700/60 dark:bg-slate-950/95">
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-slate-500 dark:text-slate-400">
+            On-Chain Minting
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+            NFT Ticket Minting Status
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+            Track the lifecycle of NFT ticket minting on Stellar/Soroban.
+          </p>
+          <div className="mt-6">
+            <TicketMintingTracker />
+          </div>
+        </div>
+       </main>
   );
 }

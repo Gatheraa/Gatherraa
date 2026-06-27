@@ -13,3 +13,5 @@ export type { RegistrationGuardProps, RegistrationRule } from './RegistrationGua
 export { createWalletRule, createCapacityRule, createExpirationRule, createCustomRule } from './RegistrationGuard';
 export { EventAccessGate, hasEventAccess } from './EventAccessGate';
 export type { EventAccessGateProps, EventAccessLevel, EventViewerStatus } from './EventAccessGate';
+export { DIDCredentialCard } from './DIDCredentialCard/DIDCredentialCard';
+export type { DIDCredentialCardProps, DIDCredential } from './DIDCredentialCard/DIDCredentialCard';

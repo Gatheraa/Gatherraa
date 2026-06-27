@@ -20,10 +20,9 @@
 //! - `deployment`: Contract deployment utilities
 //! - `workflows`: Common business workflows
 
-use soroban_sdk::{Address, Symbol, Env, String, Vec, Map};
+use soroban_sdk::{Address, Symbol, Env, String, Vec};
 
 pub mod chain_abstraction;
-pub mod contract;
 pub mod cross_chain;
 pub mod storage;
 pub mod types;
@@ -101,14 +100,14 @@ pub mod clients {
     use super::*;
 
     /// Unified Gathera platform client
-    pub struct GatheraClient {
+    pub struct GatheraClient<'a> {
         env: Env,
-        ticket_client: ticket_contract::SoulboundTicketContractClient,
-        escrow_client: escrow_contract::EscrowContractClient,
-        multisig_client: multisig_wallet_contract::MultisigWalletContractClient,
+        ticket_client: ticket_contract::SoulboundTicketContractClient<'a>,
+        escrow_client: escrow_contract::EscrowContractClient<'a>,
+        multisig_client: multisig_wallet_contract::MultisigWalletContractClient<'a>,
     }
 
-    impl GatheraClient {
+    impl<'a> GatheraClient<'a> {
         pub fn new(
             env: Env,
             ticket_address: Address,
@@ -126,9 +125,9 @@ pub mod clients {
         /// Get all contract addresses
         pub fn get_addresses(&self) -> (Address, Address, Address) {
             (
-                self.ticket_client.address,
-                self.escrow_client.address,
-                self.multisig_client.address,
+                self.ticket_client.address.clone(),
+                self.escrow_client.address.clone(),
+                self.multisig_client.address.clone(),
             )
         }
     }
