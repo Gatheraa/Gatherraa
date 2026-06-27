@@ -133,6 +133,9 @@ jobs:
         with:
           name: e2e-test-results
           path: app/backend/test-results/
+      - name: Check OpenAPI schema drift
+        working-directory: app/backend
+        run: npm run openapi:check
 
   # --- Frontend Jobs ---
   frontend-lint:

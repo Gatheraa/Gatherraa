@@ -225,3 +225,28 @@ export class TierAvailabilityDto {
     minPrice: number;
     maxPrice: number;
 }
+
+export class TicketPlanBenefitDto {
+    icon: string;
+    text: string;
+}
+
+export class TicketPlanTierDto {
+    id: string;
+    name: string;
+    description: string;
+    price: number;
+    currency: string;
+    period: string;
+    benefits: string[];
+    highlighted: boolean;
+    availability: number;
+    total: number;
+    badge?: string;
+}
+
+export class TicketPlansResponseDto {
+    eventId: string;
+    eventTitle: string;
+    tiers: TicketPlanTierDto[];
+}

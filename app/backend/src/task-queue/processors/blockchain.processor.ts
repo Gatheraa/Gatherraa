@@ -2,10 +2,11 @@
 // Handles blockchain event processing and contract interactions
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Processor, Process } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
+import { TaskQueueService } from '../services/task-queue.service';
 
 export interface BlockchainEventJobData {
   contractAddress: string;
@@ -20,13 +21,17 @@ export interface BlockchainEventJobData {
  * Processor for blockchain event jobs
  * Handles event listening, processing, and contract interactions
  */
-@Processor('blockchain-events')
+@Processor('blockchain-events', { concurrency: 5 })
 @Injectable()
-export class BlockchainProcessor {
+export class BlockchainProcessor extends WorkerHost {
   private readonly logger = new Logger(BlockchainProcessor.name);
   private providers: Map<string, ethers.Provider> = new Map();
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private readonly taskQueueService: TaskQueueService,
+  ) {
+    super();
     this.initializeProviders();
   }
 
@@ -64,8 +69,7 @@ export class BlockchainProcessor {
   /**
    * Process blockchain event job
    */
-  @Process({ concurrency: 5 })
-  async handleBlockchainEvent(job: Job<BlockchainEventJobData>) {
+  async process(job: Job<BlockchainEventJobData>) {
     const jobId = job.id;
     const {
       contractAddress,
@@ -326,5 +330,20 @@ export class BlockchainProcessor {
    */
   private getProvider(networkId: string): ethers.Provider | null {
     return this.providers.get(networkId) || null;
+  }
+
+  /**
+   * Handle job failures and route to DLQ if max attempts reached
+   */
+  @OnWorkerEvent('failed')
+  async onJobFailed(job: Job, error: Error) {
+    const maxAttempts = job.opts.attempts ?? 1;
+
+    if (job.attemptsMade >= maxAttempts) {
+      this.logger.warn(
+        `Blockchain Job ${job.id} failed permanently after ${job.attemptsMade} attempts. Routing to DLQ.`,
+      );
+      await this.taskQueueService.moveToDeadLetterQueue(job, error.message);
+    }
   }
 }

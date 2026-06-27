@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarDays, LayoutDashboard, Plus, UserRound } from 'lucide-react';
+import { CalendarDays, LayoutDashboard, Plus, UserRound, ShieldCheck } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -36,6 +36,12 @@ const defaultActions: FloatingActionItem[] = [
     href: '/profile',
     icon: <UserRound className="h-4 w-4" aria-hidden />,
   },
+  {
+    id: 'verification',
+    label: 'Identity Verification',
+    href: '/verification',
+    icon: <ShieldCheck className="h-4 w-4" aria-hidden />,
+  },
 ];
 
 export function FloatingActionButton({
@@ -44,7 +50,7 @@ export function FloatingActionButton({
 }: FloatingActionButtonProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
-  const normalizedActions = useMemo(() => actions.slice(0, 4), [actions]);
+  const normalizedActions = useMemo(() => actions.slice(0, 5), [actions]);
   const primaryAction = normalizedActions[0];
 
   if (normalizedActions.length === 0) {

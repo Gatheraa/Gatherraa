@@ -1,31 +1,110 @@
-openapi: 3.0.3
-info:
-  title: Gatheraa API Gateway (example)
-  version: '1.0.0'
-  description: Aggregated OpenAPI for the Kong gateway example. Mount this in Swagger UI (see app/backend/kong/docker-compose.kong.yml).
-servers:
-  - url: http://localhost:8000
-
+openapi: 3.0.0
 paths:
-  /api/v1/users:
+  /:
     get:
-      summary: List users (proxied)
+      operationId: AppController_getHello
+      parameters: []
       responses:
         '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
+          description: ''
+      tags:
+        - App
+  /identity-verification/summary:
+    get:
+      operationId: IdentityVerificationController_getSummary
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: &a1
+        - IdentityVerification
+  /identity-verification/steps:
+    get:
+      operationId: IdentityVerificationController_getSteps
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: *a1
+  /identity-verification/history:
+    get:
+      operationId: IdentityVerificationController_getHistory
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags: *a1
+  /identity-verification/steps/{step}/submit:
     post:
-      summary: Create user (proxied)
+      operationId: IdentityVerificationController_submitStep
+      parameters:
+        - name: step
+          required: true
+          in: path
+          schema:
+            type: string
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/SubmitStepDto'
       responses:
         '201':
-          description: Created
+          description: ''
+      tags: *a1
+  /identity-verification/steps/{step}/retry:
+    post:
+      operationId: IdentityVerificationController_retryStep
+      parameters:
+        - name: step
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '201':
+          description: ''
+      tags: *a1
+  /identity-verification/steps/{step}:
+    patch:
+      operationId: IdentityVerificationController_updateStepStatus
+      parameters:
+        - name: step
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStepDto'
+      responses:
+        '200':
+          description: ''
+      tags: *a1
+  /identity-verification/initialize:
+    post:
+      operationId: IdentityVerificationController_initializeSteps
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags: *a1
+info:
+  title: Gatheraa API v2
+  description: Runtime generated OpenAPI specification for Gatheraa API v2
+  version: '2.0'
+  contact: {}
+tags: []
+servers: []
+components:
+  schemas:
+    SubmitStepDto:
+      type: object
+      properties: {}
+    UpdateStepDto:
+      type: object
+      properties: {}

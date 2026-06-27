@@ -7,5 +7,5 @@ export { EventActionPanel } from './EventActionPanel';
 export type { EventActionPanelProps, EventActionUserState } from './EventActionPanel';
 export { VirtualizedEventList } from './VirtualizedEventList';
 export type { VirtualizedEventListProps } from './VirtualizedEventList';
-export { ScheduleBuilder } from './ScheduleBuilder';
-export type { ScheduleBuilderProps } from './ScheduleBuilder';
+export { ScheduleBuilder, DEFAULT_SCHEDULE_SESSIONS } from './ScheduleBuilder';
+export type { ScheduleBuilderProps, ScheduleSession } from './ScheduleBuilder';

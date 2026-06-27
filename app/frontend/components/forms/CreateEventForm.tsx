@@ -1,11 +1,13 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import FormInput from './FormInput';
 import ErrorSummary from './ErrorSummary';
 import { TagSelector } from '@/components/ui/atoms';
+import { ScheduleBuilder, type ScheduleSession } from '@/components/events';
 
 const TAG_SUGGESTIONS = [
   'Web3',
@@ -131,13 +133,18 @@ export default function CreateEventForm() {
     mode: 'onChange', // real-time validation
   });
 
+  const [agenda, setAgenda] = useState<ScheduleSession[]>([]);
+
   const isFieldValid = (name: keyof CreateEventFormValues) =>
     dirtyFields[name] && !errors[name];
 
   const onSubmit = async (data: CreateEventFormValues) => {
     // Simulate async submit
     await new Promise(r => setTimeout(r, 1200));
-    console.log('✅ Form submitted:', data);
+    console.log('✅ Form submitted:', {
+      ...data,
+      agenda,
+    });
   };
 
   if (isSubmitSuccessful) {
@@ -313,6 +320,20 @@ export default function CreateEventForm() {
           </div>
         )}
       />
+
+      <div className="rounded-3xl border border-slate-800/30 bg-slate-950/40 p-6">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Agenda Builder</h2>
+            <p className="text-sm text-slate-400">Add sessions, manage time slots, and reorder your event agenda from mobile or desktop.</p>
+          </div>
+          {agenda.length > 0 && (
+            <span className="text-sm text-slate-400">{agenda.length} session{agenda.length === 1 ? '' : 's'} ready for review.</span>
+          )}
+        </div>
+
+        <ScheduleBuilder onSave={setAgenda} />
+      </div>
 
       {/* Submit */}
       <button
