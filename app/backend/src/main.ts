@@ -16,6 +16,25 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   configureAppSecurity(app);
 
+  // Configure CORS with env-driven allowed origins
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. server-to-server, curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  });
+
   // app.enableVersioning({...});
 
   setupOpenApiDocs(app);
