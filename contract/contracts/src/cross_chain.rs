@@ -6,7 +6,8 @@ use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessa
 #[contract]
 pub struct CrossChainStakingContract;
 
-pub(crate) const PRECISION: i128 = 1_000_000_000;
+/// Re-exported from `gathera_common` for backward compatibility within this module.
+use gathera_common::PRECISION;
 
 /// Reentrancy guard key
 const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");

@@ -37,6 +37,20 @@ pub enum CommonError {
 /// Common result type for contract operations
 pub type ContractResult<T> = Result<T, CommonError>;
 
+/// Fixed-point precision factor used for reward calculations across the workspace.
+///
+/// All per-token reward arithmetic must be scaled by this factor to preserve
+/// sub-unit precision with integer arithmetic.  The value 1_000_000_000
+/// (1e9) provides nanosecond-scale granularity for token amounts expressed
+/// in the smallest on-chain unit.
+///
+/// # Usage
+/// ```rust
+/// use gathera_common::PRECISION;
+/// let scaled = amount * PRECISION / total;
+/// ```
+pub const PRECISION: i128 = 1_000_000_000;
+
 /// Validation utilities
 pub struct ValidationUtils;
 impl ValidationUtils {
