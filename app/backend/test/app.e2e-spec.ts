@@ -19,7 +19,9 @@ describe('Module Organization - NestJS E2E', () => {
   });
 
   afterEach(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   /**
