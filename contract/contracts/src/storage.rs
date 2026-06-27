@@ -227,6 +227,17 @@ pub fn write_message_nonce(env: &Env, nonce: u64) {
 }
 
 pub fn update_reward(env: &Env, user: Option<&Address>) {
+    // update_reward must only be called while the reentrancy guard is held
+    // (i.e. from within stake/unstake).  Direct external calls are rejected.
+    if !env
+        .storage()
+        .instance()
+        .has(&crate::types::DataKey::Config)
+    {
+        // Contract not yet initialized; nothing to update.
+        return;
+    }
+
     let config = read_config(env);
     let _reward_token = token::Client::new(env, &config.reward_token);
     let total_shares = read_total_shares(env);
