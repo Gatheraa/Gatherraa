@@ -7,6 +7,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { VersioningMiddleware } from './common/middleware/versioning.middleware';
 import { IdentityVerificationModule } from './identity-verification/identity-verification.module';
+import { HealthModule } from './health/health.module';
 
 import { IdentityVerification } from './identity-verification/entities/identity-verification.entity';
 import { VerificationHistory } from './identity-verification/entities/verification-history.entity';
@@ -25,6 +26,7 @@ import { VerificationHistory } from './identity-verification/entities/verificati
     }),
     ScheduleModule.forRoot(),
     IdentityVerificationModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
