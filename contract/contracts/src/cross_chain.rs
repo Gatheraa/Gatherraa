@@ -1,7 +1,7 @@
-use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol, Vec, token};
+use soroban_sdk::{contract, contractimpl, symbol_short, token, Address, Env, Symbol, Vec};
 
 use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
 #[contract]
 pub struct CrossChainStakingContract;
@@ -14,8 +14,12 @@ const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
 
 /// Cross-chain message types
 const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_msg");
-fn message_type_unstake(env: &Env) -> Symbol { Symbol::new(env, "unstake_msg") }
-fn message_type_reward(env: &Env) -> Symbol { Symbol::new(env, "reward_msg") }
+fn message_type_unstake(env: &Env) -> Symbol {
+    Symbol::new(env, "unstake_msg")
+}
+fn message_type_reward(env: &Env) -> Symbol {
+    Symbol::new(env, "reward_msg")
+}
 
 #[contractimpl]
 impl CrossChainStakingContract {
@@ -124,7 +128,14 @@ impl CrossChainStakingContract {
                 clear(&env);
                 panic!("target chain is not active");
             }
-            Self::handle_cross_chain_stake(&env, user, amount, lock_duration, tier_id, target_chain);
+            Self::handle_cross_chain_stake(
+                &env,
+                user,
+                amount,
+                lock_duration,
+                tier_id,
+                target_chain,
+            );
             clear(&env);
             return;
         }
@@ -234,7 +245,10 @@ impl CrossChainStakingContract {
         remove_pending_message(env, message.nonce);
 
         env.events().publish(
-            (Symbol::new(env, "cross_chain_stake_executed"), message.sender),
+            (
+                Symbol::new(env, "cross_chain_stake_executed"),
+                message.sender,
+            ),
             (amount, tier_id),
         );
     }
@@ -247,7 +261,9 @@ impl CrossChainStakingContract {
             .get(&DataKey::MessageNonce)
             .unwrap_or(0u64);
         let new_nonce = current_nonce + 1;
-        env.storage().instance().set(&DataKey::MessageNonce, &new_nonce);
+        env.storage()
+            .instance()
+            .set(&DataKey::MessageNonce, &new_nonce);
         new_nonce
     }
 
@@ -355,5 +371,4 @@ impl CrossChainStakingContract {
     fn validate_generic_address(address: &Address) -> bool {
         crate::common::ValidationUtils::validate_address(address)
     }
-
 }

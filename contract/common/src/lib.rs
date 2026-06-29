@@ -1,7 +1,7 @@
 //! Gathera common utilities
 //! Minimal stub — full implementation pending Soroban SDK migration
 
-use soroban_sdk::{contracterror, Address, Symbol, String, Env};
+use soroban_sdk::{contracterror, Address, Env, String, Symbol};
 
 /// Common status enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,19 +32,19 @@ pub enum SortDirection {
 #[repr(u32)]
 pub enum CommonError {
     /// Input arguments are missing or out of range (code 1).
-    InvalidInput  = 1,
+    InvalidInput = 1,
     /// Caller does not have the required permission (code 2).
-    Unauthorized  = 2,
+    Unauthorized = 2,
     /// Requested resource does not exist (code 3).
-    NotFound      = 3,
+    NotFound = 3,
     /// Resource already exists and cannot be created again (code 4).
     AlreadyExists = 4,
     /// Unexpected internal failure (code 5).
     InternalError = 5,
     /// Caller has exceeded their allowed request rate (code 6).
-    RateLimited   = 6,
+    RateLimited = 6,
     /// Contract is temporarily under maintenance (code 7).
-    Maintenance   = 7,
+    Maintenance = 7,
 }
 
 /// Common result type for contract operations
@@ -80,7 +80,6 @@ impl ValidationUtils {
     }
 }
 
-
 /// String utilities — stub
 pub struct StringUtils;
 impl StringUtils {
@@ -95,14 +94,20 @@ pub struct MapUtils;
 /// Time utilities — stub
 pub struct TimeUtils;
 impl TimeUtils {
-    pub fn now(env: &Env) -> u64 { env.ledger().timestamp() }
-    pub fn is_past(timestamp: u64, current_time: u64) -> bool { timestamp < current_time }
+    pub fn now(env: &Env) -> u64 {
+        env.ledger().timestamp()
+    }
+    pub fn is_past(timestamp: u64, current_time: u64) -> bool {
+        timestamp < current_time
+    }
 }
 
 /// Status utilities — stub
 pub struct StatusUtils;
 impl StatusUtils {
-    pub fn is_active(status: CommonStatus) -> bool { status == CommonStatus::Active }
+    pub fn is_active(status: CommonStatus) -> bool {
+        status == CommonStatus::Active
+    }
     pub fn is_terminal(status: CommonStatus) -> bool {
         matches!(status, CommonStatus::Completed | CommonStatus::Cancelled)
     }
@@ -113,7 +118,9 @@ pub mod gas_testing {
     #[derive(Debug, Clone)]
     pub struct GasTestFramework;
     impl GasTestFramework {
-        pub fn new(_env: &soroban_sdk::Env) -> Self { Self }
+        pub fn new(_env: &soroban_sdk::Env) -> Self {
+            Self
+        }
     }
 }
 
