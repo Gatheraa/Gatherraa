@@ -1,36 +1,36 @@
 //! Gathera Contracts Integration Layer
-//! 
+//!
 //! This crate provides integration utilities and orchestration for all Gathera
 //! smart contracts. It serves as the main entry point for complex operations
 //! that span multiple contracts and provides unified interfaces for common
 //! workflows.
-//! 
+//!
 //! ## Key Features
-//! 
+//!
 //! - Cross-contract orchestration
 //! - Unified client interfaces
 //! - Common workflow implementations
 //! - Integration testing utilities
 //! - Contract deployment helpers
-//! 
+//!
 //! ## Modules
-//! 
+//!
 //! - `orchestration`: Cross-contract workflow management
 //! - `clients`: Unified client interfaces
 //! - `deployment`: Contract deployment utilities
 //! - `workflows`: Common business workflows
 
-use soroban_sdk::{Address, Symbol, Env, String, Vec};
+use soroban_sdk::{Address, Env, String, Symbol, Vec};
 
 pub mod chain_abstraction;
 pub mod cross_chain;
 pub mod storage;
 pub mod types;
 
-/// Re-export contract clients for easy access
-pub use ticket_contract::SoulboundTicketContract;
 pub use escrow_contract::EscrowContract;
 pub use multisig_wallet_contract::MultisigWalletContract;
+/// Re-export contract clients for easy access
+pub use ticket_contract::SoulboundTicketContract;
 
 /// Re-export common types
 pub use gathera_common::*;
@@ -50,7 +50,7 @@ pub mod orchestration {
         }
 
         /// Create a complete event ticketing setup with escrow
-        /// 
+        ///
         /// This workflow combines:
         /// 1. Event creation
         /// 2. Ticket issuance
@@ -116,9 +116,15 @@ pub mod clients {
         ) -> Self {
             Self {
                 env: env.clone(),
-                ticket_client: ticket_contract::SoulboundTicketContractClient::new(&env, &ticket_address),
+                ticket_client: ticket_contract::SoulboundTicketContractClient::new(
+                    &env,
+                    &ticket_address,
+                ),
                 escrow_client: escrow_contract::EscrowContractClient::new(&env, &escrow_address),
-                multisig_client: multisig_wallet_contract::MultisigWalletContractClient::new(&env, &multisig_address),
+                multisig_client: multisig_wallet_contract::MultisigWalletContractClient::new(
+                    &env,
+                    &multisig_address,
+                ),
             }
         }
 
@@ -158,7 +164,10 @@ pub mod deployment {
         }
 
         /// Deploy all Gathera contracts
-        pub fn deploy_all(&self, config: DeploymentConfig) -> Result<DeploymentResult, DeploymentError> {
+        pub fn deploy_all(
+            &self,
+            config: DeploymentConfig,
+        ) -> Result<DeploymentResult, DeploymentError> {
             let _ = config;
             Err(DeploymentError::DeploymentFailed(String::from_str(
                 &self.env,
