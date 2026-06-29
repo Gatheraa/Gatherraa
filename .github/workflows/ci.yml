@@ -105,6 +105,10 @@ jobs:
         working-directory: app/backend
         run: npm test
 
+      - name: Check OpenAPI schema drift
+        working-directory: app/backend
+        run: npm run openapi:check
+
   # --- Frontend Jobs ---
   frontend-lint:
     name: Frontend Lint

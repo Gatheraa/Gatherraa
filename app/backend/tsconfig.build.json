@@ -5,6 +5,7 @@
     "src/app.module.ts",
     "src/app.controller.ts",
     "src/app.service.ts",
+    "src/openapi.ts",
     "src/common/**/*.ts"
   ],
   "exclude": [

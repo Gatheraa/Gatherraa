@@ -19,6 +19,7 @@ import { BookingService } from '../services/booking.service';
 import { CartService } from '../services/cart.service';
 import { SeatService } from '../services/seat.service';
 import { PricingService } from '../services/pricing.service';
+
 import {
     AddToCartDto,
     RemoveFromCartDto,
@@ -29,6 +30,8 @@ import {
     ConfirmBookingDto,
     CancelBookingDto,
     ApplyPromoCodeDto,
+    TicketPlansResponseDto,
+    TicketPlanTierDto,
 } from '../dto/booking.dto';
 
 @Controller('booking')
@@ -206,6 +209,110 @@ export class BookingController {
     @Post('promo')
     async applyPromoCode(@Body() dto: ApplyPromoCodeDto, @Request() req) {
         return this.bookingService.applyPromoCode(dto, req.user.id);
+    }
+
+    @Get('plans/:eventId')
+    async getTicketPlans(@Param('eventId') eventId: string): Promise<TicketPlansResponseDto> {
+        const availability = await this.seatService.getAvailability(eventId);
+        const tierPrices = new Map<string, { min: number; max: number; total: number; available: number }>();
+
+        for (const section of availability.sections) {
+            for (const t of section.tiers) {
+                const existing = tierPrices.get(t.tier) || { min: Infinity, max: 0, total: 0, available: 0 };
+                existing.min = Math.min(existing.min, Number(t.minPrice));
+                existing.max = Math.max(existing.max, Number(t.maxPrice));
+                existing.total += t.total;
+                existing.available += t.available;
+                tierPrices.set(t.tier, existing);
+            }
+        }
+
+        const tierNames: Record<string, { name: string; description: string; benefits: string[]; badge?: string; highlighted?: boolean }> = {
+            vip: {
+                name: 'VIP',
+                description: 'Premium experience with exclusive perks',
+                benefits: [
+                    'Priority admission',
+                    'Best seating area',
+                    'Complimentary drinks',
+                    'Exclusive merchandise pack',
+                    'Dedicated concierge service',
+                    'Access to VIP lounge',
+                ],
+                badge: 'Best Value',
+                highlighted: true,
+            },
+            premium: {
+                name: 'Premium',
+                description: 'Enhanced experience with great amenities',
+                benefits: [
+                    'Preferred seating',
+                    'Free drink voucher',
+                    'Commemorative ticket',
+                    'Early entry access',
+                ],
+                highlighted: true,
+            },
+            general: {
+                name: 'General',
+                description: 'Standard admission to the event',
+                benefits: [
+                    'General admission entry',
+                    'Standard seating',
+                    'Access to all public areas',
+                ],
+            },
+            standard: {
+                name: 'Standard',
+                description: 'Great value for the full experience',
+                benefits: [
+                    'General admission entry',
+                    'Standard seating',
+                    'Access to all public areas',
+                ],
+            },
+            earlybird: {
+                name: 'Early Bird',
+                description: 'Discounted rate for early purchases',
+                benefits: [
+                    'General admission entry',
+                    'Standard seating',
+                    'Access to all public areas',
+                    'Early bird discount applied',
+                ],
+                badge: 'Save 20%',
+            },
+        };
+
+        const tiers: TicketPlanTierDto[] = Array.from(tierPrices.entries())
+            .filter(([, p]) => p.available > 0 || p.total > 0)
+            .map(([tierKey, p]) => {
+                const meta = tierNames[tierKey] || {
+                    name: tierKey.charAt(0).toUpperCase() + tierKey.slice(1),
+                    description: `Access to ${tierKey} area`,
+                    benefits: [`Access to ${tierKey} area`],
+                };
+                return {
+                    id: tierKey,
+                    name: meta.name,
+                    description: meta.description,
+                    price: Number(p.min),
+                    currency: 'USD',
+                    period: 'ticket',
+                    benefits: meta.benefits,
+                    highlighted: meta.highlighted || false,
+                    availability: p.available,
+                    total: p.total,
+                    badge: meta.badge,
+                };
+            })
+            .sort((a, b) => a.price - b.price);
+
+        return {
+            eventId,
+            eventTitle: '',
+            tiers,
+        };
     }
 
     @Get(':id')

@@ -14,6 +14,7 @@ import {
   BarChart3,
   PieChart,
   TrendingUp,
+  ShieldCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -66,6 +67,7 @@ const defaultSections: SidebarSection[] = [
       { id: 'users', label: 'Users', icon: Users, href: '/dashboard/users' },
       { id: 'events', label: 'Events', icon: Calendar, href: '/dashboard/events' },
       { id: 'payments', label: 'Payments', icon: CreditCard, href: '/dashboard/payments' },
+      { id: 'verification', label: 'Verification', icon: ShieldCheck, href: '/verification' },
     ],
   },
   {

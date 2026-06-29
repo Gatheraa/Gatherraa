@@ -1,7 +1,7 @@
-use soroban_sdk::{contract, contractimpl, Address, Env, Symbol, Vec, BytesN};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, Env, Symbol, Vec};
 
-use crate::storage::{StorageCache, *};
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage, ETHEREUM_CHAIN_ID, STELLAR_CHAIN_ID, POLYGON_CHAIN_ID, ARBITRUM_CHAIN_ID, OPTIMISM_CHAIN_ID, BASE_CHAIN_ID};
+use crate::storage::*;
+use crate::types::{ChainConfig, ETHEREUM_CHAIN_ID, STELLAR_CHAIN_ID, POLYGON_CHAIN_ID, ARBITRUM_CHAIN_ID, OPTIMISM_CHAIN_ID, BASE_CHAIN_ID};
 
 #[contract]
 pub struct ChainAbstraction;
@@ -22,63 +22,64 @@ impl ChainAbstraction {
 
         // Configure default chain settings
         for chain_id in supported_chains.iter() {
-            let chain_config = Self::get_default_chain_config(&env, chain_id);
+            let chain_config = Self::get_default_chain_config(&env, &chain_id);
             write_chain_config(&env, chain_id, &chain_config);
         }
 
         env.events().publish(
-            (symbol_short!("chain_abstraction_init"),),
+            (Symbol::new(&env, "chain_abstraction_init"),),
             supported_chains,
         );
     }
 
     /// Get default configuration for a chain
     fn get_default_chain_config(env: &Env, chain_id: &u32) -> ChainConfig {
-        match chain_id {
+        let null_address = Address::from_str(env, "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF");
+        match *chain_id {
             ETHEREUM_CHAIN_ID => ChainConfig {
-                chain_id: *chain_id,
+                chain_id: ETHEREUM_CHAIN_ID,
                 chain_name: symbol_short!("ethereum"),
-                bridge_address: Address::default(), // To be set by admin
+                bridge_address: null_address,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: true,
             },
             STELLAR_CHAIN_ID => ChainConfig {
-                chain_id: *chain_id,
+                chain_id: STELLAR_CHAIN_ID,
                 chain_name: symbol_short!("stellar"),
-                bridge_address: Address::default(),
+                bridge_address: null_address,
                 gas_limit: 100000,
                 confirmations: 3,
                 active: true,
             },
             POLYGON_CHAIN_ID => ChainConfig {
-                chain_id: *chain_id,
+                chain_id: POLYGON_CHAIN_ID,
                 chain_name: symbol_short!("polygon"),
-                bridge_address: Address::default(),
+                bridge_address: null_address,
                 gas_limit: 200000,
                 confirmations: 5,
                 active: true,
             },
             ARBITRUM_CHAIN_ID => ChainConfig {
-                chain_id: *chain_id,
+                chain_id: ARBITRUM_CHAIN_ID,
                 chain_name: symbol_short!("arbitrum"),
-                bridge_address: Address::default(),
+                bridge_address: null_address,
                 gas_limit: 250000,
                 confirmations: 8,
                 active: true,
             },
             OPTIMISM_CHAIN_ID => ChainConfig {
-                chain_id: *chain_id,
+                chain_id: OPTIMISM_CHAIN_ID,
                 chain_name: symbol_short!("optimism"),
-                bridge_address: Address::default(),
+                bridge_address: null_address,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
             },
             BASE_CHAIN_ID => ChainConfig {
-                chain_id: *chain_id,
+                chain_id: BASE_CHAIN_ID,
                 chain_name: symbol_short!("base"),
-                bridge_address: Address::default(),
+                bridge_address: null_address,
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
@@ -86,7 +87,7 @@ impl ChainAbstraction {
             _ => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("unknown"),
-                bridge_address: Address::default(),
+                bridge_address: null_address,
                 gas_limit: 300000,
                 confirmations: 12,
                 active: false,
@@ -157,11 +158,11 @@ impl ChainAbstraction {
     }
 
     /// Get chain-specific confirmation time
-    pub fn get_chain_confirmation_time(env: Env, chain_id: u32) -> u64 {
-        let config = read_chain_config(&env, chain_id);
+    pub fn get_chain_confirmation_time(_env: Env, chain_id: u32) -> u64 {
+        let config = read_chain_config(&_env, chain_id);
         match config {
             Some(chain_config) => {
-                let block_time = Self::get_chain_block_time(env, chain_id);
+                let block_time = Self::get_chain_block_time(_env, chain_id);
                 block_time * chain_config.confirmations as u64
             }
             None => 12 * 12, // Default: 12 blocks * 12 seconds
@@ -175,7 +176,7 @@ impl ChainAbstraction {
         source_chain: u32,
         target_chain: u32,
     ) -> i128 {
-        let source_decimals = Self::get_chain_decimals(env, source_chain);
+        let source_decimals = Self::get_chain_decimals(env.clone(), source_chain);
         let target_decimals = Self::get_chain_decimals(env, target_chain);
 
         if source_decimals == target_decimals {
@@ -216,22 +217,32 @@ impl ChainAbstraction {
         }
     }
 
-    /// Validate Ethereum-compatible address
+    /// Validate Ethereum-compatible address.
+    ///
+    /// Note: This repo currently uses Soroban `Address` (32-byte) inputs for bridge addresses,
+    /// not chain-native string representations. Therefore, we can only enforce the shared
+    /// security invariant: reject the all-zero placeholder address.
     fn validate_ethereum_address(address: &Address) -> bool {
-        // Basic validation - in production, would include checksum validation
-        true // Placeholder
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Validate Stellar address
+    /// Validate Stellar address.
+    ///
+    /// Note: Same limitation as `validate_ethereum_address` (Soroban `Address` input).
     fn validate_stellar_address(address: &Address) -> bool {
-        // Stellar address validation (G... format, 56 characters)
-        true // Placeholder
+        crate::common::ValidationUtils::validate_address(address)
     }
 
-    /// Validate generic address
-    fn validate_generic_address(_address: &Address) -> bool {
-        true // Placeholder
+    /// Validate generic address (unknown chain).
+    fn validate_generic_address(address: &Address) -> bool {
+        crate::common::ValidationUtils::validate_address(address)
     }
+
+    // Validate the configured bridge address is not a default placeholder.
+    // This prevents accepting Address::default() as a fallback bridge address.
+
+
+
 
     /// Get chain-specific bridge address
     pub fn get_chain_bridge_address(env: Env, chain_id: u32) -> Option<Address> {
@@ -245,11 +256,11 @@ impl ChainAbstraction {
         config.admin.require_auth();
 
         if let Some(mut chain_config) = read_chain_config(&env, chain_id) {
-            chain_config.bridge_address = bridge_address;
+            chain_config.bridge_address = bridge_address.clone();
             write_chain_config(&env, chain_id, &chain_config);
 
             env.events().publish(
-                (symbol_short!("bridge_address_updated"),),
+                (Symbol::new(&env, "bridge_address_updated"),),
                 (chain_id, bridge_address),
             );
         }
@@ -285,7 +296,7 @@ impl ChainAbstraction {
         target_chain: u32,
         amount: i128,
     ) -> u128 {
-        let gas_price = Self::get_chain_gas_price(env, source_chain);
+        let gas_price = Self::get_chain_gas_price(env.clone(), source_chain);
         let gas_limit = Self::estimate_cross_chain_gas_limit(env, source_chain, target_chain, amount);
         
         gas_price * gas_limit as u128

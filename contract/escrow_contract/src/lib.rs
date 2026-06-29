@@ -21,6 +21,9 @@
 
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Map, String, Symbol, Vec};
 
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol, Vec,
+};
 
 /// Errors that can occur during escrow operations
 #[contracterror]
@@ -51,9 +54,11 @@ pub enum EscrowError {
 /// Escrow status enumeration
 #[contracttype]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum EscrowStatus {
     Pending = 0,
+    Created = 6,
     Funded = 1,
     Completed = 2,
     Disputed = 3,
@@ -64,6 +69,7 @@ pub enum EscrowStatus {
 /// Escrow data structure
 #[contracttype]
 #[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Escrow {
     /// Unique escrow identifier
     pub escrow_id: Symbol,
@@ -90,6 +96,7 @@ pub struct Escrow {
 /// Dispute data structure
 #[contracttype]
 #[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Dispute {
     /// Unique dispute identifier
     pub dispute_id: Symbol,
@@ -108,6 +115,9 @@ pub struct Dispute {
 /// Main contract implementation
 #[contract]
 pub struct EscrowContract;
+
+#[cfg(test)]
+mod security_tests;
 
 #[contractimpl]
 impl EscrowContract {

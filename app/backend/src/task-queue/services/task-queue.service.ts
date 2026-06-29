@@ -50,15 +50,24 @@ export class TaskQueueService {
 
   constructor(
     @InjectQueue('email') private emailQueue: Queue,
+    @InjectQueue('email:dlq') private emailDlq: Queue,
     @InjectQueue('image-processing') private imageQueue: Queue,
+    @InjectQueue('image-processing:dlq') private imageDlq: Queue,
     @InjectQueue('blockchain-events') private blockchainQueue: Queue,
+    @InjectQueue('blockchain-events:dlq') private blockchainDlq: Queue,
     @InjectQueue('scheduled-tasks') private scheduledQueue: Queue,
+    @InjectQueue('scheduled-tasks:dlq') private scheduledDlq: Queue,
     @InjectQueue('notifications') private notificationQueue: Queue,
+    @InjectQueue('notifications:dlq') private notificationDlq: Queue,
     @InjectQueue('analytics') private analyticsQueue: Queue,
+    @InjectQueue('analytics:dlq') private analyticsDlq: Queue,
     @InjectQueue('dead-letter') private deadLetterQueue: Queue,
     @InjectQueue('waitlist:notifications') private waitlistNotifQueue: Queue,
+    @InjectQueue('waitlist:notifications:dlq') private waitlistNotifDlq: Queue,
     @InjectQueue('waitlist:expiry') private waitlistExpiryQueue: Queue,
+    @InjectQueue('waitlist:expiry:dlq') private waitlistExpiryDlq: Queue,
     @InjectQueue('waitlist:invite') private waitlistInviteQueue: Queue,
+    @InjectQueue('waitlist:invite:dlq') private waitlistInviteDlq: Queue,
   ) { }
 
   /**
@@ -118,12 +127,35 @@ export class TaskQueueService {
         },
         priority: options?.priority || 0,
         delay: options?.delay,
-        removeOnComplete: { age: 3600 },
-        removeOnFail: false,
+        removeOnComplete: options?.removeOnComplete ?? { age: 3600 },
+        removeOnFail: options?.removeOnFail ?? false,
       });
       return job;
     } catch (error) {
       this.logger.error(`Failed to enqueue email: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get jobs from a DLQ (which are in 'waiting' status in that queue)
+   */
+  async getDlqJobs(dlqName: string, start = 0, end = -1) {
+    try {
+      const queue = this.getDlq(dlqName);
+      // Jobs pushed to DLQ via .add() are in 'waiting' state
+      const jobs = await queue.getJobs(['waiting', 'active', 'failed', 'completed'], start, end);
+
+      return jobs.map((job) => ({
+        id: job.id,
+        data: job.data,
+        failedReason: job.data?.failReason,
+        stackTrace: job.data?.stacktrace,
+        attempts: job.data?.attemptsMade,
+        failedAt: job.data?.failedAt,
+      }));
+    } catch (error) {
+      this.logger.error(`Failed to get DLQ jobs: ${error.message}`);
       throw error;
     }
   }
@@ -159,8 +191,8 @@ export class TaskQueueService {
           delay: 2000,
         },
         priority: options?.priority || 0,
-        removeOnComplete: { age: 3600 },
-        removeOnFail: false,
+        removeOnComplete: options?.removeOnComplete ?? { age: 3600 },
+        removeOnFail: options?.removeOnFail ?? false,
       });
       return job;
     } catch (error) {
@@ -204,8 +236,8 @@ export class TaskQueueService {
           delay: 3000,
         },
         priority: options?.priority || 1,
-        removeOnComplete: { age: 7200 },
-        removeOnFail: false,
+        removeOnComplete: options?.removeOnComplete ?? { age: 7200 },
+        removeOnFail: options?.removeOnFail ?? false,
       });
       return job;
     } catch (error) {
@@ -250,8 +282,8 @@ export class TaskQueueService {
           type: 'exponential',
           delay: 2000,
         },
-        removeOnComplete: false,
-        removeOnFail: false,
+        removeOnComplete: options?.removeOnComplete ?? false,
+        removeOnFail: options?.removeOnFail ?? false,
       });
       return job;
     } catch (error) {
@@ -288,8 +320,8 @@ export class TaskQueueService {
           delay: 2000,
         },
         priority: options?.priority || 5,
-        removeOnComplete: { age: 3600 },
-        removeOnFail: false,
+        removeOnComplete: options?.removeOnComplete ?? { age: 3600 },
+        removeOnFail: options?.removeOnFail ?? false,
       });
       return job;
     } catch (error) {
@@ -324,8 +356,8 @@ export class TaskQueueService {
           delay: 1000,
         },
         priority: options?.priority || -10, // Low priority for analytics
-        removeOnComplete: { age: 7200 },
-        removeOnFail: false,
+        removeOnComplete: options?.removeOnComplete ?? { age: 7200 },
+        removeOnFail: options?.removeOnFail ?? false,
       });
       return job;
     } catch (error) {
@@ -334,39 +366,6 @@ export class TaskQueueService {
     }
   }
 
-  /**
-   * Move a job to dead letter queue
-   * @param job Job to move
-   * @param reason Reason for moving to DLQ
-   */
-  async moveToDeadLetterQueue(
-    job: Job,
-    reason: string,
-  ): Promise<void> {
-    this.logger.warn(
-      `Moving job ${job.id} to dead letter queue: ${reason}`,
-    );
-
-    try {
-      await this.deadLetterQueue.add(
-        'dead-letter-job',
-        {
-          originalJobId: job.id,
-          originalQueueName: job.queueName || 'unknown',
-          jobData: job.data,
-          reason,
-          failedAt: new Date().toISOString(),
-          attempts: job.attemptsMade,
-        },
-        {
-          jobId: `dlq-${job.id}`,
-          removeOnComplete: false,
-        },
-      );
-    } catch (error) {
-      this.logger.error(`Failed to move job to DLQ: ${error.message}`);
-    }
-  }
 
   /**
    * Enqueue waitlist expiry scan job
@@ -556,4 +555,82 @@ export class TaskQueueService {
       throw error;
     }
   }
+  /**
+   * Get DLQ for a given queue name
+   */
+  getDlq(queueName: string): Queue {
+    switch (queueName) {
+      case 'email':
+        return this.emailDlq;
+      case 'image-processing':
+        return this.imageDlq;
+      case 'blockchain-events':
+        return this.blockchainDlq;
+      case 'scheduled-tasks':
+        return this.scheduledDlq;
+      case 'notifications':
+        return this.notificationDlq;
+      case 'analytics':
+        return this.analyticsDlq;
+      case 'waitlist:notifications':
+        return this.waitlistNotifDlq;
+      case 'waitlist:expiry':
+        return this.waitlistExpiryDlq;
+      case 'waitlist:invite':
+        return this.waitlistInviteDlq;
+      default:
+        return this.deadLetterQueue;
+    }
+  }
+
+  /**
+   * Get queue by name (extended to support DLQ names for generic access)
+   */
+  getQueueAny(queueName: string): Queue {
+    try {
+      return this.getQueue(queueName as QueueName);
+    } catch {
+      return this.getDlq(queueName.replace(':dlq', ''));
+    }
+  }
+
+  /**
+   * Move an exhausted, permanently failed job to the Dead Letter Queue
+   * Capture full job payload and failure reason
+   */
+  async moveToDeadLetterQueue(job: Job, failReason: string): Promise<Job> {
+    const dlqJobId = `dlq-${job.queueName}-${job.id}`;
+    const dlq = this.getDlq(job.queueName);
+
+    this.logger.warn(
+      `Routing permanently failed job ${job.id} from queue [${job.queueName}] to Dead Letter Queue [${dlq.name}]. Reason: ${failReason}`,
+    );
+
+    try {
+      const dlqJob = await dlq.add(
+        `${job.queueName}:failed`,
+        {
+          originalJobId: job.id,
+          originalQueue: job.queueName,
+          payload: job.data,
+          failReason: failReason,
+          failedAt: new Date(),
+          attemptsMade: job.attemptsMade,
+          stacktrace: job.stacktrace,
+        },
+        {
+          jobId: dlqJobId,
+          removeOnComplete: false,
+          removeOnFail: false,
+        },
+      );
+      return dlqJob;
+    } catch (error) {
+      this.logger.error(
+        `Failed to route job to Dead Letter Queue: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
 }

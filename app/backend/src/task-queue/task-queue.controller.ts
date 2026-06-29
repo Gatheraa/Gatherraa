@@ -300,6 +300,53 @@ export class TaskQueueController {
   }
 
   /**
+   * Get failed jobs for a queue (Administrative endpoint)
+   * GET /api/task-queue/admin/failed?queue=...
+   * Required by Acceptance Criteria: GET /admin/queue/failed?queue=...
+   */
+  @Get('admin/failed')
+  async getAdminFailedJobs(
+    @Query('queue') queueName: string,
+    @Query('start') start: string = '0',
+    @Query('end') end: string = '-1',
+  ) {
+    try {
+      if (!queueName) {
+        throw new Error('Queue name is required');
+      }
+
+      // Check if they want the DLQ specifically or just failed jobs from a queue
+      // Acceptance Criteria says "push to *:dlq queue", so we should check the DLQ
+      const dlqName = queueName.endsWith(':dlq') ? queueName : `${queueName}:dlq`;
+      const dlqJobs = await this.taskQueueService.getDlqJobs(
+        dlqName.replace(':dlq', ''),
+        parseInt(start),
+        parseInt(end),
+      );
+
+      // Also try to get failed jobs from the main queue
+      const mainQueueName = queueName.endsWith(':dlq') ? queueName.replace(':dlq', '') : queueName;
+      const mainFailed = await this.taskQueueService.getFailedJobs(
+        mainQueueName as QueueName,
+        parseInt(start),
+        parseInt(end),
+      );
+
+      return {
+        queueName: mainQueueName,
+        dlqName,
+        dlqCount: dlqJobs.length,
+        mainFailedCount: mainFailed.length,
+        dlqJobs: dlqJobs,
+        mainFailedJobs: mainFailed,
+      };
+    } catch (error) {
+      this.logger.error(`Failed to get admin failed jobs: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Get failed jobs for a queue
    * GET /api/task-queue/:queueName/failed
    */
