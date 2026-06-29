@@ -16,7 +16,7 @@ repository = "https://github.com/Gatheraa/Gatherraa"
 license = "MIT"
 
 [workspace.dependencies]
-soroban-sdk = { version = "23.5.2" }
+soroban-sdk = { version = "23.5.2", default-features = false }
 gathera-common = { path = "./common" }
 ticket_contract = { path = "./ticket_contract" }
 escrow_contract = { path = "./escrow_contract" }

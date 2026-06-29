@@ -19,6 +19,8 @@
 //! - `validation`: Input validation and security checks
 //! - `dispute`: Dispute resolution logic
 
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, Map, String, Symbol, Vec};
+
 use soroban_sdk::{
     contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol, Vec,
 };
@@ -51,6 +53,7 @@ pub enum EscrowError {
 
 /// Escrow status enumeration
 #[contracttype]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
 pub enum EscrowStatus {
@@ -65,6 +68,7 @@ pub enum EscrowStatus {
 
 /// Escrow data structure
 #[contracttype]
+#[derive(Debug, Clone)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Escrow {
     /// Unique escrow identifier
@@ -91,6 +95,7 @@ pub struct Escrow {
 
 /// Dispute data structure
 #[contracttype]
+#[derive(Debug, Clone)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Dispute {
     /// Unique dispute identifier

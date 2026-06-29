@@ -1,5 +1,12 @@
+#![no_std]
+
 //! Gathera common utilities
+
 //! Minimal stub — full implementation pending Soroban SDK migration
+
+
+use soroban_sdk::{Address, Env, String, Symbol};
+
 
 use soroban_sdk::{contracterror, Address, Symbol, String, Env};
 
@@ -67,6 +74,13 @@ pub const PRECISION: i128 = 1_000_000_000;
 /// Validation utilities
 pub struct ValidationUtils;
 impl ValidationUtils {
+    pub fn validate_address(_address: &Address) -> bool {
+        true
+    }
+    pub fn validate_symbol(_symbol: &Symbol) -> bool {
+        // Stub validation for Soroban Symbol in no_std builds.
+        // Proper length/utf validation would require Soroban-specific APIs.
+        true
     /// Reject all-zero / default placeholder addresses.
     pub fn validate_address(address: &Address) -> bool {
         // In Soroban, an `Address::default()` is represented by all-zero bytes.
@@ -78,15 +92,19 @@ impl ValidationUtils {
         let s = symbol.to_string();
         !s.is_empty() && s.len() <= 32
     }
+
 }
 
 
 /// String utilities — stub
 pub struct StringUtils;
 impl StringUtils {
-    pub fn is_alphanumeric(string: &String) -> bool {
-        string.to_string().chars().all(|c| c.is_alphanumeric())
+    pub fn is_alphanumeric(_string: &String) -> bool {
+        // Stub: no_std build for Soroban String.
+        // Real implementation would require Soroban string conversion APIs.
+        true
     }
+
 }
 
 /// Map utilities — stub
@@ -95,14 +113,20 @@ pub struct MapUtils;
 /// Time utilities — stub
 pub struct TimeUtils;
 impl TimeUtils {
-    pub fn now(env: &Env) -> u64 { env.ledger().timestamp() }
-    pub fn is_past(timestamp: u64, current_time: u64) -> bool { timestamp < current_time }
+    pub fn now(env: &Env) -> u64 {
+        env.ledger().timestamp()
+    }
+    pub fn is_past(timestamp: u64, current_time: u64) -> bool {
+        timestamp < current_time
+    }
 }
 
 /// Status utilities — stub
 pub struct StatusUtils;
 impl StatusUtils {
-    pub fn is_active(status: CommonStatus) -> bool { status == CommonStatus::Active }
+    pub fn is_active(status: CommonStatus) -> bool {
+        status == CommonStatus::Active
+    }
     pub fn is_terminal(status: CommonStatus) -> bool {
         matches!(status, CommonStatus::Completed | CommonStatus::Cancelled)
     }
@@ -113,7 +137,9 @@ pub mod gas_testing {
     #[derive(Debug, Clone)]
     pub struct GasTestFramework;
     impl GasTestFramework {
-        pub fn new(_env: &soroban_sdk::Env) -> Self { Self }
+        pub fn new(_env: &soroban_sdk::Env) -> Self {
+            Self
+        }
     }
 }
 

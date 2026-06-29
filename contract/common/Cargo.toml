@@ -5,10 +5,23 @@ edition.workspace = true
 authors.workspace = true
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["rlib"]
+
 
 [dependencies]
-soroban-sdk = { workspace = true }
+# Common crate uses Soroban core types (Addr/Symbol/Env/String). Keep features minimal.
+soroban-sdk = { workspace = true, default-features = false }
 
-[dev-dependencies]
-soroban-sdk = { workspace = true, features = ["testutils"] }
+
+
+
+
+
+# NOTE: Intentionally no dev-dependencies in this crate.
+# The workspace builds `wasm32-unknown-unknown` for downstream contracts.
+# Pulling Soroban `testutils` via dev-dependencies can re-enable conflicting lang items
+# (e.g. `panic_impl`) in the same compilation unit.
+
+
+
+

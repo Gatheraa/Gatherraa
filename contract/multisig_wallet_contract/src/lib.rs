@@ -1,25 +1,26 @@
 //! Gathera Multi-Signature Wallet Contract
-//! 
+//!
 //! This contract implements a multi-signature wallet system for the Gathera platform.
 //! It provides secure fund management requiring multiple approvals for transactions,
 //! enhancing security for organizational funds and critical operations.
-//! 
+//!
 //! ## Key Features
-//! 
+//!
 //! - Multi-signature transaction approval
 //! - Configurable threshold settings
 //! - Owner management with voting
 //! - Transaction history tracking
 //! - Time-lock for critical operations
 //! - Integration with escrow for enhanced security
-//! 
+//!
 //! ## Modules
-//! 
+//!
 //! - `contract`: Main contract implementation
 //! - `storage`: Wallet data storage structures
 //! - `validation`: Transaction validation logic
 //! - `governance`: Owner management and voting
 
+use soroban_sdk::{contract, contracterror, contractimpl, Address, Env, Map, String, Symbol, Vec};
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Symbol, Env, String, Vec, Val, FromVal};
 
 /// Errors that can occur during multisig operations
@@ -120,16 +121,16 @@ pub struct MultisigWalletContract;
 #[contractimpl]
 impl MultisigWalletContract {
     /// Initialize the multi-signature wallet
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `owners` - List of initial wallet owners
     /// * `threshold` - Number of signatures required
     /// * `timelock` - Time-lock period in seconds
     /// * `max_amount` - Maximum transaction amount
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if initialization was successful
     pub fn initialize(
         env: Env,
@@ -164,16 +165,16 @@ impl MultisigWalletContract {
     }
 
     /// Submit a new transaction
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `destination` - Recipient address
     /// * `amount` - Amount to transfer
     /// * `data` - Transaction data
     /// * `expires_at` - Expiration timestamp
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Transaction ID of the newly created transaction
     pub fn submit_transaction(
         env: Env,
@@ -251,14 +252,17 @@ impl MultisigWalletContract {
     }
 
     /// Approve a transaction
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `transaction_id` - Identifier for the transaction
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if approval was successful
+    pub fn approve_transaction(env: Env, transaction_id: Symbol) -> Result<bool, MultisigError> {
+        let _ = (env, transaction_id);
+        Err(MultisigError::NotImplemented)
     pub fn approve_transaction(
         env: Env,
         transaction_id: Symbol,
@@ -306,14 +310,17 @@ impl MultisigWalletContract {
     }
 
     /// Execute an approved transaction
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `transaction_id` - Identifier for the transaction
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if execution was successful
+    pub fn execute_transaction(env: Env, transaction_id: Symbol) -> Result<bool, MultisigError> {
+        let _ = (env, transaction_id);
+        Err(MultisigError::NotImplemented)
     pub fn execute_transaction(
         env: Env,
         transaction_id: Symbol,
@@ -376,14 +383,14 @@ impl MultisigWalletContract {
     }
 
     /// Add a new owner
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `new_owner` - Address of the new owner
     /// * `transaction_id` - Governing transaction ID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if owner addition was successful
     pub fn add_owner(
         env: Env,
@@ -416,14 +423,14 @@ impl MultisigWalletContract {
     }
 
     /// Remove an owner
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `owner_to_remove` - Address of the owner to remove
     /// * `transaction_id` - Governing transaction ID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if owner removal was successful
     pub fn remove_owner(
         env: Env,
@@ -475,14 +482,14 @@ impl MultisigWalletContract {
     }
 
     /// Change the signature threshold
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `new_threshold` - New threshold value
     /// * `transaction_id` - Governing transaction ID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if threshold change was successful
     pub fn change_threshold(
         env: Env,
@@ -515,14 +522,17 @@ impl MultisigWalletContract {
     }
 
     /// Get transaction information
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `transaction_id` - Identifier for the transaction
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Transaction data structure
+    pub fn get_transaction(env: Env, transaction_id: Symbol) -> Result<Transaction, MultisigError> {
+        let _ = (env, transaction_id);
+        Err(MultisigError::NotImplemented)
     pub fn get_transaction(
         env: Env,
         transaction_id: Symbol,
@@ -534,9 +544,9 @@ impl MultisigWalletContract {
     }
 
     /// Get wallet configuration
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Current wallet configuration
     pub fn get_config(env: Env) -> MultisigConfig {
         env.storage()
