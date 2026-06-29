@@ -9,11 +9,7 @@ description = "Secure escrow contract for event payments with revenue splitting"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = { workspace = true }
+soroban-sdk = { workspace = true, default-features = false }
 gathera-common = { workspace = true }
 
-[dev-dependencies]
-soroban-sdk = { workspace = true, features = ["testutils"] }
 
-[features]
-testutils = ["soroban-sdk/testutils"]

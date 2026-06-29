@@ -8,8 +8,10 @@ authors.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-soroban-sdk = { workspace = true }
+soroban-sdk = { workspace = true, default-features = false }
+
 gathera-common = { workspace = true }
 
-[dev-dependencies]
-soroban-sdk = { workspace = true, features = ["testutils"] }
+
+
+
