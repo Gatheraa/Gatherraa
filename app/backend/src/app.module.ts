@@ -47,3 +47,4 @@ export class AppModule implements NestModule {
     consumer.apply(VersioningMiddleware).forRoutes('*');
   }
 }
+vscode-userdata:/User/caches/remote-clipboard/7c2f73c4-bff9-4ac7-ab5e-2582cc62d025/35ef4ee2-de9c-4e90-9e40-079d1638c150/backend
