@@ -1,6 +1,6 @@
 use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
 
-
+use gathera_common::PRECISION;
 use soroban_sdk::{Address, Env, Vec, token};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
@@ -227,19 +227,30 @@ pub fn write_message_nonce(env: &Env, nonce: u64) {
 }
 
 pub fn update_reward(env: &Env, user: Option<&Address>) {
+    // update_reward must only be called while the reentrancy guard is held
+    // (i.e. from within stake/unstake).  Direct external calls are rejected.
+    if !env
+        .storage()
+        .instance()
+        .has(&crate::types::DataKey::Config)
+    {
+        // Contract not yet initialized; nothing to update.
+        return;
+    }
+
     let config = read_config(env);
     let _reward_token = token::Client::new(env, &config.reward_token);
     let total_shares = read_total_shares(env);
 
     if total_shares > 0 {
-        let reward_per_token = (config.reward_rate * crate::cross_chain::PRECISION) / total_shares;
+        let reward_per_token = (config.reward_rate * PRECISION) / total_shares;
         let mut reward_per_token_stored = read_reward_per_token_stored(env);
         reward_per_token_stored += reward_per_token;
         write_reward_per_token_stored(env, reward_per_token_stored);
 
         if let Some(user_addr) = user {
             if let Some(mut user_info) = read_user_info(env, user_addr) {
-                let rewards = (user_info.shares * reward_per_token_stored) / crate::cross_chain::PRECISION
+                let rewards = (user_info.shares * reward_per_token_stored) / PRECISION
                     - user_info.reward_per_token_paid;
                 user_info.rewards += rewards;
                 user_info.reward_per_token_paid = reward_per_token_stored;

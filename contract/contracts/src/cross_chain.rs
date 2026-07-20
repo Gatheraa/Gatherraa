@@ -6,7 +6,8 @@ use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessa
 #[contract]
 pub struct CrossChainStakingContract;
 
-pub(crate) const PRECISION: i128 = 1_000_000_000;
+/// Re-exported from `gathera_common` for backward compatibility within this module.
+use gathera_common::PRECISION;
 
 /// Reentrancy guard key
 const REENTRANCY_GUARD: Symbol = symbol_short!("reentrant");
@@ -95,31 +96,45 @@ impl CrossChainStakingContract {
         tier_id: u32,
         target_chain_id: Option<u32>,
     ) {
-        // Reentrancy protection
+        // Reentrancy protection — guard is cleared on every exit path below.
         if env.storage().instance().has(&REENTRANCY_GUARD) {
             panic!("reentrant call detected");
         }
         env.storage().instance().set(&REENTRANCY_GUARD, &true);
 
+        // Helper: always clear the guard before propagating a panic so the
+        // next invocation is not permanently blocked.
+        let clear = |e: &Env| e.storage().instance().remove(&REENTRANCY_GUARD);
+
         user.require_auth();
         if amount <= 0 {
-            env.storage().instance().remove(&REENTRANCY_GUARD);
+            clear(&env);
             panic!("amount must be > 0");
         }
 
         // Handle cross-chain staking
         if let Some(target_chain) = target_chain_id {
+            // Validate chain before dispatching to avoid partial state on panic.
+            let chain_config = read_chain_config(&env, target_chain_id.unwrap());
+            if chain_config.is_none() {
+                clear(&env);
+                panic!("target chain not configured");
+            }
+            if !chain_config.unwrap().active {
+                clear(&env);
+                panic!("target chain is not active");
+            }
             Self::handle_cross_chain_stake(&env, user, amount, lock_duration, tier_id, target_chain);
-            env.storage().instance().remove(&REENTRANCY_GUARD);
+            clear(&env);
             return;
         }
 
-        // Local staking logic (existing implementation)
+        // Local staking logic — update_reward runs inside the guard lifecycle.
         update_reward(&env, Some(&user));
 
         let mut cache = StorageCache::new();
         let config = cache.get_config(&env).clone();
-        let tier = read_tier(&env, tier_id).unwrap_or(Tier {
+        let _tier = read_tier(&env, tier_id).unwrap_or(Tier {
             min_amount: 0,
             reward_multiplier: 100,
         });
@@ -127,14 +142,16 @@ impl CrossChainStakingContract {
         // Transfer tokens
         let token_client = token::Client::new(&env, &config.staking_token);
         let contract_address = env.current_contract_address();
-        
+
         match token_client.try_transfer(&user, &contract_address, &amount) {
             Ok(Ok(())) => {
-                env.events().publish((Symbol::new(&env, "stake_transfer_success"),), amount);
-            },
+                env.events()
+                    .publish((Symbol::new(&env, "stake_transfer_success"),), amount);
+            }
             _ => {
-                env.storage().instance().remove(&REENTRANCY_GUARD);
-                env.events().publish((Symbol::new(&env, "stake_transfer_failed"),), amount);
+                clear(&env);
+                env.events()
+                    .publish((Symbol::new(&env, "stake_transfer_failed"),), amount);
                 panic!("token transfer failed");
             }
         }
@@ -154,15 +171,16 @@ impl CrossChainStakingContract {
         user_info.tier_id = tier_id;
 
         write_user_info(&env, &user, &user_info);
-        env.storage().instance().remove(&REENTRANCY_GUARD);
-        
+        // Guard cleared last — state is fully committed at this point.
+        clear(&env);
+
         env.events().publish(
             (symbol_short!("stake"), user.clone()),
             (amount, tier_id, lock_duration),
         );
     }
 
-    /// Handle cross-chain staking
+    /// Handle cross-chain staking (called from within the reentrancy guard in `stake`).
     fn handle_cross_chain_stake(
         env: &Env,
         user: Address,
@@ -171,13 +189,7 @@ impl CrossChainStakingContract {
         tier_id: u32,
         target_chain_id: u32,
     ) {
-        let chain_config = read_chain_config(env, target_chain_id)
-            .unwrap_or_else(|| panic!("target chain not configured"));
-
-        if !chain_config.active {
-            panic!("target chain is not active");
-        }
-
+        // Chain validity already checked by the caller (`stake`) before entering here.
         // Create cross-chain message
         let message = CrossChainMessage {
             message_type: MESSAGE_TYPE_STAKE,
