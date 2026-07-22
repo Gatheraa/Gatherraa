@@ -43,7 +43,6 @@ export const SUPPORTED_NETWORKS: Record<number, NetworkConfig> = {
   },
 };
 
-// The chain IDs your dApp officially supports
 export const ALLOWED_CHAIN_IDS = [1, 11155111, 137, 80001];
 
 export interface WalletState {
@@ -54,14 +53,14 @@ export interface WalletState {
   error: string | null;
 }
 
+export type WalletType = 'metamask' | 'coinbase' | 'walletconnect' | 'injected';
+
 export interface WalletContextValue extends WalletState {
   connect: (walletType?: WalletType) => Promise<void>;
   disconnect: () => void;
   switchNetwork: (chainId: number) => Promise<void>;
   copyAddress: () => Promise<boolean>;
 }
-
-export type WalletType = 'metamask' | 'coinbase' | 'walletconnect' | 'injected';
 
 export interface WalletOption {
   id: WalletType;
