@@ -1,7 +1,7 @@
-use crate::types::{Config, DataKey, Tier, UserInfo, ChainConfig, CrossChainMessage};
+use crate::types::{ChainConfig, Config, CrossChainMessage, DataKey, Tier, UserInfo};
 
 use gathera_common::PRECISION;
-use soroban_sdk::{Address, Env, Vec, token};
+use soroban_sdk::{token, Address, Env, Vec};
 
 const TTL_INSTANCE: u32 = 17280 * 30; // 30 days
 const TTL_PERSISTENT: u32 = 17280 * 90; // 90 days
@@ -229,11 +229,7 @@ pub fn write_message_nonce(env: &Env, nonce: u64) {
 pub fn update_reward(env: &Env, user: Option<&Address>) {
     // update_reward must only be called while the reentrancy guard is held
     // (i.e. from within stake/unstake).  Direct external calls are rejected.
-    if !env
-        .storage()
-        .instance()
-        .has(&crate::types::DataKey::Config)
-    {
+    if !env.storage().instance().has(&crate::types::DataKey::Config) {
         // Contract not yet initialized; nothing to update.
         return;
     }
@@ -261,5 +257,3 @@ pub fn update_reward(env: &Env, user: Option<&Address>) {
 
     write_last_update_time(env, env.ledger().timestamp());
 }
-
-

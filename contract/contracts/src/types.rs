@@ -87,6 +87,12 @@ pub const BASE_CHAIN_ID: u32 = 6;
 
 // Message types
 pub const MESSAGE_TYPE_STAKE: Symbol = symbol_short!("stake_msg");
-pub fn message_type_unstake(env: &Env) -> Symbol { Symbol::new(env, "unstake_msg") }
-pub fn message_type_reward(env: &Env) -> Symbol { Symbol::new(env, "reward_msg") }
-pub fn message_type_migrate(env: &Env) -> Symbol { Symbol::new(env, "migrate_msg") }
+pub fn message_type_unstake(env: &Env) -> Symbol {
+    Symbol::new(env, "unstake_msg")
+}
+pub fn message_type_reward(env: &Env) -> Symbol {
+    Symbol::new(env, "reward_msg")
+}
+pub fn message_type_migrate(env: &Env) -> Symbol {
+    Symbol::new(env, "migrate_msg")
+}

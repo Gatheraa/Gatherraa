@@ -1,26 +1,29 @@
 //! Gathera Multi-Signature Wallet Contract
-//! 
+//!
 //! This contract implements a multi-signature wallet system for the Gathera platform.
 //! It provides secure fund management requiring multiple approvals for transactions,
 //! enhancing security for organizational funds and critical operations.
-//! 
+//!
 //! ## Key Features
-//! 
+//!
 //! - Multi-signature transaction approval
 //! - Configurable threshold settings
 //! - Owner management with voting
 //! - Transaction history tracking
 //! - Time-lock for critical operations
 //! - Integration with escrow for enhanced security
-//! 
+//!
 //! ## Modules
-//! 
+//!
 //! - `contract`: Main contract implementation
 //! - `storage`: Wallet data storage structures
 //! - `validation`: Transaction validation logic
 //! - `governance`: Owner management and voting
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Symbol, Env, String, Vec, Val, FromVal};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Env, FromVal, String, Symbol,
+    Val, Vec,
+};
 
 /// Errors that can occur during multisig operations
 #[contracterror]
@@ -120,16 +123,16 @@ pub struct MultisigWalletContract;
 #[contractimpl]
 impl MultisigWalletContract {
     /// Initialize the multi-signature wallet
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `owners` - List of initial wallet owners
     /// * `threshold` - Number of signatures required
     /// * `timelock` - Time-lock period in seconds
     /// * `max_amount` - Maximum transaction amount
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if initialization was successful
     pub fn initialize(
         env: Env,
@@ -164,16 +167,16 @@ impl MultisigWalletContract {
     }
 
     /// Submit a new transaction
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `destination` - Recipient address
     /// * `amount` - Amount to transfer
     /// * `data` - Transaction data
     /// * `expires_at` - Expiration timestamp
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Transaction ID of the newly created transaction
     pub fn submit_transaction(
         env: Env,
@@ -218,7 +221,7 @@ impl MultisigWalletContract {
                 i += 1;
             }
             // Reverse the buffer
-            for j in 0..i/2 {
+            for j in 0..i / 2 {
                 buf.swap(j, i - 1 - j);
             }
         }
@@ -226,7 +229,11 @@ impl MultisigWalletContract {
         let tx_id_str = core::str::from_utf8(&buf[..i]).unwrap_or("0");
         let tx_id_symbol = Symbol::new(&env, tx_id_str);
 
-        if env.storage().persistent().has(&DataKey::Transaction(tx_id_symbol.clone())) {
+        if env
+            .storage()
+            .persistent()
+            .has(&DataKey::Transaction(tx_id_symbol.clone()))
+        {
             return Err(MultisigError::TransactionAlreadyExists);
         }
 
@@ -244,20 +251,24 @@ impl MultisigWalletContract {
             creator,
         };
 
-        env.storage().persistent().set(&DataKey::Transaction(tx_id_symbol.clone()), &transaction);
-        env.storage().instance().set(&DataKey::TxCount, &(tx_count + 1));
+        env.storage()
+            .persistent()
+            .set(&DataKey::Transaction(tx_id_symbol.clone()), &transaction);
+        env.storage()
+            .instance()
+            .set(&DataKey::TxCount, &(tx_count + 1));
 
         Ok(tx_id_symbol)
     }
 
     /// Approve a transaction
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `transaction_id` - Identifier for the transaction
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if approval was successful
     pub fn approve_transaction(
         env: Env,
@@ -271,7 +282,8 @@ impl MultisigWalletContract {
             return Err(MultisigError::Unauthorized);
         }
 
-        let mut transaction: Transaction = env.storage()
+        let mut transaction: Transaction = env
+            .storage()
             .persistent()
             .get(&DataKey::Transaction(transaction_id.clone()))
             .ok_or(MultisigError::TransactionNotFound)?;
@@ -282,7 +294,9 @@ impl MultisigWalletContract {
 
         if transaction.expires_at <= env.ledger().timestamp() {
             transaction.status = TransactionStatus::Expired;
-            env.storage().persistent().set(&DataKey::Transaction(transaction_id), &transaction);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Transaction(transaction_id), &transaction);
             return Err(MultisigError::InvalidTransaction);
         }
 
@@ -300,32 +314,34 @@ impl MultisigWalletContract {
             transaction.status = TransactionStatus::Approved;
         }
 
-        env.storage().persistent().set(&DataKey::Transaction(transaction_id), &transaction);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Transaction(transaction_id), &transaction);
 
         Ok(true)
     }
 
     /// Execute an approved transaction
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `transaction_id` - Identifier for the transaction
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if execution was successful
-    pub fn execute_transaction(
-        env: Env,
-        transaction_id: Symbol,
-    ) -> Result<bool, MultisigError> {
-        let mut transaction: Transaction = env.storage()
+    pub fn execute_transaction(env: Env, transaction_id: Symbol) -> Result<bool, MultisigError> {
+        let mut transaction: Transaction = env
+            .storage()
             .persistent()
             .get(&DataKey::Transaction(transaction_id.clone()))
             .ok_or(MultisigError::TransactionNotFound)?;
 
         if transaction.status != TransactionStatus::Approved {
-            if transaction.status == TransactionStatus::Pending && transaction.confirmations.len() >= transaction.required_confirmations {
-                 // Should have been set to Approved in approve_transaction, but let's be safe
+            if transaction.status == TransactionStatus::Pending
+                && transaction.confirmations.len() >= transaction.required_confirmations
+            {
+                // Should have been set to Approved in approve_transaction, but let's be safe
             } else {
                 return Err(MultisigError::ThresholdNotMet);
             }
@@ -341,49 +357,64 @@ impl MultisigWalletContract {
         // Enforce expiration
         if env.ledger().timestamp() > transaction.expires_at {
             transaction.status = TransactionStatus::Expired;
-            env.storage().persistent().set(&DataKey::Transaction(transaction_id), &transaction);
+            env.storage()
+                .persistent()
+                .set(&DataKey::Transaction(transaction_id), &transaction);
             return Err(MultisigError::InvalidTransaction);
         }
 
         // Re-entry protection: update status before execution
         transaction.status = TransactionStatus::Executed;
-        env.storage().persistent().set(&DataKey::Transaction(transaction_id.clone()), &transaction);
+        env.storage()
+            .persistent()
+            .set(&DataKey::Transaction(transaction_id.clone()), &transaction);
 
         // Execute the contract call
         if transaction.destination != env.current_contract_address() {
-            let _: Val = env.invoke_contract(&transaction.destination, &transaction.function, transaction.data);
+            let _: Val = env.invoke_contract(
+                &transaction.destination,
+                &transaction.function,
+                transaction.data,
+            );
         } else {
-             // Dispatch to self safely without re-entry
-             if transaction.function == Symbol::new(&env, "add_owner") {
-                 let new_owner: Address = Address::from_val(&env, &transaction.data.get(0).unwrap());
-                 let tx_id: Symbol = Symbol::from_val(&env, &transaction.data.get(1).unwrap());
-                 let _ = Self::add_owner_internal(env.clone(), new_owner, tx_id);
-             } else if transaction.function == Symbol::new(&env, "remove_owner") {
-                 let owner_to_remove: Address = Address::from_val(&env, &transaction.data.get(0).unwrap());
-                 let tx_id: Symbol = Symbol::from_val(&env, &transaction.data.get(1).unwrap());
-                 let _ = Self::remove_owner_internal(env.clone(), owner_to_remove, tx_id);
-             } else if transaction.function == Symbol::new(&env, "change_threshold") {
-                 let new_threshold: u32 = u32::from_val(&env, &transaction.data.get(0).unwrap());
-                 let tx_id: Symbol = Symbol::from_val(&env, &transaction.data.get(1).unwrap());
-                 let _ = Self::change_threshold_internal(env.clone(), new_threshold, tx_id);
-             }
+            // Dispatch to self safely without re-entry
+            if transaction.function == Symbol::new(&env, "add_owner") {
+                let new_owner: Address = Address::from_val(&env, &transaction.data.get(0).unwrap());
+                let tx_id: Symbol = Symbol::from_val(&env, &transaction.data.get(1).unwrap());
+                let _ = Self::add_owner_internal(env.clone(), new_owner, tx_id);
+            } else if transaction.function == Symbol::new(&env, "remove_owner") {
+                let owner_to_remove: Address =
+                    Address::from_val(&env, &transaction.data.get(0).unwrap());
+                let tx_id: Symbol = Symbol::from_val(&env, &transaction.data.get(1).unwrap());
+                let _ = Self::remove_owner_internal(env.clone(), owner_to_remove, tx_id);
+            } else if transaction.function == Symbol::new(&env, "change_threshold") {
+                let new_threshold: u32 = u32::from_val(&env, &transaction.data.get(0).unwrap());
+                let tx_id: Symbol = Symbol::from_val(&env, &transaction.data.get(1).unwrap());
+                let _ = Self::change_threshold_internal(env.clone(), new_threshold, tx_id);
+            }
         }
 
         // Emit an event to signal execution.
-        env.events().publish((Symbol::new(&env, "executed"), transaction.transaction_id.clone()), (transaction.destination.clone(), transaction.amount));
+        env.events().publish(
+            (
+                Symbol::new(&env, "executed"),
+                transaction.transaction_id.clone(),
+            ),
+            (transaction.destination.clone(), transaction.amount),
+        );
 
         Ok(true)
     }
 
     /// Add a new owner
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `new_owner` - Address of the new owner
     /// * `transaction_id` - Governing transaction ID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if owner addition was successful
     pub fn add_owner(
         env: Env,
@@ -416,14 +447,14 @@ impl MultisigWalletContract {
     }
 
     /// Remove an owner
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `owner_to_remove` - Address of the owner to remove
     /// * `transaction_id` - Governing transaction ID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if owner removal was successful
     pub fn remove_owner(
         env: Env,
@@ -465,7 +496,7 @@ impl MultisigWalletContract {
         }
 
         if new_owners.len() == 0 {
-             return Err(MultisigError::InvalidTransaction);
+            return Err(MultisigError::InvalidTransaction);
         }
 
         config.owners = new_owners;
@@ -475,14 +506,14 @@ impl MultisigWalletContract {
     }
 
     /// Change the signature threshold
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `new_threshold` - New threshold value
     /// * `transaction_id` - Governing transaction ID
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// True if threshold change was successful
     pub fn change_threshold(
         env: Env,
@@ -515,18 +546,15 @@ impl MultisigWalletContract {
     }
 
     /// Get transaction information
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `transaction_id` - Identifier for the transaction
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Transaction data structure
-    pub fn get_transaction(
-        env: Env,
-        transaction_id: Symbol,
-    ) -> Result<Transaction, MultisigError> {
+    pub fn get_transaction(env: Env, transaction_id: Symbol) -> Result<Transaction, MultisigError> {
         env.storage()
             .persistent()
             .get(&DataKey::Transaction(transaction_id))
@@ -534,9 +562,9 @@ impl MultisigWalletContract {
     }
 
     /// Get wallet configuration
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// Current wallet configuration
     pub fn get_config(env: Env) -> MultisigConfig {
         env.storage()

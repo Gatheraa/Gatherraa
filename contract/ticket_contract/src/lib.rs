@@ -17,7 +17,9 @@
 //! - `storage`: Data storage structures
 //! - `validation`: Input validation logic
 
-use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol};
+use soroban_sdk::{
+    contract, contracterror, contractimpl, contracttype, Address, Env, String, Symbol,
+};
 
 /// Errors that can occur during ticket operations
 #[contracterror]
