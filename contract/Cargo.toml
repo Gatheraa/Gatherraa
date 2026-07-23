@@ -6,6 +6,9 @@ members = [
     "ticket_contract",
     "escrow_contract",
     "multisig_wallet_contract",
+    "cross_contract_contract",
+    "dutch_auction_contract",
+    "zk_ticket_contract",
 ]
 
 [workspace.package]
