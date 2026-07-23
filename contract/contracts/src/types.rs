@@ -55,6 +55,7 @@ pub struct ChainConfig {
     pub gas_limit: u32,
     pub confirmations: u32,
     pub active: bool,
+    pub bridge_configured: bool,
 }
 
 #[contracttype]
