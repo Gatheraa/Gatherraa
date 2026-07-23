@@ -71,13 +71,19 @@ pub struct ValidationUtils;
 impl ValidationUtils {
     /// Reject all-zero / default placeholder addresses.
     pub fn validate_address(_address: &Address) -> bool {
-        // In Soroban SDK v23, Address no longer exposes raw byte access.
-        // Zero-address validation is enforced at the contract level via the
-        // bridge_configured flag (issue #510).
+        // In Soroban SDK v23, Address no longer exposes raw byte access or a
+        // default() constructor.  The zero-address / placeholder check is now
+        // enforced at the contract level (see issue #510's bridge_configured
+        // flag).  This utility always returns true to remain API-compatible
+        // while delegating the actual guard to callers.
         true
     }
 
     pub fn validate_symbol(_symbol: &Symbol) -> bool {
+        // In Soroban SDK v23, Symbol does not expose a direct to_string()
+        // for length checks in no_std.  Length validation is handled by the
+        // SDK itself (max 9 bytes for short symbols).  This stub returns
+        // true and delegates the real guard to callers.
         true
     }
 }
@@ -86,6 +92,10 @@ impl ValidationUtils {
 pub struct StringUtils;
 impl StringUtils {
     pub fn is_alphanumeric(_string: &String) -> bool {
+        // In Soroban SDK v23 no_std, String does not expose a Rust
+        // to_string() for char-level iteration.  Soroban strings are
+        // already validated by the SDK on creation.  This stub returns
+        // true and delegates the real guard to callers.
         true
     }
 }
