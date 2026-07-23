@@ -1,3 +1,5 @@
+#![no_std]
+
 //! Gathera Multi-Signature Wallet Contract
 //!
 //! This contract implements a multi-signature wallet system for the Gathera platform.
