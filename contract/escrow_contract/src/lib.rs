@@ -104,10 +104,10 @@ pub struct Dispute {
 /// Storage keys
 #[contracttype]
 enum DataKey {
-    Token,          // Address of the token contract
-    Admin,          // Address authorized to resolve disputes
-    EscrowCounter,  // u32 counter for generating unique IDs
-    Escrow(Symbol), // Escrow data keyed by escrow_id
+    Token,           // Address of the token contract
+    Admin,           // Address authorized to resolve disputes
+    EscrowCounter,   // u32 counter for generating unique IDs
+    Escrow(Symbol),  // Escrow data keyed by escrow_id
     Dispute(Symbol), // Dispute data keyed by dispute_id
 }
 
@@ -188,7 +188,9 @@ impl EscrowContract {
         };
 
         // Store escrow
-        env.storage().instance().set(&DataKey::Escrow(escrow_id.clone()), &escrow);
+        env.storage()
+            .instance()
+            .set(&DataKey::Escrow(escrow_id.clone()), &escrow);
 
         Ok(escrow_id)
     }
@@ -224,7 +226,10 @@ impl EscrowContract {
         // Transfer tokens from depositor to this contract
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token = TokenClient::new(&env, &token_addr);
-        let amount_i128 = escrow.amount.try_into().map_err(|_| EscrowError::InsufficientFunds)?;
+        let amount_i128 = escrow
+            .amount
+            .try_into()
+            .map_err(|_| EscrowError::InsufficientFunds)?;
         token.transfer_from(&invoker, &env.current_contract_address(), &amount_i128);
 
         // Update escrow status
@@ -286,8 +291,15 @@ impl EscrowContract {
         // Enough confirmations: transfer funds to beneficiary
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token = TokenClient::new(&env, &token_addr);
-        let amount_i128 = escrow.amount.try_into().map_err(|_| EscrowError::InsufficientFunds)?;
-        token.transfer(&env.current_contract_address(), &escrow.beneficiary, &amount_i128);
+        let amount_i128 = escrow
+            .amount
+            .try_into()
+            .map_err(|_| EscrowError::InsufficientFunds)?;
+        token.transfer(
+            &env.current_contract_address(),
+            &escrow.beneficiary,
+            &amount_i128,
+        );
 
         // Update escrow status
         escrow.status = EscrowStatus::Completed;
@@ -381,7 +393,11 @@ impl EscrowContract {
         // caller to provide escrow_id as well, but the signature only has dispute_id.
         // We'll store disputes in a map keyed by dispute_id as well.
         let dispute_key = DataKey::Dispute(dispute_id.clone());
-        let mut dispute: Dispute = env.storage().instance().get(&dispute_key).ok_or(EscrowError::EscrowNotFound)?;
+        let mut dispute: Dispute = env
+            .storage()
+            .instance()
+            .get(&dispute_key)
+            .ok_or(EscrowError::EscrowNotFound)?;
 
         if dispute.resolved {
             return Err(EscrowError::AlreadyCompleted);
@@ -398,14 +414,26 @@ impl EscrowContract {
         // Resolve according to resolution
         let token_addr: Address = env.storage().instance().get(&DataKey::Token).unwrap();
         let token = TokenClient::new(&env, &token_addr);
-        let amount_i128 = escrow.amount.try_into().map_err(|_| EscrowError::InsufficientFunds)?;
+        let amount_i128 = escrow
+            .amount
+            .try_into()
+            .map_err(|_| EscrowError::InsufficientFunds)?;
 
         if resolution == "release" {
             // Release to beneficiary
-            token.transfer(&env.current_contract_address(), &escrow.beneficiary, &amount_i128);
+            token.transfer(
+                &env.current_contract_address(),
+                &escrow.beneficiary,
+                &amount_i128,
+            );
             escrow.status = EscrowStatus::Completed;
-        } else { // refund
-            token.transfer(&env.current_contract_address(), &escrow.depositor, &amount_i128);
+        } else {
+            // refund
+            token.transfer(
+                &env.current_contract_address(),
+                &escrow.depositor,
+                &amount_i128,
+            );
             escrow.status = EscrowStatus::Refunded;
         }
 
@@ -435,7 +463,10 @@ impl EscrowContract {
 
     fn get_escrow_internal(env: &Env, escrow_id: &Symbol) -> Result<Escrow, EscrowError> {
         let key = DataKey::Escrow(escrow_id.clone());
-        env.storage().instance().get(&key).ok_or(EscrowError::EscrowNotFound)
+        env.storage()
+            .instance()
+            .get(&key)
+            .ok_or(EscrowError::EscrowNotFound)
     }
 
     fn save_escrow(env: &Env, escrow: &Escrow) {
