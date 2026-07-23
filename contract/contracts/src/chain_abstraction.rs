@@ -41,58 +41,65 @@ impl ChainAbstraction {
             ETHEREUM_CHAIN_ID => ChainConfig {
                 chain_id: ETHEREUM_CHAIN_ID,
                 chain_name: symbol_short!("ethereum"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 300000,
                 confirmations: 12,
                 active: true,
+                bridge_configured: false,
             },
             STELLAR_CHAIN_ID => ChainConfig {
                 chain_id: STELLAR_CHAIN_ID,
                 chain_name: symbol_short!("stellar"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 100000,
                 confirmations: 3,
                 active: true,
+                bridge_configured: false,
             },
             POLYGON_CHAIN_ID => ChainConfig {
                 chain_id: POLYGON_CHAIN_ID,
                 chain_name: symbol_short!("polygon"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 200000,
                 confirmations: 5,
                 active: true,
+                bridge_configured: false,
             },
             ARBITRUM_CHAIN_ID => ChainConfig {
                 chain_id: ARBITRUM_CHAIN_ID,
                 chain_name: symbol_short!("arbitrum"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 250000,
                 confirmations: 8,
                 active: true,
+                bridge_configured: false,
             },
             OPTIMISM_CHAIN_ID => ChainConfig {
                 chain_id: OPTIMISM_CHAIN_ID,
                 chain_name: symbol_short!("optimism"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
+                bridge_configured: false,
             },
             BASE_CHAIN_ID => ChainConfig {
                 chain_id: BASE_CHAIN_ID,
                 chain_name: symbol_short!("base"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 200000,
                 confirmations: 6,
                 active: true,
+                bridge_configured: false,
             },
             _ => ChainConfig {
                 chain_id: *chain_id,
                 chain_name: symbol_short!("unknown"),
-                bridge_address: null_address,
+                bridge_address: null_address.clone(),
                 gas_limit: 300000,
                 confirmations: 12,
                 active: false,
+                bridge_configured: false,
             },
         }
     }
@@ -256,6 +263,7 @@ impl ChainAbstraction {
 
         if let Some(mut chain_config) = read_chain_config(&env, chain_id) {
             chain_config.bridge_address = bridge_address.clone();
+            chain_config.bridge_configured = true;
             write_chain_config(&env, chain_id, &chain_config);
 
             env.events().publish(
@@ -272,7 +280,7 @@ impl ChainAbstraction {
 
         for chain_id in supported_chains.iter() {
             if let Some(config) = read_chain_config(&env, chain_id) {
-                if config.active {
+                if config.active && config.bridge_configured {
                     active_chains.push_back(chain_id);
                 }
             }

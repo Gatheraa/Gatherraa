@@ -1,3 +1,5 @@
+#![no_std]
+
 //! Gathera Contracts Integration Layer
 //!
 //! This crate provides integration utilities and orchestration for all Gathera
