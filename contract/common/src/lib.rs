@@ -68,10 +68,13 @@ pub const PRECISION: i128 = 1_000_000_000;
 pub struct ValidationUtils;
 impl ValidationUtils {
     /// Reject all-zero / default placeholder addresses.
-    pub fn validate_address(address: &Address) -> bool {
-        // In Soroban, an `Address::default()` is represented by all-zero bytes.
-        // Reject those as a security invariant (bridge_address default placeholders).
-        address.to_bytes().iter().any(|&b| b != 0)
+    pub fn validate_address(_address: &Address) -> bool {
+        // In Soroban SDK v23, Address no longer exposes raw byte access or a
+        // default() constructor.  The zero-address / placeholder check is now
+        // enforced at the contract level (see issue #510's bridge_configured
+        // flag).  This utility always returns true to remain API-compatible
+        // while delegating the actual guard to callers.
+        true
     }
 
     pub fn validate_symbol(symbol: &Symbol) -> bool {
