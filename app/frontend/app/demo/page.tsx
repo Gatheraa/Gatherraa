@@ -5,6 +5,7 @@ import MultiSourceDataAggregator from '../../components/MultiSourceDataAggregato
 import SessionTimeoutManager from '../../components/SessionTimeoutManager';
 import { DIDCredentialCard } from '../../components/ui/molecules';
 import ConferenceFloorMap from '../../components/ConferenceFloorMap';
+import UniversalDataGrid, { DEFAULT_ATTENDEES, ATTENDEE_COLUMNS } from '../../components/UniversalDataGrid';
 
 // Demo page for testing both components
 const ComponentDemoPage: React.FC = () => {
@@ -114,6 +115,21 @@ const ComponentDemoPage: React.FC = () => {
           </p>
           <ConferenceFloorMap
             onBoothClick={(booth) => console.log('Booth clicked:', booth)}
+          />
+        </section>
+
+        {/* UniversalDataGrid Demo */}
+        <section>
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+            UniversalDataGrid Demo
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            5,000 virtualized rows. Click a header to sort, type in a column filter, use the pin icon to stick a column left/right, and use Export CSV. Arrow keys navigate cells; Enter/Space sorts a focused header.
+          </p>
+          <UniversalDataGrid
+            data={DEFAULT_ATTENDEES}
+            columns={ATTENDEE_COLUMNS}
+            getRowId={(row) => row.id}
           />
         </section>
 
