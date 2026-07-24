@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import MultiSourceDataAggregator from '../../components/MultiSourceDataAggregator';
 import SessionTimeoutManager from '../../components/SessionTimeoutManager';
 import { DIDCredentialCard } from '../../components/ui/molecules';
+import ConferenceFloorMap from '../../components/ConferenceFloorMap';
 
 // Demo page for testing both components
 const ComponentDemoPage: React.FC = () => {
@@ -101,6 +102,19 @@ const ComponentDemoPage: React.FC = () => {
               <DIDCredentialCard key={cred.id} credential={cred} />
             ))}
           </div>
+        </section>
+
+        {/* ConferenceFloorMap Demo */}
+        <section>
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+            ConferenceFloorMap Demo
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            Scroll or use the toolbar to zoom, drag to pan, click a booth for live occupancy details.
+          </p>
+          <ConferenceFloorMap
+            onBoothClick={(booth) => console.log('Booth clicked:', booth)}
+          />
         </section>
 
         {/* MultiSourceDataAggregator Demo */}
