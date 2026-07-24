@@ -19,3 +19,10 @@ export { OptimizedImage } from './OptimizedImage';
 export type { OptimizedImageProps } from './OptimizedImage';
 export { TagSelector } from './TagSelector';
 export type { TagSelectorProps } from './TagSelector';
+export { CommandPalette, CommandPaletteProvider, useCommandPalette } from './CommandPalette';
+export type {
+  Command,
+  CommandGroup,
+  CommandPaletteProps,
+  CommandPaletteContextValue,
+} from './CommandPalette';
