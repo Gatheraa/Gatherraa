@@ -8,6 +8,7 @@ import { AppService } from './app.service';
 import { VersioningMiddleware } from './common/middleware/versioning.middleware';
 import { IdentityVerificationModule } from './identity-verification/identity-verification.module';
 import { HealthModule } from './health/health.module';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 
 import { IdentityVerification } from './identity-verification/entities/identity-verification.entity';
 import { VerificationHistory } from './identity-verification/entities/verification-history.entity';
@@ -38,6 +39,7 @@ import { VerificationHistory } from './identity-verification/entities/verificati
     ScheduleModule.forRoot(),
     IdentityVerificationModule,
     HealthModule,
+    RateLimitModule,
   ],
   controllers: [AppController],
   providers: [AppService],

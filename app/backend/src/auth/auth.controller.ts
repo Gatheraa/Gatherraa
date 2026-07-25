@@ -77,7 +77,7 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @RateLimit('AUTH')
+  @RateLimit('AUTH_REFRESH')
   @HttpCode(HttpStatus.OK)
   async refresh(
     @Req() req: Request,

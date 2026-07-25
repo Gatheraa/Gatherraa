@@ -3,9 +3,11 @@ import type { Response } from 'express';
 import { ReportService } from '../services/report.service';
 import { CreateReportDto } from '../dto/create-report.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
 import * as path from 'path';
 
 @Controller('reports')
+@RateLimit('REPORT_GEN')
 export class ReportsController {
   constructor(private readonly reportService: ReportService) {}
 

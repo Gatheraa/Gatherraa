@@ -2,8 +2,10 @@ import { Controller, Post, UseGuards, UseInterceptors, UploadedFiles } from '@ne
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FileUploadService } from './file-upload.service';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 
 @Controller('upload')
+@RateLimit('EXPENSIVE')
 export class FileUploadController {
   constructor(private readonly fileUploadService: FileUploadService) {}
 

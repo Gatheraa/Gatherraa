@@ -34,6 +34,8 @@ import {
     TicketPlanTierDto,
 } from '../dto/booking.dto';
 
+import { RateLimit } from '../../rate-limit/rate-limit.decorator';
+
 @Controller('booking')
 @UseGuards(JwtAuthGuard)
 export class BookingController {
@@ -188,11 +190,13 @@ export class BookingController {
     // ---- Booking Endpoints ----
 
     @Post()
+    @RateLimit('PAYMENT')
     async createBooking(@Body() dto: CreateBookingDto, @Request() req) {
         return this.bookingService.createBooking(dto, req.user.id);
     }
 
     @Post('confirm')
+    @RateLimit('PAYMENT')
     async confirmBooking(@Body() dto: ConfirmBookingDto, @Request() req) {
         return this.bookingService.confirmBooking(dto.bookingId, req.user.id);
     }

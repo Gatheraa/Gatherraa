@@ -43,8 +43,9 @@ export class UserTierRateLimitService {
     return this.tierLimits[tier] || this.tierLimits.FREE;
   }
 
-  getAdjustedConfig(baseConfig: RateLimitConfig, userTier: keyof UserTierLimits): RateLimitConfig {
+  getAdjustedConfig(baseConfig: RateLimitConfig | undefined | null, userTier: keyof UserTierLimits): RateLimitConfig {
     const tierLimits = this.getTierLimits(userTier);
+    if (!baseConfig) return tierLimits;
     
     // Use the more restrictive limits between base config and tier limits
     return {

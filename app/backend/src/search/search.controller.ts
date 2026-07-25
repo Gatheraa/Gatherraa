@@ -1,8 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { SearchEventsDto } from './dto/search-events.dto';
 import { SearchService } from './providers/search.service';
+import { RateLimit } from '../rate-limit/rate-limit.decorator';
 
 @Controller('search')
+@RateLimit('SEARCH')
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 

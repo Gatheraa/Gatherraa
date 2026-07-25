@@ -7,6 +7,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RateLimitGuard } from './rate-limit/guards/rate-limit.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -46,7 +47,8 @@ async function bootstrap() {
   setupOpenApiDocs(app);
 
   const reflector = app.get(Reflector);
-  app.useGlobalGuards(new JwtAuthGuard(reflector));
+  const rateLimitGuard = app.get(RateLimitGuard);
+  app.useGlobalGuards(new JwtAuthGuard(reflector), rateLimitGuard);
 
   await app.listen(3000);
 }
