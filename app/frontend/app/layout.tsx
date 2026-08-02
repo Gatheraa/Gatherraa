@@ -6,6 +6,7 @@ import { OfflineProvider } from "@/lib/offline/OfflineContext";
 import { ReactQueryProvider } from "@/lib/react-query/QueryClientProvider";
 import { FloatingActionButton } from "@/components/navigation/FloatingActionButton";
 import { RoleProvider } from "@/components/dao/RoleContext";
+import AnimatedPageTransition from "@/components/AnimatedPageTransition";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -47,7 +48,9 @@ export default function RootLayout({
           <WalletProvider>
             <ReactQueryProvider>
               <RoleProvider>
-                {children}
+                <AnimatedPageTransition>
+                  {children}
+                </AnimatedPageTransition>
                 <FloatingActionButton />
               </RoleProvider>
             </ReactQueryProvider>
