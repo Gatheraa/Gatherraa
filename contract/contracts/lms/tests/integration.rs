@@ -20,7 +20,10 @@
 //! (payment), #650 (course completion), #653 and #654 (certificates), #655
 //! (events). Each should extend this file rather than start a new one.
 
-use lms::{AccessError, LmsContract, LmsContractClient, LmsVersion, Role, UserRecord};
+use lms::{
+    AccessError, Course, CourseProgress, LmsContract, LmsContractClient, LmsVersion, Progress,
+    ProgressError, Role, StorageKey, UserRecord,
+};
 use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::{Address, Env};
 
@@ -28,6 +31,7 @@ use soroban_sdk::{Address, Env};
 struct Deployment<'a> {
     env: Env,
     client: LmsContractClient<'a>,
+    contract_id: Address,
     admin: Address,
     instructor: Address,
     student: Address,
@@ -50,6 +54,7 @@ fn deploy() -> Deployment<'static> {
     Deployment {
         env,
         client,
+        contract_id,
         admin,
         instructor,
         student,
@@ -349,4 +354,142 @@ fn a_complete_deployment_lifecycle() {
         d.client.try_initialize(&d.outsider),
         Err(Ok(AccessError::AlreadyInitialized))
     );
+}
+
+// ---------------------------------------------------------------------------
+// Read / query interface (#656)
+// ---------------------------------------------------------------------------
+//
+// The course/progress queries read real storage, so these tests seed it
+// through the internal `Progress` service (course creation is not yet on the
+// public surface) and then read it back across the contract boundary.
+// Everything else returns the honest empty answer documented in the query
+// module, which is also asserted here.
+
+/// Seed a course and one completed lesson through the internal progress
+/// service, exactly as the course-management module will once it lands.
+fn seed_course_with_progress(d: &Deployment<'_>) {
+    d.env.as_contract(&d.contract_id, || {
+        Progress::create_course(&d.env, &d.instructor, 1, 4).unwrap();
+        Progress::complete_lesson(&d.env, &d.student, 1, 0).unwrap();
+    });
+}
+
+#[test]
+fn get_course_returns_the_stored_course_across_the_boundary() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.register_student(&d.student);
+
+    seed_course_with_progress(&d);
+
+    assert_eq!(
+        d.client.get_course(&1),
+        Some(Course {
+            id: 1,
+            total_lessons: 4
+        })
+    );
+    assert_eq!(d.client.get_course(&404), None);
+}
+
+#[test]
+fn get_course_progress_returns_stored_progress_across_the_boundary() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.register_student(&d.student);
+
+    seed_course_with_progress(&d);
+
+    assert_eq!(
+        d.client.get_course_progress(&d.student, &1),
+        CourseProgress {
+            completed_lessons: 1,
+            total_lessons: 4,
+            basis_points: 2_500,
+        }
+    );
+
+    // An unknown course is an error, not an empty result.
+    assert_eq!(
+        d.client.try_get_course_progress(&d.student, &404),
+        Err(Ok(ProgressError::CourseNotFound))
+    );
+}
+
+#[test]
+fn queries_without_backing_storage_return_honest_empty_answers() {
+    let d = deploy_initialized();
+    d.client.register_student(&d.student);
+
+    // Curriculum storage does not exist on-chain yet (#640–#644).
+    assert_eq!(d.client.get_modules(&1), soroban_sdk::Vec::new(&d.env));
+    assert_eq!(d.client.get_lessons(&1, &2), soroban_sdk::Vec::new(&d.env));
+
+    // Enrollment storage does not exist on-chain yet (#645/#646).
+    assert!(!d.client.get_enrollment(&d.student, &1));
+
+    // Assessment storage is not wired into the contract yet (#651/#652).
+    assert_eq!(d.client.get_assessment_result(&d.student, &7), None);
+
+    // Certificate storage does not exist on-chain yet (#653/#654).
+    assert_eq!(d.client.get_certificate(&1), None);
+    assert!(!d.client.verify_certificate(&1, &d.student, &7));
+}
+
+#[test]
+fn queries_across_the_boundary_do_not_modify_contract_state() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.register_student(&d.student);
+    seed_course_with_progress(&d);
+
+    // The full read surface, including unknown ids.
+    d.client.get_course(&1);
+    d.client.get_course(&404);
+    d.client.get_modules(&1);
+    d.client.get_lessons(&1, &2);
+    d.client.get_enrollment(&d.student, &1);
+    d.client.get_course_progress(&d.student, &1);
+    // The erroring read must go through `try_` — the plain client method
+    // panics on a contract error, which is exactly the point: it is still a
+    // read, so it must not write anything either.
+    assert_eq!(
+        d.client.try_get_course_progress(&d.student, &404),
+        Err(Ok(ProgressError::CourseNotFound))
+    );
+    d.client.get_assessment_result(&d.student, &7);
+    d.client.get_certificate(&1);
+    d.client.verify_certificate(&1, &d.student, &7);
+
+    // Stored state is unchanged: the course and the progress record read
+    // back exactly as seeded.
+    assert_eq!(
+        d.client.get_course(&1),
+        Some(Course {
+            id: 1,
+            total_lessons: 4
+        })
+    );
+    assert_eq!(
+        d.client.get_course_progress(&d.student, &1),
+        CourseProgress {
+            completed_lessons: 1,
+            total_lessons: 4,
+            basis_points: 2_500,
+        }
+    );
+
+    // No new keys appeared. The unknown course and the lesson the student
+    // never completed must still read as absent after the queries above.
+    let course_404_absent = d.env.as_contract(&d.contract_id, || {
+        d.env.storage().persistent().has(&StorageKey::Course(404))
+    });
+    let lesson_1_absent = d.env.as_contract(&d.contract_id, || {
+        d.env.storage()
+            .persistent()
+            .has(&StorageKey::LessonCompletion(d.student.clone(), 1, 1))
+    });
+    assert!(!course_404_absent);
+    assert!(!lesson_1_absent);
 }

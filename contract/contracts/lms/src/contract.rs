@@ -1,6 +1,11 @@
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
+use crate::progress::{Course, CourseProgress, ProgressError};
+use crate::query::{
+    AssessmentQueries, AssessmentResultView, CertificateQueries, CertificateView, CourseQueries,
+    EnrollmentQueries, ProgressQueries,
+};
 use crate::types::LmsVersion;
 
 /// Root contract for the Learning Management System.
@@ -93,6 +98,75 @@ impl LmsContract {
     /// Whether an address holds a specific role.
     pub fn has_role(env: Env, user: Address, role: Role) -> bool {
         AccessControl::has_role(&env, &user, role)
+    }
+
+    // -------------------------------------------------------------------
+    // Read / query interface (#656)
+    // -------------------------------------------------------------------
+    //
+    // Every function below is a pure read: no storage writes, no events, no
+    // authorization. They exist so the frontend and indexers can inspect
+    // contract state without transacting. Data that has no on-chain storage
+    // yet (modules, lessons, enrollment, assessment results, certificates)
+    // returns the honest empty answer until the corresponding write module
+    // lands; each query documents the storage key it will read then.
+
+    /// Look up a registered course, if one exists.
+    pub fn get_course(env: Env, course_id: u32) -> Option<Course> {
+        CourseQueries::get_course(&env, course_id)
+    }
+
+    /// List the module identifiers belonging to a course.
+    pub fn get_modules(env: Env, course_id: u32) -> Vec<u32> {
+        CourseQueries::get_modules(&env, course_id)
+    }
+
+    /// List the lesson identifiers belonging to a module of a course.
+    pub fn get_lessons(env: Env, course_id: u32, module_id: u32) -> Vec<u32> {
+        CourseQueries::get_lessons(&env, course_id, module_id)
+    }
+
+    /// Whether the given student is enrolled in the given course.
+    pub fn get_enrollment(env: Env, student: Address, course_id: u32) -> bool {
+        EnrollmentQueries::get_enrollment(&env, &student, course_id)
+    }
+
+    /// Calculate a student's progress through a course.
+    ///
+    /// # Errors
+    /// * `ProgressError::CourseNotFound` — no course is registered under
+    ///   `course_id`
+    pub fn get_course_progress(
+        env: Env,
+        student: Address,
+        course_id: u32,
+    ) -> Result<CourseProgress, ProgressError> {
+        ProgressQueries::get_course_progress(&env, &student, course_id)
+    }
+
+    /// Fetch a student's result for an assessment, if one exists.
+    pub fn get_assessment_result(
+        env: Env,
+        student: Address,
+        assessment_id: u64,
+    ) -> Option<AssessmentResultView> {
+        AssessmentQueries::get_assessment_result(&env, &student, assessment_id)
+    }
+
+    /// Look up a certificate by its identifier, if one exists.
+    pub fn get_certificate(env: Env, certificate_id: u64) -> Option<CertificateView> {
+        CertificateQueries::get_certificate(&env, certificate_id)
+    }
+
+    /// Whether a certificate with the given identifier exists and was issued
+    /// to the given student for the given course.
+    pub fn verify_certificate(
+        env: Env,
+        certificate_id: u64,
+        student: Address,
+        course_id: u32,
+    ) -> bool {
+        CertificateQueries::verify_certificate(&env, certificate_id, &student, course_id)
     }
 }
 
