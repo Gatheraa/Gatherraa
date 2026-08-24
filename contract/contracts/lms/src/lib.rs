@@ -1,6 +1,7 @@
 #![no_std]
 
 mod access;
+mod certificate;
 mod contract;
 mod error;
 pub mod events;
@@ -9,6 +10,7 @@ mod storage;
 mod types;
 
 pub use access::{AccessControl, AccessError, Role, UserRecord};
+pub use certificate::{Certificate, CertificateError, CertificateService};
 pub use contract::{LmsContract, LmsContractClient};
 pub use error::Error;
 pub use progress::{Course, CourseProgress, Progress, ProgressError, COMPLETE_BASIS_POINTS};

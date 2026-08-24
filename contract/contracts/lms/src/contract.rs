@@ -1,6 +1,7 @@
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, String};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
+use crate::certificate::{Certificate, CertificateError, CertificateService};
 use crate::types::LmsVersion;
 
 /// Root contract for the Learning Management System.
@@ -93,6 +94,33 @@ impl LmsContract {
     /// Whether an address holds a specific role.
     pub fn has_role(env: Env, user: Address, role: Role) -> bool {
         AccessControl::has_role(&env, &user, role)
+    }
+
+    /// Issue a course-completion certificate to a student.
+    ///
+    /// Only staff — administrators and instructors — may issue
+    /// certificates. The certificate identifier is allocated from a
+    /// monotonic counter, so identifiers are unique by construction.
+    ///
+    /// # Errors
+    /// * `Unauthorized` — the caller is not staff
+    /// * `InvalidMetadataUri` — `metadata_uri` is empty
+    pub fn issue_certificate(
+        env: Env,
+        caller: Address,
+        student: Address,
+        course_id: u32,
+        metadata_uri: String,
+    ) -> Result<Certificate, CertificateError> {
+        CertificateService::issue_certificate(&env, &caller, &student, course_id, metadata_uri)
+    }
+
+    /// Look up a certificate by its identifier.
+    ///
+    /// Retrieval is public: anyone can check a certificate by its
+    /// identifier without authorization.
+    pub fn get_certificate(env: Env, certificate_id: u64) -> Option<Certificate> {
+        CertificateService::get_certificate(&env, certificate_id)
     }
 }
 

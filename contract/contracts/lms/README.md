@@ -4,10 +4,11 @@ Soroban contract backing the Gathera Learning Management System.
 
 ## Status
 
-The contract's implemented surface today is **initialization and access
-control**. The wider LMS — courses, modules, lessons, enrollment, progress,
-assessments, certificates, events, and queries — is being built out across
-issues #638–#657, and each module lands with its own entry points.
+The contract's implemented surface today is **initialization, access
+control, and certificate issuance/retrieval**. The wider LMS — courses,
+modules, lessons, enrollment, progress, assessments, completion-gated
+certificates, events, and queries — is being built out across issues
+#638–#657, and each module lands with its own entry points.
 
 | Area | Issue | State |
 |---|---|---|
@@ -19,7 +20,7 @@ issues #638–#657, and each module lands with its own entry points.
 | Course / module / lesson management | #640–#644 | Open |
 | Enrollment and payment | #645, #646 | Open |
 | Course completion | #650 | Open |
-| Certificates | #653, #654 | Open |
+| Certificates | #653, #654 | #653 done |
 | Events | #655 | Open |
 | Read / query interface | #656 | Open |
 
@@ -42,9 +43,12 @@ table is internal and unreachable from off-chain.
 | `get_role(user: Address)` | none | `Option<Role>` |
 | `get_user(user: Address)` | none | `Option<UserRecord>` |
 | `has_role(user: Address, role: Role)` | none | `bool` |
+| `issue_certificate(caller: Address, student: Address, course_id: u32, metadata_uri: String)` | `caller`, must be staff | `Result<Certificate, CertificateError>` |
+| `get_certificate(certificate_id: u64)` | none | `Option<Certificate>` |
 
 `Role` is one of `Admin`, `Instructor`, `Student`. `UserRecord` is
-`{ address: Address, role: Role }`.
+`{ address: Address, role: Role }`. `Certificate` is
+`{ certificate_id: u64, student: Address, course_id: u32, issued_at: u64, metadata_uri: String }`.
 
 ### Error codes
 
@@ -64,6 +68,15 @@ Note the distinction between `UserNotRegistered` (3) and `AdminRequired`
 (4). A caller with no role at all gets 3; a caller with the *wrong* role
 gets 4. The two are deliberately separate so a client can tell "you need to
 register" from "you need a promotion".
+
+### Certificate error codes
+
+`CertificateError`, as returned by `issue_certificate`:
+
+| Code | Variant | Meaning |
+|---|---|---|
+| 1 | `Unauthorized` | Caller is not staff (admin or instructor) |
+| 2 | `InvalidMetadataUri` | `metadata_uri` is empty |
 
 ## Initialization
 
@@ -225,6 +238,11 @@ contracts/lms/
 │   ├── storage.rs       StorageKey, shared across modules
 │   ├── types.rs         LmsVersion
 │   ├── error.rs         top-level Error
+│   ├── certificate/     certificate issuance and retrieval
+│   │   ├── mod.rs       CertificateService
+│   │   ├── errors.rs    CertificateError
+│   │   ├── storage.rs   certificate persistence and id counter
+│   │   └── types.rs     Certificate
 │   └── access/          roles and authorization
 │       ├── mod.rs       AccessControl service
 │       ├── errors.rs    AccessError
@@ -246,6 +264,8 @@ from off-chain, however complete its internals — and extend
 |---|---|---|
 | `Configuration` | instance | Interface version; presence marks the contract initialized |
 | `User(Address)` | persistent | That address's `Role` |
+| `Certificate(u64)` | persistent | The issued `Certificate`, keyed by certificate id |
+| `CertificateCounter` | instance | Monotonic counter allocating unique certificate ids |
 
 Contract-level configuration lives in instance storage: there is one of it
 and it shares the contract's lifetime and archival. Per-user records live in
