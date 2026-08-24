@@ -1,5 +1,7 @@
 use soroban_sdk::contracttype;
 
+use crate::course::CourseStatus;
+
 /// Number of basis points representing full completion.
 ///
 /// Progress is reported in basis points rather than whole percent so that
@@ -9,9 +11,11 @@ pub const COMPLETE_BASIS_POINTS: u32 = 10_000;
 
 /// A course that students can make progress through.
 ///
-/// A course is described entirely by how many lessons it contains. The
-/// lesson bodies themselves live off-chain; the contract only needs the
-/// count in order to reason about completion.
+/// A course is described by how many lessons it contains and where it sits
+/// in its lifecycle. The lesson bodies themselves live off-chain; the
+/// contract only needs the count in order to reason about completion, and
+/// the status in order to know whether students may touch the course at
+/// all.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Course {
@@ -24,6 +28,12 @@ pub struct Course {
     /// (a draft, for instance), and progress reporting handles it without
     /// dividing by zero.
     pub total_lessons: u32,
+
+    /// Where the course sits in the Draft → Published → Archived lifecycle.
+    ///
+    /// Every course enters as a draft; only the course-lifecycle module
+    /// moves it onward from there.
+    pub status: CourseStatus,
 }
 
 /// A student's progress through a single course.

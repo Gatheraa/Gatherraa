@@ -20,9 +20,12 @@
 //! (payment), #650 (course completion), #653 and #654 (certificates), #655
 //! (events). Each should extend this file rather than start a new one.
 
-use lms::{AccessError, LmsContract, LmsContractClient, LmsVersion, Role, UserRecord};
-use soroban_sdk::testutils::{Address as _, Ledger as _};
-use soroban_sdk::{Address, Env};
+use lms::{
+    AccessError, CourseError, CourseStatus, LmsContract, LmsContractClient, LmsVersion,
+    ProgressError, Role, UserRecord,
+};
+use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
+use soroban_sdk::{Address, Env, Symbol, TryFromVal as _};
 
 /// A deployed contract plus the four addresses the tests need.
 struct Deployment<'a> {
@@ -349,4 +352,161 @@ fn a_complete_deployment_lifecycle() {
         d.client.try_initialize(&d.outsider),
         Err(Ok(AccessError::AlreadyInitialized))
     );
+}
+
+// ---------------------------------------------------------------------------
+// Course lifecycle (#642)
+// ---------------------------------------------------------------------------
+
+/// Whether an event with `name` as its second topic was emitted.
+///
+/// LMS events carry the fixed prefix topics ["lms", "<name>"] followed by
+/// the per-event topic fields, so the second slot identifies the event
+/// kind regardless of payload.
+fn has_event(d: &Deployment, name: &str) -> bool {
+    let needle = Symbol::new(&d.env, name);
+
+    d.env.events().all().iter().any(|(_id, topics, _data)| {
+        topics.len() >= 2
+            && Symbol::try_from_val(&d.env, &topics.get(1).unwrap()) == Ok(needle.clone())
+    })
+}
+
+#[test]
+fn a_course_walks_the_full_lifecycle() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.create_course(&d.instructor, &1, &4);
+
+    // A course that exists but has never been touched is a draft.
+    // The event buffer only covers the most recent invocation, so each
+    // transition's event is checked before anything else is called.
+    assert!(has_event(&d, "course_created"));
+    assert_eq!(d.client.get_course_status(&1), Some(CourseStatus::Draft));
+    assert_eq!(d.client.get_course(&1).unwrap().total_lessons, 4);
+
+    d.client.publish_course(&d.instructor, &1);
+    assert!(has_event(&d, "course_published"));
+    assert_eq!(
+        d.client.get_course_status(&1),
+        Some(CourseStatus::Published)
+    );
+
+    d.client.archive_course(&d.admin, &1);
+    assert!(has_event(&d, "course_archived"));
+    assert_eq!(d.client.get_course_status(&1), Some(CourseStatus::Archived));
+}
+
+#[test]
+fn only_staff_can_drive_a_course_lifecycle() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.create_course(&d.instructor, &1, &4);
+
+    // Students are registered users, but the lifecycle is staff-only.
+    assert_eq!(
+        d.client.try_create_course(&d.student, &2, &3),
+        Err(Ok(ProgressError::CourseNotFound))
+    );
+    assert_eq!(
+        d.client.try_publish_course(&d.student, &1),
+        Err(Ok(CourseError::NotAuthorized))
+    );
+    assert_eq!(
+        d.client.try_update_course(&d.student, &1, &9),
+        Err(Ok(CourseError::NotAuthorized))
+    );
+    assert_eq!(
+        d.client.try_archive_course(&d.student, &1),
+        Err(Ok(CourseError::NotAuthorized))
+    );
+
+    // So is everyone with no role at all.
+    assert_eq!(
+        d.client.try_publish_course(&d.outsider, &1),
+        Err(Ok(CourseError::NotAuthorized))
+    );
+
+    // Nothing moved.
+    assert_eq!(d.client.get_course_status(&1), Some(CourseStatus::Draft));
+}
+
+#[test]
+fn invalid_transitions_are_rejected_at_every_wrong_move() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.create_course(&d.instructor, &1, &4);
+
+    // Draft cannot be archived before it was ever published.
+    assert_eq!(
+        d.client.try_archive_course(&d.instructor, &1),
+        Err(Ok(CourseError::InvalidTransition))
+    );
+    assert_eq!(d.client.get_course_status(&1), Some(CourseStatus::Draft));
+
+    d.client.publish_course(&d.admin, &1);
+
+    // Published cannot be published again.
+    assert_eq!(
+        d.client.try_publish_course(&d.instructor, &1),
+        Err(Ok(CourseError::InvalidTransition))
+    );
+
+    d.client.archive_course(&d.admin, &1);
+
+    // Archived is terminal: no re-publication, no re-archiving, no edits.
+    assert_eq!(
+        d.client.try_publish_course(&d.instructor, &1),
+        Err(Ok(CourseError::InvalidTransition))
+    );
+    assert_eq!(
+        d.client.try_archive_course(&d.instructor, &1),
+        Err(Ok(CourseError::InvalidTransition))
+    );
+    assert_eq!(
+        d.client.try_update_course(&d.instructor, &1, &7),
+        Err(Ok(CourseError::InvalidTransition))
+    );
+
+    assert_eq!(d.client.get_course_status(&1), Some(CourseStatus::Archived));
+}
+
+#[test]
+fn lifecycle_operations_on_an_unknown_course_fail_cleanly() {
+    let d = deploy_initialized();
+
+    assert_eq!(d.client.get_course_status(&99), None);
+    assert_eq!(
+        d.client.try_publish_course(&d.admin, &99),
+        Err(Ok(CourseError::CourseNotFound))
+    );
+    assert_eq!(
+        d.client.try_update_course(&d.admin, &99, &3),
+        Err(Ok(CourseError::CourseNotFound))
+    );
+    assert_eq!(
+        d.client.try_archive_course(&d.admin, &99),
+        Err(Ok(CourseError::CourseNotFound))
+    );
+}
+
+#[test]
+fn a_course_can_be_updated_until_it_is_archived() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.create_course(&d.instructor, &1, &4);
+
+    // Drafts are editable — that is what authoring is.
+    d.client.update_course(&d.instructor, &1, &6);
+
+    d.client.publish_course(&d.instructor, &1);
+
+    // Published courses stay editable; content corrections after launch
+    // are normal.
+    d.client.update_course(&d.admin, &1, &5);
+
+    let course = d.client.get_course(&1).unwrap();
+    assert_eq!(course.total_lessons, 5);
+    assert_eq!(course.status, CourseStatus::Published);
+    assert_eq!(course.id, 1);
 }
