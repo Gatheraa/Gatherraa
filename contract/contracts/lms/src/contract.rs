@@ -2,6 +2,7 @@ use soroban_sdk::{contract, contractimpl, Address, Env};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
 use crate::course::{Course, CourseError, Courses};
+use crate::progress::{CourseProgress, Progress, ProgressError, ProgressTracker};
 use crate::types::LmsVersion;
 
 /// Root contract for the Learning Management System.
@@ -122,6 +123,45 @@ impl LmsContract {
     /// Retrieve a course by its unique identifier.
     pub fn get_course(env: Env, course_id: u32) -> Option<Course> {
         Courses::get_course(&env, course_id)
+    }
+
+    /// Mark a lesson as complete for an enrolled student.
+    pub fn mark_lesson_complete(
+        env: Env,
+        student: Address,
+        course_id: u32,
+        lesson_id: u32,
+    ) -> Result<Progress, ProgressError> {
+        ProgressTracker::mark_lesson_complete(&env, &student, course_id, lesson_id)
+    }
+
+    /// Get progress record for a student on a specific lesson.
+    pub fn get_lesson_progress(
+        env: Env,
+        student: Address,
+        course_id: u32,
+        lesson_id: u32,
+    ) -> Option<Progress> {
+        ProgressTracker::get_lesson_progress(&env, &student, course_id, lesson_id)
+    }
+
+    /// Complete a lesson in a course.
+    pub fn complete_lesson(
+        env: Env,
+        student: Address,
+        course_id: u32,
+        lesson_index: u32,
+    ) -> Result<(), ProgressError> {
+        ProgressTracker::complete_lesson(&env, &student, course_id, lesson_index)
+    }
+
+    /// Get total course progress for a student.
+    pub fn get_course_progress(
+        env: Env,
+        student: Address,
+        course_id: u32,
+    ) -> Result<CourseProgress, ProgressError> {
+        ProgressTracker::get_course_progress(&env, &student, course_id)
     }
 }
 
