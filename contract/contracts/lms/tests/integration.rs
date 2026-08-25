@@ -22,7 +22,7 @@
 
 use lms::{
     AccessError, Course, CourseError, CourseStatus, LmsContract, LmsContractClient, LmsVersion,
-    Role, UserRecord,
+    ProgressError, Role, UserRecord,
 };
 use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::{Address, Env, String};
@@ -441,5 +441,123 @@ fn a_complete_deployment_lifecycle() {
     assert_eq!(
         d.client.try_initialize(&d.outsider),
         Err(Ok(AccessError::AlreadyInitialized))
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Lesson Progress Tracking Tests (#647)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn enrolled_student_marks_lesson_complete_and_tracks_progress() {
+    let d = deploy();
+    d.client.initialize(&d.admin);
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.register_student(&d.student);
+
+    // Instructor creates a 3-lesson course
+    d.client.create_course(
+        &d.instructor,
+        &1,
+        &d.instructor,
+        &String::from_str(&d.env, "Rust 101"),
+        &String::from_str(&d.env, "ipfs://desc"),
+        &0,
+        &3,
+    );
+
+    // Initial state: no progress
+    assert_eq!(d.client.get_lesson_progress(&d.student, &1, &0), None);
+    let init_prog = d.client.get_course_progress(&d.student, &1);
+    assert_eq!(init_prog.completed_lessons, 0);
+    assert_eq!(init_prog.total_lessons, 3);
+    assert_eq!(init_prog.basis_points, 0);
+
+    // Student marks lesson 0 complete
+    let prog0 = d.client.mark_lesson_complete(&d.student, &1, &0);
+    assert_eq!(prog0.student, d.student);
+    assert_eq!(prog0.course_id, 1);
+    assert_eq!(prog0.lesson_id, 0);
+    assert!(prog0.completed);
+    assert_eq!(prog0.completed_at, d.env.ledger().timestamp());
+
+    // Lesson progress is persisted
+    assert_eq!(
+        d.client.get_lesson_progress(&d.student, &1, &0),
+        Some(prog0.clone())
+    );
+
+    // Course progress is updated (1 of 3 = 3333 bps)
+    let cur_prog = d.client.get_course_progress(&d.student, &1);
+    assert_eq!(cur_prog.completed_lessons, 1);
+    assert_eq!(cur_prog.basis_points, 3_333);
+
+    // Duplicate completion is handled safely (idempotent, returns existing progress)
+    let prog0_dup = d.client.mark_lesson_complete(&d.student, &1, &0);
+    assert_eq!(prog0, prog0_dup);
+    let cur_prog_dup = d.client.get_course_progress(&d.student, &1);
+    assert_eq!(cur_prog_dup.completed_lessons, 1);
+
+    // Student completes remaining lessons
+    d.client.mark_lesson_complete(&d.student, &1, &1);
+    d.client.mark_lesson_complete(&d.student, &1, &2);
+
+    let final_prog = d.client.get_course_progress(&d.student, &1);
+    assert_eq!(final_prog.completed_lessons, 3);
+    assert_eq!(final_prog.total_lessons, 3);
+    assert_eq!(final_prog.basis_points, 10_000);
+    assert!(final_prog.is_complete());
+}
+
+#[test]
+fn unenrolled_user_cannot_mark_lesson_complete() {
+    let d = deploy();
+    d.client.initialize(&d.admin);
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    d.client.create_course(
+        &d.instructor,
+        &1,
+        &d.instructor,
+        &String::from_str(&d.env, "Rust 101"),
+        &String::from_str(&d.env, "ipfs://desc"),
+        &0,
+        &3,
+    );
+
+    // Outsider (not registered as student) cannot mark lesson complete
+    assert_eq!(
+        d.client.try_mark_lesson_complete(&d.outsider, &1, &0),
+        Err(Ok(ProgressError::NotEnrolled))
+    );
+}
+
+#[test]
+fn mark_lesson_out_of_range_or_nonexistent_course_fails() {
+    let d = deploy();
+    d.client.initialize(&d.admin);
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.register_student(&d.student);
+
+    d.client.create_course(
+        &d.instructor,
+        &1,
+        &d.instructor,
+        &String::from_str(&d.env, "Rust 101"),
+        &String::from_str(&d.env, "ipfs://desc"),
+        &0,
+        &2,
+    );
+
+    // Out of range (lesson 2 on 2-lesson course)
+    assert_eq!(
+        d.client.try_mark_lesson_complete(&d.student, &1, &2),
+        Err(Ok(ProgressError::LessonOutOfRange))
+    );
+
+    // Unknown course
+    assert_eq!(
+        d.client.try_mark_lesson_complete(&d.student, &999, &0),
+        Err(Ok(ProgressError::CourseNotFound))
     );
 }

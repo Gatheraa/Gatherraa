@@ -12,12 +12,11 @@ pub enum ProgressError {
     CourseAlreadyExists = 2,
 
     /// The lesson index falls outside the course's lesson range.
-    ///
-    /// Lessons are zero-indexed, so a course with `total_lessons = 5`
-    /// accepts indexes `0..=4`. Rejecting out-of-range indexes is what
-    /// keeps completed lesson counts from exceeding the course length.
     LessonOutOfRange = 3,
 
     /// The lesson has already been recorded as completed for this student.
     LessonAlreadyCompleted = 4,
+
+    /// Only enrolled students can update progress.
+    NotEnrolled = 5,
 }

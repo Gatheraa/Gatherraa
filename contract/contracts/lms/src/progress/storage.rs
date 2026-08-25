@@ -1,6 +1,7 @@
 use soroban_sdk::{Address, Env};
 
 use crate::course::Course;
+use crate::progress::types::Progress;
 use crate::StorageKey;
 
 /// Returns whether a course is registered under the given identifier.
@@ -42,10 +43,35 @@ pub fn set_lesson_completed(env: &Env, student: &Address, course_id: u32, lesson
     );
 }
 
+/// Retrieve the progress record for a student on a specific lesson.
+pub fn get_lesson_progress(
+    env: &Env,
+    student: &Address,
+    course_id: u32,
+    lesson_id: u32,
+) -> Option<Progress> {
+    env.storage()
+        .persistent()
+        .get(&StorageKey::LessonProgress(
+            student.clone(),
+            course_id,
+            lesson_id,
+        ))
+}
+
+/// Persist the progress record for a student on a specific lesson.
+pub fn set_lesson_progress(env: &Env, progress: &Progress) {
+    env.storage().persistent().set(
+        &StorageKey::LessonProgress(
+            progress.student.clone(),
+            progress.course_id,
+            progress.lesson_id,
+        ),
+        progress,
+    );
+}
+
 /// Returns how many lessons a student has completed in a course.
-///
-/// A student who has never touched the course has completed none of it, so
-/// a missing entry reads as zero rather than as an error.
 pub fn get_completed_count(env: &Env, student: &Address, course_id: u32) -> u32 {
     env.storage()
         .persistent()
