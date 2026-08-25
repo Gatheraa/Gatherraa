@@ -21,8 +21,8 @@
 //! (events). Each should extend this file rather than start a new one.
 
 use lms::{
-    AccessError, Course, CourseError, CourseStatus, LmsContract, LmsContractClient, LmsVersion,
-    Role, UserRecord,
+    AccessError, Course, CourseError, CourseStatus, Enrollment, EnrollmentError, EnrollmentStatus,
+    LmsContract, LmsContractClient, LmsVersion, Role, UserRecord,
 };
 use soroban_sdk::testutils::{Address as _, Ledger as _};
 use soroban_sdk::{Address, Env, String};
@@ -441,5 +441,165 @@ fn a_complete_deployment_lifecycle() {
     assert_eq!(
         d.client.try_initialize(&d.outsider),
         Err(Ok(AccessError::AlreadyInitialized))
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Course publication and enrollment (#645)
+// ---------------------------------------------------------------------------
+
+/// Create a draft course as the admin and return its identifier.
+fn create_draft_course(d: &Deployment, course_id: u32) {
+    d.client.create_course(
+        &d.admin,
+        &course_id,
+        &d.admin,
+        &String::from_str(&d.env, "Soroban 101"),
+        &String::from_str(&d.env, "https://example.com/soroban-101"),
+        &0_i128,
+        &3,
+    );
+}
+
+#[test]
+fn a_staff_member_can_publish_a_course() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+
+    assert_eq!(d.client.get_course(&1).unwrap().status, CourseStatus::Draft);
+
+    d.client.publish_course(&d.admin, &1);
+
+    assert_eq!(
+        d.client.get_course(&1).unwrap().status,
+        CourseStatus::Published
+    );
+}
+
+#[test]
+fn publishing_an_unknown_course_is_rejected() {
+    let d = deploy_initialized();
+
+    assert_eq!(
+        d.client.try_publish_course(&d.admin, &42),
+        Err(Ok(CourseError::CourseNotFound))
+    );
+}
+
+#[test]
+fn publishing_a_course_twice_is_rejected() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+    d.client.publish_course(&d.admin, &1);
+
+    assert_eq!(
+        d.client.try_publish_course(&d.admin, &1),
+        Err(Ok(CourseError::CourseAlreadyPublished))
+    );
+}
+
+#[test]
+fn a_student_cannot_publish_a_course() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+    d.client.register_student(&d.student);
+
+    assert_eq!(
+        d.client.try_publish_course(&d.student, &1),
+        Err(Ok(CourseError::Unauthorized))
+    );
+}
+
+#[test]
+fn a_registered_student_can_enroll_in_a_published_course() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+    d.client.publish_course(&d.admin, &1);
+    d.client.register_student(&d.student);
+
+    d.client.enroll(&d.student, &1);
+
+    assert!(d.client.is_enrolled(&d.student, &1));
+    assert_eq!(
+        d.client.get_enrollment(&d.student, &1),
+        Some(Enrollment {
+            student: d.student.clone(),
+            course_id: 1,
+            enrolled_at: d.env.ledger().timestamp(),
+            status: EnrollmentStatus::Active,
+        })
+    );
+}
+
+#[test]
+fn an_unregistered_address_cannot_enroll() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+
+    d.client.publish_course(&d.admin, &1);
+
+    assert_eq!(
+        d.client.try_enroll(&d.outsider, &1),
+        Err(Ok(EnrollmentError::StudentNotRegistered))
+    );
+}
+
+#[test]
+fn enrolling_in_a_draft_course_is_rejected() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+    d.client.register_student(&d.student);
+
+    assert_eq!(
+        d.client.try_enroll(&d.student, &1),
+        Err(Ok(EnrollmentError::CourseNotPublished))
+    );
+}
+
+#[test]
+fn duplicate_enrollment_is_rejected() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+
+    d.client.publish_course(&d.admin, &1);
+    d.client.register_student(&d.student);
+    d.client.enroll(&d.student, &1);
+
+    assert_eq!(
+        d.client.try_enroll(&d.student, &1),
+        Err(Ok(EnrollmentError::AlreadyEnrolled))
+    );
+}
+
+#[test]
+fn a_student_can_unenroll_and_the_record_is_retained() {
+    let d = deploy_initialized();
+    create_draft_course(&d, 1);
+    d.client.publish_course(&d.admin, &1);
+    d.client.register_student(&d.student);
+    d.client.enroll(&d.student, &1);
+
+    d.client.unenroll(&d.student, &1);
+
+    assert!(!d.client.is_enrolled(&d.student, &1));
+    assert_eq!(
+        d.client.get_enrollment(&d.student, &1),
+        Some(Enrollment {
+            student: d.student.clone(),
+            course_id: 1,
+            enrolled_at: d.env.ledger().timestamp(),
+            status: EnrollmentStatus::Unenrolled,
+        })
+    );
+}
+
+#[test]
+fn unenrolling_without_an_enrollment_is_rejected() {
+    let d = deploy_initialized();
+    d.client.register_student(&d.student);
+
+    assert_eq!(
+        d.client.try_unenroll(&d.student, &1),
+        Err(Ok(EnrollmentError::NotEnrolled))
     );
 }

@@ -52,6 +52,33 @@ impl Courses {
         Ok(())
     }
 
+    /// Publish a draft course so students can enroll in it.
+    ///
+    /// Only staff — administrators and instructors — may publish courses,
+    /// matching how creation is gated.
+    ///
+    /// # Errors
+    /// * `CourseNotFound` — no course exists under the identifier
+    /// * `CourseAlreadyPublished` — the course is already published
+    pub fn publish_course(env: &Env, caller: &Address, course_id: u32) -> Result<(), CourseError> {
+        AccessControl::require_staff(env, caller).map_err(|error| match error {
+            crate::access::AccessError::UserNotRegistered => CourseError::UserNotRegistered,
+            _ => CourseError::Unauthorized,
+        })?;
+
+        let mut course = storage::get_course(env, course_id).ok_or(CourseError::CourseNotFound)?;
+        if course.status == CourseStatus::Published {
+            return Err(CourseError::CourseAlreadyPublished);
+        }
+
+        course.status = CourseStatus::Published;
+        course.updated_at = env.ledger().timestamp();
+        storage::set_course(env, &course);
+        crate::events::course_published(env, course_id, caller);
+
+        Ok(())
+    }
+
     /// Retrieve a course by its unique identifier.
     pub fn get_course(env: &Env, course_id: u32) -> Option<Course> {
         storage::get_course(env, course_id)

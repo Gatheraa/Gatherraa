@@ -9,4 +9,5 @@ pub enum CourseError {
     CourseNotFound = 2,
     Unauthorized = 3,
     UserNotRegistered = 4,
+    CourseAlreadyPublished = 5,
 }
