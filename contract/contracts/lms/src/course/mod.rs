@@ -398,5 +398,57 @@ mod tests {
         assert_eq!(course.total_lessons, 5);
         assert_eq!(course.status, CourseStatus::Published);
         assert_eq!(course.id, 1);
+pub use types::{Course, CourseStatus};
+
+use soroban_sdk::{Address, Env, String};
+
+use crate::access::AccessControl;
+
+/// Course management operations for the LMS contract.
+pub struct Courses;
+
+impl Courses {
+    /// Create and persist a draft course for an authorized staff member.
+    pub fn create_course(
+        env: &Env,
+        caller: &Address,
+        course_id: u32,
+        instructor: &Address,
+        title: String,
+        description_uri: String,
+        price: i128,
+        total_lessons: u32,
+    ) -> Result<(), CourseError> {
+        AccessControl::require_staff(env, caller).map_err(|error| match error {
+            crate::access::AccessError::UserNotRegistered => CourseError::UserNotRegistered,
+            _ => CourseError::Unauthorized,
+        })?;
+
+        if storage::has_course(env, course_id) {
+            return Err(CourseError::CourseAlreadyExists);
+        }
+
+        let timestamp = env.ledger().timestamp();
+        storage::set_course(
+            env,
+            &Course {
+                course_id,
+                instructor: instructor.clone(),
+                title,
+                description_uri,
+                price,
+                status: CourseStatus::Draft,
+                created_at: timestamp,
+                updated_at: timestamp,
+                total_lessons,
+            },
+        );
+
+        Ok(())
+    }
+
+    /// Retrieve a course by its unique identifier.
+    pub fn get_course(env: &Env, course_id: u32) -> Option<Course> {
+        storage::get_course(env, course_id)
     }
 }

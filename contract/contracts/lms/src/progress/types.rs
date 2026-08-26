@@ -1,3 +1,5 @@
+pub use crate::course::Course;
+
 use soroban_sdk::contracttype;
 
 use crate::course::CourseStatus;

@@ -1,6 +1,7 @@
 use soroban_sdk::contracterror;
 
 /// Errors produced by the LMS course-lifecycle module.
+/// Errors produced by course management operations.
 #[contracterror]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -22,4 +23,8 @@ pub enum CourseError {
     /// course cannot be published again, and an archived course can be
     /// neither updated nor re-published.
     InvalidTransition = 3,
+    CourseAlreadyExists = 1,
+    CourseNotFound = 2,
+    Unauthorized = 3,
+    UserNotRegistered = 4,
 }

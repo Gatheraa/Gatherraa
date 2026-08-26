@@ -1,7 +1,7 @@
 use soroban_sdk::{contract, contractimpl, Address, Env};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
-use crate::course::{CourseError, CourseLifecycle, CourseStatus};
+use crate::course::{CourseError, CourseLifecycle, CourseStatus, Courses, Course};
 use crate::progress::{Course, Progress, ProgressError};
 use crate::types::LmsVersion;
 
@@ -106,6 +106,7 @@ impl LmsContract {
     ///   `course_id`
     /// * `CourseNotFound` — the caller is not staff (see
     ///   [`Progress::create_course`])
+    /// Create a draft course for an authorized administrator or instructor.
     pub fn create_course(
         env: Env,
         caller: Address,
@@ -165,6 +166,27 @@ impl LmsContract {
     /// Look up a course's lifecycle state, if it exists.
     pub fn get_course_status(env: Env, course_id: u32) -> Option<CourseStatus> {
         CourseLifecycle::get_status(&env, course_id)
+        instructor: Address,
+        title: soroban_sdk::String,
+        description_uri: soroban_sdk::String,
+        price: i128,
+        total_lessons: u32,
+    ) -> Result<(), CourseError> {
+        Courses::create_course(
+            &env,
+            &caller,
+            course_id,
+            &instructor,
+            title,
+            description_uri,
+            price,
+            total_lessons,
+        )
+    }
+
+    /// Retrieve a course by its unique identifier.
+    pub fn get_course(env: Env, course_id: u32) -> Option<Course> {
+        Courses::get_course(&env, course_id)
     }
 }
 

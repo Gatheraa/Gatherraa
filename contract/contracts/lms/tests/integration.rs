@@ -25,7 +25,7 @@ use lms::{
     ProgressError, Role, UserRecord,
 };
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
-use soroban_sdk::{Address, Env, Symbol, TryFromVal as _};
+use soroban_sdk::{Address, Env, Symbol, String, TryFromVal as _};
 
 /// A deployed contract plus the four addresses the tests need.
 struct Deployment<'a> {
@@ -299,6 +299,96 @@ fn stored_roles_survive_ledger_advancement() {
     // the roles are in the wrong storage durability.
     assert_eq!(d.client.get_role(&d.student), Some(Role::Student));
     assert!(d.client.is_initialized());
+}
+
+#[test]
+fn staff_can_store_and_retrieve_a_course() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    d.env.ledger().with_mut(|ledger| ledger.timestamp = 1234);
+    let title = String::from_str(&d.env, "Soroban LMS");
+    let description_uri = String::from_str(&d.env, "ipfs://course-description");
+
+    d.client.create_course(
+        &d.instructor,
+        &7,
+        &d.instructor,
+        &title,
+        &description_uri,
+        &5000,
+        &12,
+    );
+
+    assert_eq!(
+        d.client.get_course(&7),
+        Some(Course {
+            course_id: 7,
+            instructor: d.instructor.clone(),
+            title,
+            description_uri,
+            price: 5000,
+            status: CourseStatus::Draft,
+            created_at: 1234,
+            updated_at: 1234,
+            total_lessons: 12,
+        })
+    );
+}
+
+#[test]
+fn course_ids_are_unique_and_duplicate_creation_preserves_original() {
+    let d = deploy_initialized();
+    let title = String::from_str(&d.env, "First");
+    let description_uri = String::from_str(&d.env, "ipfs://first");
+
+    d.client.create_course(
+        &d.admin,
+        &9,
+        &d.instructor,
+        &title,
+        &description_uri,
+        &100,
+        &2,
+    );
+
+    let replacement_title = String::from_str(&d.env, "Replacement");
+    assert_eq!(
+        d.client.try_create_course(
+            &d.admin,
+            &9,
+            &d.instructor,
+            &replacement_title,
+            &description_uri,
+            &200,
+            &5,
+        ),
+        Err(Ok(CourseError::CourseAlreadyExists))
+    );
+
+    assert_eq!(d.client.get_course(&9).unwrap().title, title);
+    assert_eq!(d.client.get_course(&9).unwrap().price, 100);
+}
+
+#[test]
+fn an_unregistered_caller_cannot_create_a_course() {
+    let d = deploy_initialized();
+    let title = String::from_str(&d.env, "Unauthorized");
+    let description_uri = String::from_str(&d.env, "ipfs://unauthorized");
+
+    assert_eq!(
+        d.client.try_create_course(
+            &d.outsider,
+            &11,
+            &d.instructor,
+            &title,
+            &description_uri,
+            &0,
+            &0,
+        ),
+        Err(Ok(CourseError::UserNotRegistered))
+    );
+    assert_eq!(d.client.get_course(&11), None);
 }
 
 #[test]
