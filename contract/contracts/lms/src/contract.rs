@@ -1,7 +1,8 @@
 use soroban_sdk::{contract, contractimpl, Address, Env};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
-use crate::course::{Course, CourseError, Courses};
+use crate::course::{CourseError, CourseLifecycle, CourseStatus, Courses, Course};
+use crate::progress::{Course, Progress, ProgressError};
 use crate::types::LmsVersion;
 
 /// Root contract for the Learning Management System.
@@ -96,11 +97,75 @@ impl LmsContract {
         AccessControl::has_role(&env, &user, role)
     }
 
+    /// Register a course. The new course starts as a draft.
+    ///
+    /// Requires instructor or administrator authorization.
+    ///
+    /// # Errors
+    /// * `CourseAlreadyExists` — a course is already registered under
+    ///   `course_id`
+    /// * `CourseNotFound` — the caller is not staff (see
+    ///   [`Progress::create_course`])
     /// Create a draft course for an authorized administrator or instructor.
     pub fn create_course(
         env: Env,
         caller: Address,
         course_id: u32,
+        total_lessons: u32,
+    ) -> Result<(), ProgressError> {
+        Progress::create_course(&env, &caller, course_id, total_lessons)
+    }
+
+    /// Look up a registered course, including its lifecycle state.
+    pub fn get_course(env: Env, course_id: u32) -> Option<Course> {
+        Progress::get_course(&env, course_id)
+    }
+
+    /// Move a course from Draft to Published.
+    ///
+    /// Requires instructor or administrator authorization.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — the caller is not staff
+    /// * `CourseNotFound` — no course is registered under `course_id`
+    /// * `InvalidTransition` — the course is not in the Draft state
+    pub fn publish_course(env: Env, caller: Address, course_id: u32) -> Result<(), CourseError> {
+        CourseLifecycle::publish_course(&env, &caller, course_id)
+    }
+
+    /// Move a course from Published to Archived.
+    ///
+    /// Requires instructor or administrator authorization.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — the caller is not staff
+    /// * `CourseNotFound` — no course is registered under `course_id`
+    /// * `InvalidTransition` — the course is not in the Published state
+    pub fn archive_course(env: Env, caller: Address, course_id: u32) -> Result<(), CourseError> {
+        CourseLifecycle::archive_course(&env, &caller, course_id)
+    }
+
+    /// Change a course's lesson count.
+    ///
+    /// Allowed while the course is a draft or published; rejected once it
+    /// is archived. Requires instructor or administrator authorization.
+    ///
+    /// # Errors
+    /// * `NotAuthorized` — the caller is not staff
+    /// * `CourseNotFound` — no course is registered under `course_id`
+    /// * `InvalidTransition` — the course is archived
+    pub fn update_course(
+        env: Env,
+        caller: Address,
+        course_id: u32,
+        total_lessons: u32,
+    ) -> Result<(), CourseError> {
+        CourseLifecycle::update_course(&env, &caller, course_id, total_lessons)
+    }
+
+    /// Look up a course's lifecycle state, if it exists.
+    pub fn get_course_status(env: Env, course_id: u32) -> Option<CourseStatus> {
+        CourseLifecycle::get_status(&env, course_id)
         instructor: Address,
         title: soroban_sdk::String,
         description_uri: soroban_sdk::String,

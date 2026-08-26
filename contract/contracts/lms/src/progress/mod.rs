@@ -24,6 +24,10 @@ impl Progress {
     /// `total_lessons` may be zero. An empty course is a legitimate state
     /// for a course still being authored, and progress reporting handles
     /// it without dividing by zero.
+    ///
+    /// Every course is born a draft; only the course-lifecycle module moves
+    /// it onward from there, so a course can never skip its authoring phase
+    /// by accident of how it was created.
     pub fn create_course(
         env: &Env,
         caller: &Address,
@@ -49,6 +53,7 @@ impl Progress {
                 created_at: timestamp,
                 updated_at: timestamp,
                 total_lessons,
+                status: crate::course::CourseStatus::Draft,
             },
         );
         events::course_created(env, course_id, caller, total_lessons);
@@ -272,6 +277,9 @@ mod tests {
         assert_eq!(
             call(&env, &id, || Progress::get_course(&env, 1)),
             Some(Course {
+                id: 1,
+                total_lessons: 4,
+                status: crate::course::CourseStatus::Draft
                 course_id: 1,
                 instructor: instructor.clone(),
                 title: String::from_str(&env, ""),

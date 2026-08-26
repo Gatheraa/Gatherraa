@@ -1,26 +1,32 @@
 use soroban_sdk::Env;
 
-use crate::StorageKey;
+use crate::course::types::CourseStatus;
+use crate::progress::storage as progress_storage;
 
-use super::types::Course;
-
-/// Returns whether a course is registered under the given identifier.
-pub fn has_course(env: &Env, course_id: u32) -> bool {
-    env.storage()
-        .persistent()
-        .has(&StorageKey::Course(course_id))
+/// Returns the status of the course registered under the given identifier,
+/// if any.
+pub fn get_status(env: &Env, course_id: u32) -> Option<CourseStatus> {
+    progress_storage::get_course(env, course_id).map(|course| course.status)
 }
 
-/// Returns the course registered under the given identifier.
-pub fn get_course(env: &Env, course_id: u32) -> Option<Course> {
-    env.storage()
-        .persistent()
-        .get(&StorageKey::Course(course_id))
+/// Persist a course record.
+///
+/// The lifecycle module never creates or deletes course records — it only
+/// moves existing ones between states. Creation stays with
+/// [`crate::progress`], which stamps every new course as a draft.
+pub fn set_status(env: &Env, course_id: u32, status: CourseStatus) {
+    let mut course = progress_storage::get_course(env, course_id).expect("course must exist");
+    course.status = status;
+    progress_storage::set_course(env, &course);
 }
 
-/// Persists a course record using its identifier as the unique key.
-pub fn set_course(env: &Env, course: &Course) {
-    env.storage()
-        .persistent()
-        .set(&StorageKey::Course(course.course_id), course);
+/// Persist a course's lesson count.
+///
+/// Used by `update_course`. Like `set_status`, this rewrites the existing
+/// record rather than replacing it, so a state transition can never be
+/// lost through a concurrent-looking overwrite.
+pub fn set_total_lessons(env: &Env, course_id: u32, total_lessons: u32) {
+    let mut course = progress_storage::get_course(env, course_id).expect("course must exist");
+    course.total_lessons = total_lessons;
+    progress_storage::set_course(env, &course);
 }
