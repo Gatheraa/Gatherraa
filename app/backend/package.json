@@ -156,7 +156,6 @@
       "node_modules/(?!(uuid)/)"
     ],
     "testPathIgnorePatterns": [
-      "task-queue/",
       "privacy/",
       "anomaly-detection/"
     ],
