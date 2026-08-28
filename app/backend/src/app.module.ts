@@ -20,21 +20,37 @@ import { VerificationHistory } from './identity-verification/entities/verificati
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'sqlite',
-        database: config.get<string>('DATABASE_PATH', ':memory:'),
-        entities: [IdentityVerification, VerificationHistory],
-        synchronize: true,
-        retryAttempts: 0,
-        // Pool sizing — defaults are conservative but tunable via env
-        extra: {
-          min: config.get<number>('DATABASE_POOL_MIN', 2),
-          max: config.get<number>('DATABASE_POOL_MAX', 10),
-          idleTimeoutMillis: config.get<number>('IDLE_TIMEOUT_MS', 30_000),
-          connectionTimeoutMillis: config.get<number>('STATEMENT_TIMEOUT_MS', 5_000),
-          maxLifetimeSeconds: config.get<number>('MAX_LIFETIME_MS', 3_600_000) / 1000,
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const nodeEnv = config.get<string>('NODE_ENV', 'development');
+        const isProduction = nodeEnv === 'production';
+        const isTest = nodeEnv === 'test';
+        // In production and non-test environments, synchronize must be false
+        // Allow explicit opt-in only in non-production environments when DB_SYNCHRONIZE=true or in test mode
+        const allowSync =
+          !isProduction &&
+          (isTest || config.get<string>('DB_SYNCHRONIZE') === 'true');
+        return {
+          type: 'sqlite',
+          database: config.get<string>('DATABASE_PATH', ':memory:'),
+          entities: [IdentityVerification, VerificationHistory],
+          synchronize: allowSync,
+          migrationsRun: !allowSync,
+          migrations: [__dirname + '/migrations/*{.ts,.js}'],
+          retryAttempts: 0,
+          // Pool sizing — defaults are conservative but tunable via env
+          extra: {
+            min: config.get<number>('DATABASE_POOL_MIN', 2),
+            max: config.get<number>('DATABASE_POOL_MAX', 10),
+            idleTimeoutMillis: config.get<number>('IDLE_TIMEOUT_MS', 30_000),
+            connectionTimeoutMillis: config.get<number>(
+              'STATEMENT_TIMEOUT_MS',
+              5_000,
+            ),
+            maxLifetimeSeconds:
+              config.get<number>('MAX_LIFETIME_MS', 3_600_000) / 1000,
+          },
+        };
+      },
     }),
     ScheduleModule.forRoot(),
     IdentityVerificationModule,

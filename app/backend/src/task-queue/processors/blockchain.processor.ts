@@ -18,6 +18,94 @@ export interface BlockchainEventJobData {
 }
 
 /**
+ * Normalizes an event name, signature, or hex topic into an exact 32-byte Keccak-256 topic hash.
+ */
+export function getEventTopicHash(eventNameOrTopic: string): string {
+  if (!eventNameOrTopic || typeof eventNameOrTopic !== 'string') {
+    return '';
+  }
+  const trimmed = eventNameOrTopic.trim();
+  if (/^0x[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  try {
+    if (ethers.utils?.id) {
+      return ethers.utils.id(trimmed).toLowerCase();
+    }
+    if ((ethers as any).id) {
+      return (ethers as any).id(trimmed).toLowerCase();
+    }
+    if (ethers.utils?.keccak256 && ethers.utils?.toUtf8Bytes) {
+      return ethers.utils
+        .keccak256(ethers.utils.toUtf8Bytes(trimmed))
+        .toLowerCase();
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+/**
+ * Checks if a contract address safely matches a log emitter address.
+ * Case-insensitive and checksum-safe.
+ */
+export function isContractAddressMatch(
+  logAddress: string | undefined | null,
+  expectedAddress: string | undefined | null,
+): boolean {
+  if (!logAddress || !expectedAddress) {
+    return false;
+  }
+  try {
+    const getAddr = ethers.utils?.getAddress || (ethers as any).getAddress;
+    if (getAddr) {
+      return (
+        getAddr(logAddress).toLowerCase() ===
+        getAddr(expectedAddress).toLowerCase()
+      );
+    }
+  } catch {
+    // Non-standard address string fallback
+  }
+  return logAddress.toLowerCase() === expectedAddress.toLowerCase();
+}
+
+/**
+ * Verifies whether a given log matches the target contract address and exact event topic.
+ * - Compares log.address with contractAddress case-safely.
+ * - Compares ONLY log.topics[0] with the exact 32-byte event topic hash (never non-zero indexed topics).
+ * - Handles malformed logs/receipts deterministically without throwing exceptions.
+ */
+export function isEventLogMatch(
+  log:
+    | { address?: string; topics?: readonly string[] | string[] }
+    | null
+    | undefined,
+  contractAddress: string,
+  eventNameOrTopic: string,
+): boolean {
+  if (!log || typeof log !== 'object') {
+    return false;
+  }
+  if (!isContractAddressMatch(log.address, contractAddress)) {
+    return false;
+  }
+  if (!log.topics || !Array.isArray(log.topics) || log.topics.length === 0) {
+    return false;
+  }
+  const expectedTopicHash = getEventTopicHash(eventNameOrTopic);
+  if (!expectedTopicHash) {
+    return false;
+  }
+  const logTopic0 = log.topics[0];
+  if (!logTopic0 || typeof logTopic0 !== 'string') {
+    return false;
+  }
+  return logTopic0.toLowerCase() === expectedTopicHash.toLowerCase();
+}
+
+/**
  * Processor for blockchain event jobs
  * Handles event listening, processing, and contract interactions
  */
@@ -39,28 +127,31 @@ export class BlockchainProcessor extends WorkerHost {
    * Initialize blockchain providers for different networks
    */
   private initializeProviders() {
+    const ProviderClass: any =
+      ethers.providers?.JsonRpcProvider || (ethers as any).JsonRpcProvider;
+
     // Ethereum Mainnet
     const mainnetRpc = this.configService.get<string>('ETH_MAINNET_RPC');
-    if (mainnetRpc) {
-      this.providers.set('1', new ethers.JsonRpcProvider(mainnetRpc));
+    if (mainnetRpc && ProviderClass) {
+      this.providers.set('1', new ProviderClass(mainnetRpc));
     }
 
     // Sepolia Testnet
     const sepoliaRpc = this.configService.get<string>('ETH_SEPOLIA_RPC');
-    if (sepoliaRpc) {
-      this.providers.set('11155111', new ethers.JsonRpcProvider(sepoliaRpc));
+    if (sepoliaRpc && ProviderClass) {
+      this.providers.set('11155111', new ProviderClass(sepoliaRpc));
     }
 
     // Polygon
     const polygonRpc = this.configService.get<string>('POLYGON_RPC');
-    if (polygonRpc) {
-      this.providers.set('137', new ethers.JsonRpcProvider(polygonRpc));
+    if (polygonRpc && ProviderClass) {
+      this.providers.set('137', new ProviderClass(polygonRpc));
     }
 
     // Stellar (via bridge or API)
     const stellarRpc = this.configService.get<string>('STELLAR_RPC');
-    if (stellarRpc) {
-      this.providers.set('stellar', new ethers.JsonRpcProvider(stellarRpc));
+    if (stellarRpc && ProviderClass) {
+      this.providers.set('stellar', new ProviderClass(stellarRpc));
     }
 
     this.logger.log(`Initialized ${this.providers.size} blockchain providers`);
@@ -273,11 +364,10 @@ export class BlockchainProcessor extends WorkerHost {
 
     await job.updateProgress(75);
 
-    // Verify event was emitted
-    const eventFound = receipt.logs.some(
-      (log) =>
-        log.address.toLowerCase() === contractAddress.toLowerCase() &&
-        log.topics.some((topic) => topic.includes(eventName)),
+    // Verify event was emitted using exact 32-byte topic hash matching and case-safe address comparison
+    const logs = Array.isArray(receipt.logs) ? receipt.logs : [];
+    const eventFound = logs.some((log) =>
+      isEventLogMatch(log, contractAddress, eventName),
     );
 
     return {
