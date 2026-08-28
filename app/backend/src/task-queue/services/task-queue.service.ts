@@ -3,8 +3,14 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
+import { ConfigService } from '@nestjs/config';
 import { Queue, Job, JobsOptions } from 'bullmq';
 import { v4 as uuid } from 'uuid';
+import {
+  assertBlockchainEventPayloadWithinLimits,
+  BlockchainResourceLimits,
+  getBlockchainResourceLimits,
+} from '../processors/blockchain.validation';
 
 export interface JobData {
   [key: string]: any;
@@ -68,7 +74,12 @@ export class TaskQueueService {
     @InjectQueue('waitlist:expiry:dlq') private waitlistExpiryDlq: Queue,
     @InjectQueue('waitlist:invite') private waitlistInviteQueue: Queue,
     @InjectQueue('waitlist:invite:dlq') private waitlistInviteDlq: Queue,
-  ) { }
+    private readonly configService: ConfigService,
+  ) {
+    this.limits = getBlockchainResourceLimits(configService);
+  }
+
+  private readonly limits: BlockchainResourceLimits;
 
   /**
    * Get queue by name
@@ -221,6 +232,11 @@ export class TaskQueueService {
     const jobId =
       options?.deduplicationKey ||
       `blockchain-${data.contractAddress}-${uuid()}`;
+
+    // Bounded resource policy: reject oversized payloads before they enter
+    // the queue, so they fail as permanent input errors rather than consuming
+    // worker memory.
+    assertBlockchainEventPayloadWithinLimits(data, this.limits);
 
     this.logger.log(
       `Enqueuing blockchain event job: ${jobId}`,

@@ -2,6 +2,7 @@
 // Comprehensive test suite for BullMQ task queue system
 
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { TaskQueueService } from './services/task-queue.service';
 import { NotificationsGateway } from '../notifications/gateway/notifications.gateway';
 import { Job } from 'bullmq';
@@ -64,6 +65,12 @@ describe('TaskQueue System (Offline Unit Suite)', () => {
         {
           provide: NotificationsGateway,
           useValue: { server: mockSocketServer },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, defaultValue?: any) => defaultValue),
+          },
         },
       ],
     }).compile();

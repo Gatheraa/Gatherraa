@@ -3,10 +3,16 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { ConfigService } from '@nestjs/config';
 import { ethers } from 'ethers';
 import { TaskQueueService } from '../services/task-queue.service';
+import {
+  assertBlockchainEventPayloadWithinLimits,
+  BlockchainPayloadLimitError,
+  BlockchainResourceLimits,
+  getBlockchainResourceLimits,
+} from './blockchain.validation';
 
 export interface BlockchainEventJobData {
   contractAddress: string;
@@ -15,6 +21,74 @@ export interface BlockchainEventJobData {
   networkId?: string;
   rpcUrl?: string;
   action?: 'listen' | 'process' | 'verify' | 'index';
+}
+
+// --- Canonical event identity ----------------------------------------------
+// An EVM event's canonical identity is its signature topic (topics[0]), the
+// Keccak-256 hash of the event signature. Matching must be exact: substring
+// matching over encoded topics can collide, letting unrelated logs be accepted
+// or valid events be rejected.
+
+const HEX_TOPIC_PATTERN = /^0[xX][0-9a-fA-F]{64}$/;
+
+/**
+ * Resolve a job's eventName to its canonical (lowercase) event identity topic.
+ * Accepts an already-encoded 32-byte topic or a full event signature such as
+ * "Transfer(address,address,uint256)". Bare event names cannot be canonicalized
+ * and resolve to null rather than falling back to unsafe substring matching.
+ */
+export function canonicalEventTopic(eventName: string): string | null {
+  if (typeof eventName !== 'string' || eventName.trim().length === 0) {
+    return null;
+  }
+  const trimmed = eventName.trim();
+  if (HEX_TOPIC_PATTERN.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  if (!trimmed.includes('(')) {
+    return null;
+  }
+  try {
+    return ethers.utils.id(trimmed).toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Case-safe address comparison. Non-string or empty inputs never match,
+ * keeping malformed data deterministic instead of throwing.
+ */
+export function isSameAddress(a: unknown, b: unknown): boolean {
+  return (
+    typeof a === 'string' &&
+    typeof b === 'string' &&
+    a.length > 0 &&
+    b.length > 0 &&
+    a.toLowerCase() === b.toLowerCase()
+  );
+}
+
+/**
+ * Exact canonical event matching: a log matches only when its signature topic
+ * (topics[0]) equals the canonical event identity. Malformed logs (missing
+ * topics, empty topics, or non-string signature topics) deterministically do
+ * not match.
+ */
+export function isEventLogFor(log: unknown, eventName: string): boolean {
+  const expectedTopic = canonicalEventTopic(eventName);
+  if (expectedTopic === null || log === null || typeof log !== 'object') {
+    return false;
+  }
+  const topics = (log as { topics?: unknown }).topics;
+  if (!Array.isArray(topics) || topics.length === 0) {
+    return false;
+  }
+  const signatureTopic = topics[0];
+  return (
+    typeof signatureTopic === 'string' &&
+    signatureTopic.toLowerCase() === expectedTopic
+  );
 }
 
 /**
@@ -26,12 +100,14 @@ export interface BlockchainEventJobData {
 export class BlockchainProcessor extends WorkerHost {
   private readonly logger = new Logger(BlockchainProcessor.name);
   private providers: Map<string, ethers.Provider> = new Map();
+  private readonly limits: BlockchainResourceLimits;
 
   constructor(
     private configService: ConfigService,
     private readonly taskQueueService: TaskQueueService,
   ) {
     super();
+    this.limits = getBlockchainResourceLimits(configService);
     this.initializeProviders();
   }
 
@@ -80,6 +156,10 @@ export class BlockchainProcessor extends WorkerHost {
     } = job.data;
 
     try {
+      // Bounded resource policy: reject oversized payloads before any decoding
+      // work. These are permanent input failures and are never retried.
+      assertBlockchainEventPayloadWithinLimits(job.data, this.limits);
+
       this.logger.log(
         `Processing blockchain event job ${jobId}: ${eventName} on network ${networkId}`,
       );
@@ -157,6 +237,12 @@ export class BlockchainProcessor extends WorkerHost {
         `Failed to process blockchain event job ${jobId}: ${error.message}`,
         error.stack,
       );
+
+      if (error instanceof BlockchainPayloadLimitError) {
+        // Permanent input failure: fail the job immediately without retries.
+        // onJobFailed routes it to the Dead Letter Queue.
+        throw new UnrecoverableError(error.message);
+      }
 
       throw {
         message: error.message,
@@ -273,12 +359,18 @@ export class BlockchainProcessor extends WorkerHost {
 
     await job.updateProgress(75);
 
-    // Verify event was emitted
-    const eventFound = receipt.logs.some(
-      (log) =>
-        log.address.toLowerCase() === contractAddress.toLowerCase() &&
-        log.topics.some((topic) => topic.includes(eventName)),
-    );
+    // Verify the event was emitted using canonical exact event identity:
+    // the signature topic (topics[0]) must match exactly, and the contract
+    // address comparison stays case-safe. Malformed logs never match.
+    const eventFound = receipt.logs.some((log) => {
+      if (log === null || typeof log !== 'object') {
+        return false;
+      }
+      return (
+        isSameAddress((log as { address?: unknown }).address, contractAddress) &&
+        isEventLogFor(log, eventName)
+      );
+    });
 
     return {
       verified: eventFound,
@@ -338,8 +430,12 @@ export class BlockchainProcessor extends WorkerHost {
   @OnWorkerEvent('failed')
   async onJobFailed(job: Job, error: Error) {
     const maxAttempts = job.opts.attempts ?? 1;
+    // A job also fails permanently when the worker reports it as unrecoverable
+    // (e.g. an oversized payload that exceeded the bounded resource policy).
+    const isPermanentFailure =
+      job.attemptsMade >= maxAttempts || error?.name === 'UnrecoverableError';
 
-    if (job.attemptsMade >= maxAttempts) {
+    if (isPermanentFailure) {
       this.logger.warn(
         `Blockchain Job ${job.id} failed permanently after ${job.attemptsMade} attempts. Routing to DLQ.`,
       );
