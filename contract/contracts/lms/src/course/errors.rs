@@ -9,5 +9,14 @@ pub enum CourseError {
     CourseNotFound = 2,
     Unauthorized = 3,
     UserNotRegistered = 4,
+
+    /// The course title is empty.
+    InvalidTitle = 5,
+
+    /// The course description URI is empty.
+    InvalidDescriptionUri = 6,
+
+    /// The course price is negative.
+    InvalidPrice = 7,
     CourseAlreadyPublished = 5,
 }

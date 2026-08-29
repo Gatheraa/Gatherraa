@@ -8,12 +8,33 @@ pub use types::{Course, CourseStatus};
 use soroban_sdk::{Address, Env, String};
 
 use crate::access::AccessControl;
+use crate::events;
 
 /// Course management operations for the LMS contract.
 pub struct Courses;
 
 impl Courses {
     /// Create and persist a draft course for an authorized staff member.
+    ///
+    /// Access follows the same staff convention as the rest of course
+    /// administration (see `AccessControl::require_staff` and issue #642):
+    /// both administrators and instructors may create a course, but a
+    /// student — or any unregistered caller — cannot.
+    ///
+    /// `course_id` is supplied by the caller rather than generated
+    /// on-chain, matching the convention already used for
+    /// `assessment_id` elsewhere in this contract. Uniqueness is still
+    /// guaranteed on-chain: `CourseAlreadyExists` is returned, and nothing
+    /// is written, if the identifier is already in use.
+    ///
+    /// # Errors
+    /// * `UserNotRegistered` — the caller holds no LMS role at all
+    /// * `Unauthorized` — the caller is registered but is neither an
+    ///   administrator nor an instructor
+    /// * `InvalidTitle` — `title` is empty
+    /// * `InvalidDescriptionUri` — `description_uri` is empty
+    /// * `InvalidPrice` — `price` is negative
+    /// * `CourseAlreadyExists` — `course_id` is already in use
     pub fn create_course(
         env: &Env,
         caller: &Address,
@@ -28,6 +49,18 @@ impl Courses {
             crate::access::AccessError::UserNotRegistered => CourseError::UserNotRegistered,
             _ => CourseError::Unauthorized,
         })?;
+
+        if title.is_empty() {
+            return Err(CourseError::InvalidTitle);
+        }
+
+        if description_uri.is_empty() {
+            return Err(CourseError::InvalidDescriptionUri);
+        }
+
+        if price < 0 {
+            return Err(CourseError::InvalidPrice);
+        }
 
         if storage::has_course(env, course_id) {
             return Err(CourseError::CourseAlreadyExists);
@@ -48,6 +81,8 @@ impl Courses {
                 total_lessons,
             },
         );
+
+        events::course_created(env, course_id, caller, total_lessons);
 
         Ok(())
     }
