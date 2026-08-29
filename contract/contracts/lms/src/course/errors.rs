@@ -18,4 +18,5 @@ pub enum CourseError {
 
     /// The course price is negative.
     InvalidPrice = 7,
+    CourseAlreadyPublished = 5,
 }

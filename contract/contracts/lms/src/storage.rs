@@ -13,6 +13,12 @@ pub enum StorageKey {
     /// A registered course, keyed by course identifier.
     Course(u32),
 
+    /// Enrollment of a student in a course.
+    ///
+    /// Keyed by student address and course identifier. The record's status
+    /// distinguishes an active enrollment from a withdrawn one.
+    Enrollment(Address, u32),
+
     /// Cached count of lessons a student has completed in a course.
     ///
     /// Keyed by student address and course identifier. This is a

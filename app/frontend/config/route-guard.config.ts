@@ -105,6 +105,13 @@ export const ROUTE_RULES: Record<string, RouteRule> = {
     skeletonVariant: "event",
     label: "Manage Events",
   },
+  "/courses/manage": {
+    requiredRole: "organizer",
+    redirectTo: "/login",
+    insufficientRoleRedirect: "/dashboard?upgrade=organizer",
+    skeletonVariant: "dashboard",
+    label: "Course Management",
+  },
 
   // ── Admin routes ─────────────────────────────────────────────────────────
   "/admin": {
