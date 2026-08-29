@@ -1,7 +1,8 @@
 model VideoJob {
-  id            String   @id @default(uuid())
+
+   id            String   @id @default(uuid())
   originalUrl   String
-  status        String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
+  status        String   @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED 
   attempts      Int      @default(0)
   duration      Float?
   resolution    String?
@@ -9,6 +10,15 @@ model VideoJob {
   manifestUrl   String?
   thumbnailUrl  String?
   error         String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime @Default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+
+model DashboardLayout {
+  id            String   @id @default(uuid())
+  name          String
+  layoutData    Json
+  createdAt     DateTime @Default(now())
   updatedAt     DateTime @updatedAt
 }
