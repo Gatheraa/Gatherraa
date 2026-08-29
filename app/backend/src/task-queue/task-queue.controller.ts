@@ -10,9 +10,11 @@ import {
   Query,
   HttpStatus,
   HttpCode,
+  HttpException,
   Logger,
 } from '@nestjs/common';
 import { TaskQueueService, QueueName } from './services/task-queue.service';
+import { BlockchainPayloadLimitError } from './processors/blockchain.validation';
 
 @Controller('api/task-queue')
 export class TaskQueueController {
@@ -138,6 +140,16 @@ export class TaskQueueController {
       };
     } catch (error) {
       this.logger.error(`Failed to enqueue blockchain event: ${error.message}`);
+      if (error instanceof BlockchainPayloadLimitError) {
+        throw new HttpException(
+          {
+            success: false,
+            message: error.message,
+            code: error.code,
+          },
+          HttpStatus.PAYLOAD_TOO_LARGE,
+        );
+      }
       throw error;
     }
   }
