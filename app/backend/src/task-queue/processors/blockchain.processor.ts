@@ -13,6 +13,12 @@ import {
   BlockchainResourceLimits,
   getBlockchainResourceLimits,
 } from './blockchain.validation';
+import {
+  resolveStellarProviderConfig,
+  StellarConfigError,
+  STELLAR_NETWORK_ID,
+} from '../config/blockchain-provider.config';
+import { StellarProvider } from '../providers/stellar.provider';
 
 export interface BlockchainEventJobData {
   contractAddress: string;
@@ -85,10 +91,7 @@ export function isEventLogFor(log: unknown, eventName: string): boolean {
     return false;
   }
   const signatureTopic = topics[0];
-  return (
-    typeof signatureTopic === 'string' &&
-    signatureTopic.toLowerCase() === expectedTopic
-  );
+  return typeof signatureTopic === 'string' && signatureTopic.toLowerCase() === expectedTopic;
 }
 
 /**
@@ -99,7 +102,8 @@ export function isEventLogFor(log: unknown, eventName: string): boolean {
 @Injectable()
 export class BlockchainProcessor extends WorkerHost {
   private readonly logger = new Logger(BlockchainProcessor.name);
-  private providers: Map<string, ethers.Provider> = new Map();
+  private providers: Map<string, ethers.providers.Provider> = new Map();
+  private stellarProvider: StellarProvider | null = null;
   private readonly limits: BlockchainResourceLimits;
 
   constructor(
@@ -118,25 +122,39 @@ export class BlockchainProcessor extends WorkerHost {
     // Ethereum Mainnet
     const mainnetRpc = this.configService.get<string>('ETH_MAINNET_RPC');
     if (mainnetRpc) {
-      this.providers.set('1', new ethers.JsonRpcProvider(mainnetRpc));
+      this.providers.set('1', new ethers.providers.JsonRpcProvider(mainnetRpc));
     }
 
     // Sepolia Testnet
     const sepoliaRpc = this.configService.get<string>('ETH_SEPOLIA_RPC');
     if (sepoliaRpc) {
-      this.providers.set('11155111', new ethers.JsonRpcProvider(sepoliaRpc));
+      this.providers.set('11155111', new ethers.providers.JsonRpcProvider(sepoliaRpc));
     }
 
     // Polygon
     const polygonRpc = this.configService.get<string>('POLYGON_RPC');
     if (polygonRpc) {
-      this.providers.set('137', new ethers.JsonRpcProvider(polygonRpc));
+      this.providers.set('137', new ethers.providers.JsonRpcProvider(polygonRpc));
     }
 
-    // Stellar (via bridge or API)
+    // Stellar is NOT an EVM network and must never be built on ethers. It uses
+    // the Stellar (Soroban) protocol, so it is handled by a dedicated
+    // protocol-compatible client. Invalid STELLAR_RPC configuration fails
+    // clearly here instead of appearing healthy, and the endpoint is never
+    // logged.
     const stellarRpc = this.configService.get<string>('STELLAR_RPC');
-    if (stellarRpc) {
-      this.providers.set('stellar', new ethers.JsonRpcProvider(stellarRpc));
+    try {
+      const stellarConfig = resolveStellarProviderConfig(stellarRpc);
+      if (stellarConfig) {
+        this.stellarProvider = new StellarProvider(stellarConfig.endpoint);
+        this.logger.log(`Initialized Stellar provider for ${stellarConfig.safeEndpoint}`);
+      }
+    } catch (error) {
+      if (error instanceof StellarConfigError) {
+        this.logger.error(`Failed to initialize Stellar provider: ${error.message}`);
+        throw error;
+      }
+      throw error;
     }
 
     this.logger.log(`Initialized ${this.providers.size} blockchain providers`);
@@ -172,6 +190,16 @@ export class BlockchainProcessor extends WorkerHost {
         throw new Error(`Provider not configured for network ${networkId}`);
       }
 
+      if (networkId === STELLAR_NETWORK_ID) {
+        // Stellar uses the Soroban protocol; the EVM action handlers do not
+        // apply. Fail clearly instead of silently executing EVM JSON-RPC
+        // against a Stellar endpoint.
+        throw new Error(
+          `Action '${action}' is not supported on the ${STELLAR_NETWORK_ID} network. ` +
+            `Stellar uses the Soroban protocol, not EVM JSON-RPC.`,
+        );
+      }
+
       await job.updateProgress(25);
 
       // Route to appropriate action
@@ -179,7 +207,7 @@ export class BlockchainProcessor extends WorkerHost {
       switch (action) {
         case 'listen':
           result = await this.listenToEvent(
-            provider,
+            provider as ethers.providers.Provider,
             contractAddress,
             eventName,
             parameters,
@@ -188,7 +216,7 @@ export class BlockchainProcessor extends WorkerHost {
           break;
         case 'process':
           result = await this.processEvent(
-            provider,
+            provider as ethers.providers.Provider,
             contractAddress,
             eventName,
             parameters,
@@ -197,7 +225,7 @@ export class BlockchainProcessor extends WorkerHost {
           break;
         case 'verify':
           result = await this.verifyEvent(
-            provider,
+            provider as ethers.providers.Provider,
             contractAddress,
             eventName,
             parameters,
@@ -206,7 +234,7 @@ export class BlockchainProcessor extends WorkerHost {
           break;
         case 'index':
           result = await this.indexEvent(
-            provider,
+            provider as ethers.providers.Provider,
             contractAddress,
             eventName,
             parameters,
@@ -219,9 +247,7 @@ export class BlockchainProcessor extends WorkerHost {
 
       await job.updateProgress(100);
 
-      this.logger.log(
-        `Blockchain event job ${jobId} completed successfully`,
-      );
+      this.logger.log(`Blockchain event job ${jobId} completed successfully`);
 
       return {
         success: true,
@@ -259,15 +285,13 @@ export class BlockchainProcessor extends WorkerHost {
    * Listen to blockchain events
    */
   private async listenToEvent(
-    provider: ethers.Provider,
+    provider: ethers.providers.Provider,
     contractAddress: string,
     eventName: string,
     parameters: any,
     job: Job,
   ): Promise<any> {
-    this.logger.log(
-      `Setting up event listener for ${eventName} on ${contractAddress}`,
-    );
+    this.logger.log(`Setting up event listener for ${eventName} on ${contractAddress}`);
 
     await job.updateProgress(50);
 
@@ -299,16 +323,13 @@ export class BlockchainProcessor extends WorkerHost {
    * Process a blockchain event
    */
   private async processEvent(
-    provider: ethers.Provider,
+    provider: ethers.providers.Provider,
     contractAddress: string,
     eventName: string,
     parameters: any,
     job: Job,
   ): Promise<any> {
-    this.logger.log(
-      `Processing event ${eventName} with parameters`,
-      parameters,
-    );
+    this.logger.log(`Processing event ${eventName} with parameters`, parameters);
 
     await job.updateProgress(50);
 
@@ -336,7 +357,7 @@ export class BlockchainProcessor extends WorkerHost {
    * Verify a blockchain event
    */
   private async verifyEvent(
-    provider: ethers.Provider,
+    provider: ethers.providers.Provider,
     contractAddress: string,
     eventName: string,
     parameters: any,
@@ -347,14 +368,10 @@ export class BlockchainProcessor extends WorkerHost {
     await job.updateProgress(50);
 
     // Get transaction receipt
-    const receipt = await provider.getTransactionReceipt(
-      parameters.transactionHash,
-    );
+    const receipt = await provider.getTransactionReceipt(parameters.transactionHash);
 
     if (!receipt) {
-      throw new Error(
-        `Transaction ${parameters.transactionHash} not found`,
-      );
+      throw new Error(`Transaction ${parameters.transactionHash} not found`);
     }
 
     await job.updateProgress(75);
@@ -384,7 +401,7 @@ export class BlockchainProcessor extends WorkerHost {
    * Index blockchain event for search/query
    */
   private async indexEvent(
-    provider: ethers.Provider,
+    provider: ethers.providers.Provider,
     contractAddress: string,
     eventName: string,
     parameters: any,
@@ -420,7 +437,10 @@ export class BlockchainProcessor extends WorkerHost {
   /**
    * Get provider for network ID
    */
-  private getProvider(networkId: string): ethers.Provider | null {
+  private getProvider(networkId: string): ethers.providers.Provider | StellarProvider | null {
+    if (networkId === STELLAR_NETWORK_ID) {
+      return this.stellarProvider;
+    }
     return this.providers.get(networkId) || null;
   }
 
