@@ -1,5 +1,11 @@
 mod types;
 
+#[cfg(not(target_family = "wasm"))]
+pub mod decode;
+
+#[cfg(not(target_family = "wasm"))]
+pub use decode::{DecodeError, LmsEvent};
+
 pub use types::{
     AssessmentSubmitted, CertificateIssued, CourseArchived, CourseCompleted, CourseCreated,
     CoursePublished, LessonCompleted, LessonCreated, ModuleCreated, StudentEnrolled,
