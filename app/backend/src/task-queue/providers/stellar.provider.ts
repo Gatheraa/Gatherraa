@@ -34,10 +34,7 @@ export class StellarProvider {
 
   constructor(
     endpoint: string,
-    private readonly transport: (
-      url: URL,
-      init: RequestInit,
-    ) => Promise<Pick<Response, 'ok' | 'status'>> = defaultTransport,
+    private readonly transport: StellarTransport = defaultTransport,
   ) {
     // Defensive: mirror config validation so a StellarProvider can never be
     // built around an EVM JSON-RPC endpoint or a malformed value.
@@ -94,12 +91,71 @@ export class StellarProvider {
       return { ok: false, category: 'unreachable' };
     }
   }
+
+  /**
+   * Latest ledger sequence of the Stellar network (Soroban RPC
+   * `getLatestLedger`), used as the head bound for replay/backfill.
+   */
+  async getLatestLedger(): Promise<{ sequence: number }> {
+    const res = await this.transport(this.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getLatestLedger',
+        params: [],
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`getLatestLedger failed with HTTP ${res.status}.`);
+    }
+
+    const json = (await res.json()) as unknown;
+    const sequence = (json as { result?: { sequence?: unknown } })?.result?.sequence;
+    if (typeof sequence !== 'number' || !Number.isFinite(sequence) || sequence < 1) {
+      throw new Error('getLatestLedger returned an invalid sequence.');
+    }
+    return { sequence };
+  }
+
+  /**
+   * Enumerate the traces of a single ledger for backfill.
+   *
+   * A sequence-based enumeration RPC is a deliberate out-of-scope design
+   * decision for this issue; the default returns no events so the cursor
+   * machinery can still advance correctly. When a sequence-enumeration source
+   * is wired in, this returns the ledger's trace envelope inputs.
+   */
+  async eventsForLedger(
+    _networkId: string,
+    _ledger: number,
+  ): Promise<
+    Array<{
+      transactionHash: string;
+      ledgerSeq: number;
+      eventIndex: number;
+      eventName: string;
+      eventPayload: Record<string, unknown>;
+      rawXdr: string;
+      successfulCall: boolean;
+      applicationOrder: number;
+    }>
+  > {
+    return [];
+  }
 }
 
-/** Default transport: Node 18+ global `fetch`. */
+/** Injectable transport: Node 18+ global `fetch`, resolving JSON body lazily. */
+export type StellarTransport = (
+  url: URL,
+  init: RequestInit,
+) => Promise<Pick<Response, 'ok' | 'status'> & { json: () => Promise<unknown> }>;
+
 async function defaultTransport(
   url: URL,
   init: RequestInit,
-): Promise<Pick<Response, 'ok' | 'status'>> {
+): Promise<Pick<Response, 'ok' | 'status'> & { json: () => Promise<unknown> }> {
   return fetch(url, init);
 }

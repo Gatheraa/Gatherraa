@@ -74,6 +74,7 @@ export class TaskQueueService {
     @InjectQueue('waitlist:expiry:dlq') private waitlistExpiryDlq: Queue,
     @InjectQueue('waitlist:invite') private waitlistInviteQueue: Queue,
     @InjectQueue('waitlist:invite:dlq') private waitlistInviteDlq: Queue,
+    @InjectQueue('soroban:replay') private sorobanReplayQueue: Queue,
     private readonly configService: ConfigService,
   ) {
     this.limits = getBlockchainResourceLimits(configService);
@@ -123,10 +124,7 @@ export class TaskQueueService {
   ): Promise<Job> {
     const jobId = options?.deduplicationKey || `email-${uuid()}`;
 
-    this.logger.log(
-      `Enqueuing email job: ${jobId}`,
-      { to: data.to, subject: data.subject },
-    );
+    this.logger.log(`Enqueuing email job: ${jobId}`, { to: data.to, subject: data.subject });
 
     try {
       const job = await this.emailQueue.add('send-email', data, {
@@ -207,9 +205,7 @@ export class TaskQueueService {
       });
       return job;
     } catch (error) {
-      this.logger.error(
-        `Failed to enqueue image processing: ${error.message}`,
-      );
+      this.logger.error(`Failed to enqueue image processing: ${error.message}`);
       throw error;
     }
   }
@@ -229,19 +225,14 @@ export class TaskQueueService {
     },
     options?: JobOptions,
   ): Promise<Job> {
-    const jobId =
-      options?.deduplicationKey ||
-      `blockchain-${data.contractAddress}-${uuid()}`;
+    const jobId = options?.deduplicationKey || `blockchain-${data.contractAddress}-${uuid()}`;
 
     // Bounded resource policy: reject oversized payloads before they enter
     // the queue, so they fail as permanent input errors rather than consuming
     // worker memory.
     assertBlockchainEventPayloadWithinLimits(data, this.limits);
 
-    this.logger.log(
-      `Enqueuing blockchain event job: ${jobId}`,
-      { event: data.eventName },
-    );
+    this.logger.log(`Enqueuing blockchain event job: ${jobId}`, { event: data.eventName });
 
     try {
       const job = await this.blockchainQueue.add('blockchain-event', data, {
@@ -257,9 +248,42 @@ export class TaskQueueService {
       });
       return job;
     } catch (error) {
-      this.logger.error(
-        `Failed to enqueue blockchain event: ${error.message}`,
-      );
+      this.logger.error(`Failed to enqueue blockchain event: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Enqueue a Soroban replay / backfill job (issue #711).
+   *
+   * Triggers a backfill over a ledger range without a code deployment. When
+   * `fromSeq` is omitted the job resumes from the durable cursor; `toSeq`
+   * bounds the range (defaults to the network head). The job is idempotent, so
+   * re-enqueuing an already-covered range produces no duplicates.
+   */
+  async enqueueSorobanReplay(
+    data: { networkId?: string; fromSeq?: number; toSeq?: number; batchSize?: number },
+    options?: JobOptions,
+  ): Promise<Job> {
+    const jobId = options?.deduplicationKey || `soroban-replay-${uuid()}`;
+
+    this.logger.log(`Enqueuing Soroban replay job: ${jobId}`, {
+      networkId: data.networkId || 'stellar',
+      fromSeq: data.fromSeq,
+      toSeq: data.toSeq,
+    });
+
+    try {
+      return await this.sorobanReplayQueue.add('soroban-replay', data, {
+        jobId,
+        attempts: options?.attempts || 3,
+        backoff: options?.backoff || { type: 'exponential', delay: 3000 },
+        priority: options?.priority || 0,
+        removeOnComplete: options?.removeOnComplete ?? { age: 7200 },
+        removeOnFail: options?.removeOnFail ?? false,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to enqueue Soroban replay: ${error.message}`);
       throw error;
     }
   }
@@ -281,10 +305,10 @@ export class TaskQueueService {
   ): Promise<Job> {
     const jobId = options?.deduplicationKey || `scheduled-${uuid()}`;
 
-    this.logger.log(
-      `Enqueuing scheduled task: ${jobId}`,
-      { taskName: data.taskName, cron: cronPattern },
-    );
+    this.logger.log(`Enqueuing scheduled task: ${jobId}`, {
+      taskName: data.taskName,
+      cron: cronPattern,
+    });
 
     try {
       const job = await this.scheduledQueue.add(data.taskName, data, {
@@ -303,9 +327,7 @@ export class TaskQueueService {
       });
       return job;
     } catch (error) {
-      this.logger.error(
-        `Failed to enqueue scheduled task: ${error.message}`,
-      );
+      this.logger.error(`Failed to enqueue scheduled task: ${error.message}`);
       throw error;
     }
   }
@@ -382,16 +404,19 @@ export class TaskQueueService {
     }
   }
 
-
   /**
    * Enqueue waitlist expiry scan job
    */
   async enqueueWaitlistExpiryScan(): Promise<void> {
     try {
-      await this.waitlistExpiryQueue.add('scan-expiries', {}, {
-        jobId: `scan-expiries-${new Date().toISOString().split('T')[0]}`,
-        removeOnComplete: true,
-      });
+      await this.waitlistExpiryQueue.add(
+        'scan-expiries',
+        {},
+        {
+          jobId: `scan-expiries-${new Date().toISOString().split('T')[0]}`,
+          removeOnComplete: true,
+        },
+      );
     } catch (error) {
       this.logger.error(`Failed to enqueue waitlist expiry scan: ${error.message}`);
     }
@@ -460,9 +485,7 @@ export class TaskQueueService {
       try {
         stats.push(await this.getQueueStats(queueName as QueueName));
       } catch (error) {
-        this.logger.error(
-          `Failed to get stats for queue ${queueName}: ${error.message}`,
-        );
+        this.logger.error(`Failed to get stats for queue ${queueName}: ${error.message}`);
       }
     }
     return stats;
@@ -642,11 +665,8 @@ export class TaskQueueService {
       );
       return dlqJob;
     } catch (error) {
-      this.logger.error(
-        `Failed to route job to Dead Letter Queue: ${error.message}`,
-      );
+      this.logger.error(`Failed to route job to Dead Letter Queue: ${error.message}`);
       throw error;
     }
   }
-
 }

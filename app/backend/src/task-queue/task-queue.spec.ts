@@ -86,6 +86,7 @@ describe('TaskQueue System (Offline Unit Suite)', () => {
           provide: 'BullQueue_waitlist:invite:dlq',
           useValue: createMockQueue('waitlist:invite:dlq'),
         },
+        { provide: 'BullQueue_soroban:replay', useValue: createMockQueue('soroban:replay') },
         {
           provide: NotificationsGateway,
           useValue: { server: mockSocketServer },
