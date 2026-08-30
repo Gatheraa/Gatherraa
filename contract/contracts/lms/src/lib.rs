@@ -1,6 +1,7 @@
 #![no_std]
 
 mod access;
+mod certificate;
 mod contract;
 pub mod course;
 pub mod enrollment;
@@ -13,6 +14,7 @@ mod storage;
 mod types;
 
 pub use access::{AccessControl, AccessError, Role, UserRecord};
+pub use certificate::{Certificate, CertificateError, CertificateService};
 pub use contract::{LmsContract, LmsContractClient};
 pub use course::{Course, CourseError, CourseStatus, Courses};
 pub use enrollment::{Enrollment, EnrollmentError, EnrollmentStatus, Enrollments};

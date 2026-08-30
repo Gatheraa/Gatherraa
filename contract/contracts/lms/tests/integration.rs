@@ -14,18 +14,18 @@
 //! that crosses the boundary can tell.
 //!
 //! Scope note: this file covers the surface that exists today —
-//! initialization and access control. Payment, course completion,
-//! certificate issuance, and event verification are the remaining tasks on
-//! #657, and they are blocked on the modules that implement them: #646
-//! (payment), #650 (course completion), #653 and #654 (certificates), #655
+//! initialization, access control, and certificate issuance/retrieval
+//! (#653). Payment, course completion, completion-gated certificate
+//! issuance, and event verification are the remaining tasks on #657, and
+//! they are blocked on the modules that implement them: #646 (payment),
+//! #650 (course completion), #654 (certificate verification), #655
 //! (events). Each should extend this file rather than start a new one.
 
 use lms::{
-    AccessError, Course, CourseProgress, LmsContract, LmsContractClient, LmsVersion, Progress,
-    ProgressError, Role, StorageKey, UserRecord,
+    AccessError, CertificateError, LmsContract, LmsContractClient, LmsVersion, Role, UserRecord,
 };
 use soroban_sdk::testutils::{Address as _, Ledger as _};
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, String};
 
 /// A deployed contract plus the four addresses the tests need.
 struct Deployment<'a> {
@@ -527,6 +527,197 @@ fn a_rejected_call_writes_nothing() {
 
     assert_eq!(d.client.get_user(&d.student), before);
     assert_eq!(d.client.get_role(&d.outsider), None);
+}
+
+// ---------------------------------------------------------------------------
+// Certificates (#653)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn staff_can_issue_a_certificate_and_it_can_be_retrieved() {
+    let d = deploy_initialized();
+
+    let certificate = d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &7,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+
+    assert_eq!(certificate.certificate_id, 1);
+    assert_eq!(certificate.student, d.student);
+    assert_eq!(certificate.course_id, 7);
+    assert_eq!(certificate.issued_at, d.env.ledger().timestamp());
+    assert_eq!(
+        certificate.metadata_uri,
+        String::from_str(&d.env, "ipfs://cert/1")
+    );
+
+    // Retrieval returns exactly what was issued.
+    assert_eq!(d.client.get_certificate(&1), Some(certificate));
+}
+
+#[test]
+fn an_instructor_can_issue_certificates() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    let certificate = d.client.issue_certificate(
+        &d.instructor,
+        &d.student,
+        &7,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+
+    assert_eq!(certificate.certificate_id, 1);
+    assert_eq!(certificate.student, d.student);
+}
+
+#[test]
+fn certificate_identifiers_are_unique() {
+    let d = deploy_initialized();
+
+    let first = d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &1,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+    let second = d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &2,
+        &String::from_str(&d.env, "ipfs://cert/2"),
+    );
+
+    assert_eq!(first.certificate_id, 1);
+    assert_eq!(second.certificate_id, 2);
+    assert_ne!(first.certificate_id, second.certificate_id);
+
+    // Both remain independently retrievable.
+    assert_eq!(d.client.get_certificate(&1), Some(first));
+    assert_eq!(d.client.get_certificate(&2), Some(second));
+}
+
+#[test]
+fn certificates_are_associated_with_their_student_and_course() {
+    let d = deploy_initialized();
+    d.client.register_student(&d.student);
+    let other = Address::generate(&d.env);
+
+    d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &3,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+    d.client.issue_certificate(
+        &d.admin,
+        &other,
+        &9,
+        &String::from_str(&d.env, "ipfs://cert/2"),
+    );
+
+    let for_student = d.client.get_certificate(&1).unwrap();
+    let for_other = d.client.get_certificate(&2).unwrap();
+
+    assert_eq!(for_student.student, d.student);
+    assert_eq!(for_student.course_id, 3);
+    assert_eq!(for_other.student, other);
+    assert_eq!(for_other.course_id, 9);
+}
+
+#[test]
+fn only_staff_can_issue_certificates() {
+    let d = deploy_initialized();
+    d.client.register_student(&d.student);
+
+    // A student cannot mint credentials for themselves or anyone else.
+    assert_eq!(
+        d.client.try_issue_certificate(
+            &d.student,
+            &d.student,
+            &1,
+            &String::from_str(&d.env, "ipfs://cert/1"),
+        ),
+        Err(Ok(CertificateError::Unauthorized))
+    );
+
+    // An unregistered caller is rejected too.
+    assert_eq!(
+        d.client.try_issue_certificate(
+            &d.outsider,
+            &d.student,
+            &1,
+            &String::from_str(&d.env, "ipfs://cert/1"),
+        ),
+        Err(Ok(CertificateError::Unauthorized))
+    );
+
+    // Neither rejected call stored anything.
+    assert_eq!(d.client.get_certificate(&1), None);
+}
+
+#[test]
+fn an_empty_metadata_uri_is_rejected_and_consumes_no_identifier() {
+    let d = deploy_initialized();
+
+    assert_eq!(
+        d.client
+            .try_issue_certificate(&d.admin, &d.student, &1, &String::from_str(&d.env, ""),),
+        Err(Ok(CertificateError::InvalidMetadataUri))
+    );
+
+    // Nothing was stored by the rejected call...
+    assert_eq!(d.client.get_certificate(&1), None);
+
+    // ...and the counter was not consumed: the next valid issuance still
+    // gets identifier 1.
+    let certificate = d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &1,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+    assert_eq!(certificate.certificate_id, 1);
+}
+
+#[test]
+fn retrieval_of_an_unknown_certificate_is_none() {
+    let d = deploy_initialized();
+
+    d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &1,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+
+    assert_eq!(d.client.get_certificate(&404), None);
+}
+
+#[test]
+fn issued_certificates_survive_ledger_advancement() {
+    let d = deploy_initialized();
+
+    let certificate = d.client.issue_certificate(
+        &d.admin,
+        &d.student,
+        &1,
+        &String::from_str(&d.env, "ipfs://cert/1"),
+    );
+
+    d.env.ledger().with_mut(|ledger| {
+        ledger.sequence_number += 100_000;
+        ledger.timestamp += 10_000_000;
+    });
+
+    // Certificate records live in persistent storage, so they outlive the
+    // ledger moving on.
+    assert_eq!(
+        d.client.get_certificate(&certificate.certificate_id),
+        Some(certificate)
+    );
 }
 
 // ---------------------------------------------------------------------------

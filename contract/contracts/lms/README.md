@@ -4,10 +4,11 @@ Soroban contract backing the Gathera Learning Management System.
 
 ## Status
 
-The contract's implemented surface today is **initialization and access
-control**. The wider LMS — courses, modules, lessons, enrollment, progress,
-assessments, certificates, events, and queries — is being built out across
-issues #638–#657, and each module lands with its own entry points.
+The contract's implemented surface today is **initialization, access
+control, and certificate issuance/retrieval**. The wider LMS — courses,
+modules, lessons, enrollment, progress, assessments, completion-gated
+certificates, events, and queries — is being built out across issues
+#638–#657, and each module lands with its own entry points.
 
 | Area | Issue | State |
 |---|---|---|
@@ -19,9 +20,9 @@ issues #638–#657, and each module lands with its own entry points.
 | Course / module / lesson management | #640–#644 | Open |
 | Enrollment and payment | #645, #646 | Open |
 | Course completion | #650 | Open |
-| Certificates | #653, #654 | Open |
-| Events | #655 | Done |
-| Read / query interface | #656 | Done, exposed |
+| Certificates | #653, #654 | #653 done |
+| Events | #655 | Open |
+| Read / query interface | #656 | Open |
 
 Anything not listed as done has no on-chain behaviour yet. Do not integrate
 against it.
@@ -42,17 +43,12 @@ table is internal and unreachable from off-chain.
 | `get_role(user: Address)` | none | `Option<Role>` |
 | `get_user(user: Address)` | none | `Option<UserRecord>` |
 | `has_role(user: Address, role: Role)` | none | `bool` |
-| `get_course(course_id: u32)` | none | `Option<Course>` |
-| `get_modules(course_id: u32)` | none | `Vec<u32>` |
-| `get_lessons(course_id: u32, module_id: u32)` | none | `Vec<u32>` |
-| `get_enrollment(student: Address, course_id: u32)` | none | `bool` |
-| `get_course_progress(student: Address, course_id: u32)` | none | `Result<CourseProgress, ProgressError>` |
-| `get_assessment_result(student: Address, assessment_id: u64)` | none | `Option<AssessmentResultView>` |
-| `get_certificate(certificate_id: u64)` | none | `Option<CertificateView>` |
-| `verify_certificate(certificate_id: u64, student: Address, course_id: u32)` | none | `bool` |
+| `issue_certificate(caller: Address, student: Address, course_id: u32, metadata_uri: String)` | `caller`, must be staff | `Result<Certificate, CertificateError>` |
+| `get_certificate(certificate_id: u64)` | none | `Option<Certificate>` |
 
 `Role` is one of `Admin`, `Instructor`, `Student`. `UserRecord` is
-`{ address: Address, role: Role }`.
+`{ address: Address, role: Role }`. `Certificate` is
+`{ certificate_id: u64, student: Address, course_id: u32, issued_at: u64, metadata_uri: String }`.
 
 The eight query methods at the bottom are the read/query interface (#656):
 pure reads with no auth, no storage writes, and no events. `get_course` and
@@ -91,24 +87,14 @@ Note the distinction between `UserNotRegistered` (3) and `AdminRequired`
 gets 4. The two are deliberately separate so a client can tell "you need to
 register" from "you need a promotion".
 
-`CourseError`, as returned by the course methods above:
+### Certificate error codes
+
+`CertificateError`, as returned by `issue_certificate`:
 
 | Code | Variant | Meaning |
 |---|---|---|
-| 1 | `CourseAlreadyExists` | A course with that id already exists |
-| 2 | `CourseNotFound` | No course with that id |
-| 3 | `Unauthorized` | Caller lacks a staff role |
-| 4 | `UserNotRegistered` | Caller holds no role at all |
-
-`ModuleError`, as returned by the module methods above:
-
-| Code | Variant | Meaning |
-|---|---|---|
-| 1 | `ModuleAlreadyExists` | A module with that id already exists |
-| 2 | `ModuleNotFound` | No module with that id |
-| 3 | `CourseNotFound` | No course with that id — modules cannot be created for nonexistent courses |
-| 4 | `Unauthorized` | Caller is not the owning course's instructor |
-| 5 | `UserNotRegistered` | Caller holds no role at all |
+| 1 | `Unauthorized` | Caller is not staff (admin or instructor) |
+| 2 | `InvalidMetadataUri` | `metadata_uri` is empty |
 
 ## Initialization
 
@@ -295,18 +281,16 @@ contracts/lms/
 │   ├── storage.rs       StorageKey, shared across modules
 │   ├── types.rs         LmsVersion
 │   ├── error.rs         top-level Error
-│   ├── access/          roles and authorization
-│   │   ├── mod.rs       AccessControl service
-│   │   ├── errors.rs    AccessError
-│   │   ├── storage.rs   role and initialization persistence
-│   │   └── types.rs     Role, UserRecord
-│   └── query/           read-only query interface (#656)
-│       ├── mod.rs       module root and re-exports
-│       ├── course.rs    get_course, get_modules, get_lessons
-│       ├── enrollment.rs get_enrollment
-│       ├── progress.rs  get_course_progress
-│       ├── assessment.rs get_assessment_result
-│       └── certificate.rs get_certificate, verify_certificate
+│   ├── certificate/     certificate issuance and retrieval
+│   │   ├── mod.rs       CertificateService
+│   │   ├── errors.rs    CertificateError
+│   │   ├── storage.rs   certificate persistence and id counter
+│   │   └── types.rs     Certificate
+│   └── access/          roles and authorization
+│       ├── mod.rs       AccessControl service
+│       ├── errors.rs    AccessError
+│       ├── storage.rs   role and initialization persistence
+│       └── types.rs     Role, UserRecord
 └── tests/
     └── integration.rs   client-level tests
 ```
@@ -323,9 +307,8 @@ from off-chain, however complete its internals — and extend
 |---|---|---|
 | `Configuration` | instance | Interface version; presence marks the contract initialized |
 | `User(Address)` | persistent | That address's `Role` |
-| `Course(u32)` | persistent | A registered course (`Course`) |
-| `StudentProgress(Address, u32)` | persistent | Completed-lesson count for a student in a course |
-| `LessonCompletion(Address, u32, u32)` | persistent | Whether a student completed one specific lesson |
+| `Certificate(u64)` | persistent | The issued `Certificate`, keyed by certificate id |
+| `CertificateCounter` | instance | Monotonic counter allocating unique certificate ids |
 
 Contract-level configuration lives in instance storage: there is one of it
 and it shares the contract's lifetime and archival. Per-user records live in

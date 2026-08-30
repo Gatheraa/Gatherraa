@@ -36,4 +36,14 @@ pub enum StorageKey {
     /// index. Recording completions per lesson rather than as a bare
     /// counter is what makes completing the same lesson twice detectable.
     LessonCompletion(Address, u32, u32),
+
+    /// A certificate issued by the LMS, keyed by certificate identifier.
+    Certificate(u64),
+
+    /// Monotonic counter allocating unique certificate identifiers.
+    ///
+    /// Lives in instance storage alongside `Configuration`: there is exactly
+    /// one of it and it is the contract's own state, not a per-record
+    /// record.
+    CertificateCounter,
 }
