@@ -10,9 +10,11 @@ import {
   Query,
   HttpStatus,
   HttpCode,
+  HttpException,
   Logger,
 } from '@nestjs/common';
 import { TaskQueueService, QueueName } from './services/task-queue.service';
+import { BlockchainPayloadLimitError } from './processors/blockchain.validation';
 
 @Controller('api/task-queue')
 export class TaskQueueController {
@@ -27,7 +29,8 @@ export class TaskQueueController {
   @Post('email')
   @HttpCode(HttpStatus.ACCEPTED)
   async enqueueEmail(
-    @Body() data: {
+    @Body()
+    data: {
       to: string;
       subject: string;
       template: string;
@@ -69,7 +72,8 @@ export class TaskQueueController {
   @Post('image-processing')
   @HttpCode(HttpStatus.ACCEPTED)
   async enqueueImageProcessing(
-    @Body() data: {
+    @Body()
+    data: {
       url: string;
       transformations: any[];
       outputFormat?: string;
@@ -109,7 +113,8 @@ export class TaskQueueController {
   @Post('blockchain-event')
   @HttpCode(HttpStatus.ACCEPTED)
   async enqueueBlockchainEvent(
-    @Body() data: {
+    @Body()
+    data: {
       contractAddress: string;
       eventName: string;
       parameters: any;
@@ -138,6 +143,53 @@ export class TaskQueueController {
       };
     } catch (error) {
       this.logger.error(`Failed to enqueue blockchain event: ${error.message}`);
+      if (error instanceof BlockchainPayloadLimitError) {
+        throw new HttpException(
+          {
+            success: false,
+            message: error.message,
+            code: error.code,
+          },
+          HttpStatus.PAYLOAD_TOO_LARGE,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Trigger a Soroban trace replay / backfill (issue #711).
+   * POST /api/task-queue/blockchain-event/replay
+   *
+   * Admin-only operational surface: enqueues a bounded backfill over
+   * [fromSeq, toSeq] (or cursor → head). No code deployment required.
+   */
+  @Post('blockchain-event/replay')
+  @HttpCode(HttpStatus.ACCEPTED)
+  async triggerSorobanReplay(
+    @Body() data: { networkId?: string; fromSeq?: number; toSeq?: number; batchSize?: number },
+  ) {
+    try {
+      const job = await this.taskQueueService.enqueueSorobanReplay(
+        {
+          networkId: data.networkId,
+          fromSeq: data.fromSeq,
+          toSeq: data.toSeq,
+          batchSize: data.batchSize,
+        },
+        { priority: 0 },
+      );
+
+      return {
+        success: true,
+        jobId: job.id,
+        queueName: 'soroban:replay',
+        fromSeq: data.fromSeq,
+        toSeq: data.toSeq,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(`Failed to trigger Soroban replay: ${error.message}`);
       throw error;
     }
   }
@@ -149,7 +201,8 @@ export class TaskQueueController {
   @Post('notification')
   @HttpCode(HttpStatus.ACCEPTED)
   async enqueueNotification(
-    @Body() data: {
+    @Body()
+    data: {
       userId: string;
       type: string;
       message: string;
@@ -187,15 +240,9 @@ export class TaskQueueController {
    * GET /api/task-queue/status/:queueName/:jobId
    */
   @Get('status/:queueName/:jobId')
-  async getJobStatus(
-    @Param('queueName') queueName: string,
-    @Param('jobId') jobId: string,
-  ) {
+  async getJobStatus(@Param('queueName') queueName: string, @Param('jobId') jobId: string) {
     try {
-      const status = await this.taskQueueService.getJobStatus(
-        queueName as QueueName,
-        jobId,
-      );
+      const status = await this.taskQueueService.getJobStatus(queueName as QueueName, jobId);
 
       if (!status) {
         return {
@@ -222,9 +269,7 @@ export class TaskQueueController {
   async getQueueStats(@Query('queueName') queueName?: string) {
     try {
       if (queueName) {
-        const stats = await this.taskQueueService.getQueueStats(
-          queueName as QueueName,
-        );
+        const stats = await this.taskQueueService.getQueueStats(queueName as QueueName);
         return { stats };
       }
 
@@ -380,15 +425,9 @@ export class TaskQueueController {
    */
   @Post(':queueName/retry/:jobId')
   @HttpCode(HttpStatus.OK)
-  async retryJob(
-    @Param('queueName') queueName: string,
-    @Param('jobId') jobId: string,
-  ) {
+  async retryJob(@Param('queueName') queueName: string, @Param('jobId') jobId: string) {
     try {
-      const job = await this.taskQueueService.retryFailedJob(
-        queueName as QueueName,
-        jobId,
-      );
+      const job = await this.taskQueueService.retryFailedJob(queueName as QueueName, jobId);
 
       return {
         success: true,
@@ -408,10 +447,7 @@ export class TaskQueueController {
    */
   @Post(':queueName/remove/:jobId')
   @HttpCode(HttpStatus.OK)
-  async removeJob(
-    @Param('queueName') queueName: string,
-    @Param('jobId') jobId: string,
-  ) {
+  async removeJob(@Param('queueName') queueName: string, @Param('jobId') jobId: string) {
     try {
       await this.taskQueueService.removeJob(queueName as QueueName, jobId);
 

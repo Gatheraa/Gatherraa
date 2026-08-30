@@ -1,3 +1,5 @@
+pub use crate::course::Course;
+
 use soroban_sdk::contracttype;
 
 /// Number of basis points representing full completion.
@@ -6,25 +8,6 @@ use soroban_sdk::contracttype;
 /// fractions like one lesson out of three survive the calculation with
 /// useful precision (3333 rather than 33).
 pub const COMPLETE_BASIS_POINTS: u32 = 10_000;
-
-/// A course that students can make progress through.
-///
-/// A course is described entirely by how many lessons it contains. The
-/// lesson bodies themselves live off-chain; the contract only needs the
-/// count in order to reason about completion.
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Course {
-    /// Identifier the course is registered under.
-    pub id: u32,
-
-    /// Total number of lessons in the course.
-    ///
-    /// May be zero. A course with no lessons is a valid, if empty, course
-    /// (a draft, for instance), and progress reporting handles it without
-    /// dividing by zero.
-    pub total_lessons: u32,
-}
 
 /// A student's progress through a single course.
 ///

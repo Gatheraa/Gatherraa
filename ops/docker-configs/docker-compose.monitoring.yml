@@ -69,13 +69,24 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      # Credentials are injected from the shell/.env. Defaults are
+      # development-only; the entrypoint guard (observability/grafana/entrypoint.sh)
+      # refuses to run with a weak default password unless GRAFANA_DEV_ONLY=true.
+      - GRAFANA_DEV_ONLY=${GRAFANA_DEV_ONLY:-false}
+      - GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    entrypoint:
+      - /etc/grafana/entrypoint.sh
+      - --homepath=/usr/share/grafana
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      # Mount the shared Grafana startup guard from the observability stack.
+      - ../../observability/grafana/entrypoint.sh:/etc/grafana/entrypoint.sh:ro
     ports:
       - "3001:3000"
     networks:

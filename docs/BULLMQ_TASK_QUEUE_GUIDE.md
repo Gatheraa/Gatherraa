@@ -558,6 +558,12 @@ BULLMQ_CONCURRENCY_IMAGE=3
 BULLMQ_MAX_ATTEMPTS=3
 BULLMQ_BACKOFF_DELAY=2000
 
+# Blockchain Event Queue Resource Limits
+# Jobs exceeding these limits are rejected as permanent input failures
+# (never retried) at every ingestion entry point.
+BLOCKCHAIN_MAX_PAYLOAD_BYTES=65536   # Max serialized job payload (64 KiB)
+BLOCKCHAIN_MAX_BATCH_SIZE=100        # Max events/logs/batch items per job
+
 # Bull Board UI
 BULL_BOARD_ENABLED=true
 BULL_BOARD_PATH=/admin/queues

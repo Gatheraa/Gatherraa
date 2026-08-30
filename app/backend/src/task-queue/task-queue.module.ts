@@ -13,6 +13,7 @@ import { WaitlistNotificationProcessor } from './processors/waitlist-notificatio
 import { WaitlistExpiryProcessor } from './processors/waitlist-expiry.processor';
 import { WaitlistInviteProcessor } from './processors/waitlist-invite.processor';
 import { TaskQueueController } from './task-queue.controller';
+import { SorobanReplayModule } from './replay/soroban-replay.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -26,6 +27,7 @@ import { CacheModule } from '../cache/cache.module';
     NotificationsModule,
     AuditModule,
     CacheModule,
+    SorobanReplayModule,
     BullModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -74,6 +76,7 @@ import { CacheModule } from '../cache/cache.module';
       { name: 'waitlist:expiry:dlq' },
       { name: 'waitlist:invite' },
       { name: 'waitlist:invite:dlq' },
+      { name: 'soroban:replay' },
     ),
   ],
   providers: [
@@ -89,4 +92,4 @@ import { CacheModule } from '../cache/cache.module';
   controllers: [TaskQueueController],
   exports: [TaskQueueService, BullModule],
 })
-export class TaskQueueModule { }
+export class TaskQueueModule {}

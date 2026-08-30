@@ -321,6 +321,7 @@ export const withRoleGate = <P extends object>(
 // Predefined role constants
 export const ROLES = {
   ADMIN: 'admin',
+  CO_ORGANIZER: 'co_organizer',
   MODERATOR: 'moderator',
   USER: 'user',
   PREMIUM_USER: 'premium_user',

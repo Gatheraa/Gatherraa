@@ -12,6 +12,9 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 
 import { IdentityVerification } from './identity-verification/entities/identity-verification.entity';
 import { VerificationHistory } from './identity-verification/entities/verification-history.entity';
+import { DashboardLayoutBuilderModule } from './dashboard-layout-builder/dashboard-layout-builder.module';
+import { SorobanVerificationModule } from './soroban-verification/soroban-verification.module';
+import { SorobanVerificationRecord } from './soroban-verification/entities/soroban-verification.entity';
 
 @Module({
   imports: [
@@ -23,10 +26,10 @@ import { VerificationHistory } from './identity-verification/entities/verificati
       useFactory: (config: ConfigService) => ({
         type: 'sqlite',
         database: config.get<string>('DATABASE_PATH', ':memory:'),
-        entities: [IdentityVerification, VerificationHistory],
+        entities: [IdentityVerification, VerificationHistory, SorobanVerificationRecord],
         synchronize: true,
         retryAttempts: 0,
-        // Pool sizing — defaults are conservative but tunable via env
+        // Pool sizing – defaults are conservative but tunable via env
         extra: {
           min: config.get<number>('DATABASE_POOL_MIN', 2),
           max: config.get<number>('DATABASE_POOL_MAX', 10),
@@ -40,12 +43,14 @@ import { VerificationHistory } from './identity-verification/entities/verificati
     IdentityVerificationModule,
     HealthModule,
     RateLimitModule,
+    DashboardLayoutBuilderModule,
+    SorobanVerificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(VersioningMiddleware).forRoutes('*');
+    consumer.apply(VersioningMiddleware).torRoutes('*');
   }
 }

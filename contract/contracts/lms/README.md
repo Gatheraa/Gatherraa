@@ -14,9 +14,9 @@ certificates, events, and queries — is being built out across issues
 |---|---|---|
 | Contract scaffold | #638 | Done |
 | Access control | #638 | Done, exposed |
-| Integration + testnet deployment | #657 | This work |
-| Course progress calculation | #648 | PR open |
-| Assessment module | #651, #652 | Assigned |
+| Integration + testnet deployment | #657 | Done |
+| Course progress calculation | #648 | Done |
+| Assessment module | #651, #652 | Done, internal (not yet wired) |
 | Course / module / lesson management | #640–#644 | Open |
 | Enrollment and payment | #645, #646 | Open |
 | Course completion | #650 | Open |
@@ -49,6 +49,24 @@ table is internal and unreachable from off-chain.
 `Role` is one of `Admin`, `Instructor`, `Student`. `UserRecord` is
 `{ address: Address, role: Role }`. `Certificate` is
 `{ certificate_id: u64, student: Address, course_id: u32, issued_at: u64, metadata_uri: String }`.
+
+The eight query methods at the bottom are the read/query interface (#656):
+pure reads with no auth, no storage writes, and no events. `get_course` and
+`get_course_progress` read real storage. The rest return the honest empty
+answer until their write-side modules land, because no on-chain storage for
+that data exists yet:
+
+* `get_modules` / `get_lessons` — empty until course/module/lesson
+  management (#640–#644) writes module and lesson records
+* `get_enrollment` — `false` until enrollment (#645/#646) writes records
+* `get_assessment_result` — `None` until the assessment module (#651/#652)
+  is wired into the crate and writes results
+* `get_certificate` / `verify_certificate` — `None` / `false` until
+  certificates (#653/#654) write records
+
+`AssessmentResultView` and `CertificateView` are query-layer response types
+that mirror the shapes those modules will persist, so the frontend can
+integrate against a stable interface today.
 
 ### Error codes
 
@@ -107,6 +125,31 @@ carol: register_student(carol)             -> carol becomes Student
 Students self-register; staff roles are granted by an administrator. One
 address holds at most one role — granting a second fails with
 `AlreadyRegistered` (2), and the original role survives the attempt.
+
+## Modules
+
+Modules organize a course's lessons into ordered sections. A module is
+created against an existing course, and the module's `course_id` is fixed
+for its lifetime — moving a module between courses is delete-and-recreate.
+Ordering is expressed with the caller-supplied `position` field, so an
+authoring UI decides the curriculum order and `update_module` can reorder
+by writing new positions.
+
+Authorization for module operations is deliberately narrower than course
+creation. Course creation takes any staff member; module creation, update,
+and deletion additionally require the caller to be **that course's
+instructor** (per the course record), not merely any instructor or admin.
+Modules cannot be created for courses that do not exist — the course lookup
+doubles as the ownership anchor, because the course record carries the
+instructor's address.
+
+```
+initialize(admin)                                   -> admin becomes Admin
+admin: authorize_instructor(admin, alice)           -> alice becomes Instructor
+alice: create_course(alice, 1, alice, ...)          -> course 1, instructor alice
+alice: create_module(alice, 1, 101, ...)            -> module 101 under course 1
+bob (also an Instructor): create_module(bob, 1, ...) -> Unauthorized — course 1 is alice's
+```
 
 ## Build
 
@@ -270,3 +313,7 @@ from off-chain, however complete its internals — and extend
 Contract-level configuration lives in instance storage: there is one of it
 and it shares the contract's lifetime and archival. Per-user records live in
 persistent storage, where they are keyed and extended individually.
+
+The query interface reads `Course`, `StudentProgress`, and
+`LessonCompletion`. No query writes; the read/query interface adds no
+storage keys of its own.

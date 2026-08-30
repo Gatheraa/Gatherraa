@@ -5,9 +5,10 @@ pub mod types;
 pub use errors::ProgressError;
 pub use types::{Course, CourseProgress, COMPLETE_BASIS_POINTS};
 
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, String};
 
 use crate::access::AccessControl;
+use crate::course::{CourseStatus, Courses};
 use crate::events;
 
 /// Course progress operations for the LMS contract.
@@ -35,10 +36,18 @@ impl Progress {
             return Err(ProgressError::CourseAlreadyExists);
         }
 
+        let timestamp = env.ledger().timestamp();
         storage::set_course(
             env,
             &Course {
-                id: course_id,
+                course_id,
+                instructor: caller.clone(),
+                title: String::from_str(env, ""),
+                description_uri: String::from_str(env, ""),
+                price: 0,
+                status: CourseStatus::Draft,
+                created_at: timestamp,
+                updated_at: timestamp,
                 total_lessons,
             },
         );
@@ -49,7 +58,7 @@ impl Progress {
 
     /// Look up a registered course.
     pub fn get_course(env: &Env, course_id: u32) -> Option<Course> {
-        storage::get_course(env, course_id)
+        Courses::get_course(env, course_id)
     }
 
     /// Record that a student has completed one lesson of a course.
@@ -263,8 +272,15 @@ mod tests {
         assert_eq!(
             call(&env, &id, || Progress::get_course(&env, 1)),
             Some(Course {
-                id: 1,
-                total_lessons: 4
+                course_id: 1,
+                instructor: instructor.clone(),
+                title: String::from_str(&env, ""),
+                description_uri: String::from_str(&env, ""),
+                price: 0,
+                status: CourseStatus::Draft,
+                created_at: env.ledger().timestamp(),
+                updated_at: env.ledger().timestamp(),
+                total_lessons: 4,
             })
         );
     }

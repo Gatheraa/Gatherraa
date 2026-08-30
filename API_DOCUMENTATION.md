@@ -9,9 +9,14 @@ This document provides comprehensive API documentation for all Gathera smart con
 3. [Escrow Contract API](#escrow-contract-api)
 4. [Multi-Signature Wallet Contract API](#multi-signature-wallet-contract-api)
 5. [Integration Layer API](#integration-layer-api)
-6. [Error Handling](#error-handling)
-7. [Gas Cost Analysis](#gas-cost-analysis)
-8. [Usage Examples](#usage-examples)
+6. [Decode Error Taxonomy and Retry Mapping](#decode-error-taxonomy-and-retry-mapping)
+7. [Soroban Trace Replay API](#soroban-trace-replay-api)
+8. [Soroban Verification API](#soroban-verification-api)
+9. [Error Handling](#error-handling)
+10. [Gas Cost Analysis](#gas-cost-analysis)
+11. [Usage Examples](#usage-examples)
+12. [Soroban Trace Store Schema](#soroban-trace-store-schema)
+13. [Blockchain Event Task Queue](#blockchain-event-task-queue)
 
 ## Overview
 
@@ -826,6 +831,127 @@ pub fn get_addresses(&self) -> (Address, Address, Address)
 
 **Gas Cost:** ~3,000 gas units
 
+## Decode Error Taxonomy and Retry Mapping
+
+Operators reading the Dead Letter Queue for the `blockchain-events` worker see
+two distinct failure classes for Soroban event decode:
+
+| Outcome code       | Permanent (DLQ on first failure) | Meaning                                             |
+| ------------------ | -------------------------------- | --------------------------------------------------- |
+| `InvalidBase64`    | ✅                               | The input is not valid base64.                      |
+| `TruncatedXdr`     | ✅                               | The XDR ends before the event is complete.          |
+| `MalformedXdr`     | ✅                               | The XDR is not a structurally valid `DiagnosticEvent`. |
+| `UnsupportedEvent` | ✅                               | Valid XDR, but not an LMS contract event.           |
+| `UnexpectedContractId` | ✅                         | The emitter does not match the expected deployment. |
+| `InvalidPayload`   | ✅                               | Event fields do not match the documented LMS representation. |
+
+A **permanent** decode failure is routed to the Dead Letter Queue on the first
+attempt (thrown as `UnrecoverableError`) — it never retries, so a single
+poisoned event cannot occupy a bounded worker concurrency slot across pointless
+retries or stall unrelated jobs behind it.
+
+**Transient** failures (for example a not-yet-confirmed transaction, an RPC
+hiccup, or any plain `Error`) are retried through the ordinary attempts
+machinery and are moved to the DLQ only after `opts.attempts` are exhausted.
+The existing DLQ contract — intermediate failures are never moved, exhausted
+jobs move exactly once, and job identity and error message are preserved —
+applies unchanged on both axes.
+
+Decode error messages never embed the offending input.
+
+## Soroban Trace Replay API
+
+Operational surface for replaying/backfilling Soroban event traces into the
+durable trace store without deploying new code. It is idempotent and
+crash-safe: a durable per-network cursor records the last fully-ingested
+ledger, and any interrupted range is simply replayed on the next run.
+
+### `POST /api/task-queue/blockchain-event/replay`
+
+Triggers a bounded backfill over a ledger range.
+
+**Request body** (all optional):
+
+| Field       | Type   | Description                                                       |
+| ----------- | ------ | ----------------------------------------------------------------- |
+| `networkId` | string | Network key, defaults to `stellar`.                               |
+| `fromSeq`   | number | First ledger to walk. Omitted → resume from the durable cursor.   |
+| `toSeq`     | number | Upper bound (defaults to the network head at enqueue time).       |
+| `batchSize` | number | Ledgers per cursor commit; smaller values make aborts cheaper.    |
+
+**Response** (`HTTP 202 Accepted`): `{ success, jobId, queueName: "soroban:replay", fromSeq, toSeq, timestamp }`.
+
+**Guarantees:**
+- **Idempotent** — re-running a covered range inserts no duplicate traces.
+- **Crash-safe** — a hang/crash mid-range leaves the cursor at the last fully
+  ingested ledger; the next run resumes from `cursor + 1` with no gaps or
+  duplicates.
+- **Overlap-safe** — concurrent live extraction and backfill absorb one
+  another; the union is stored exactly once.
+
+### Internal components
+
+- `soroban:replay` BullMQ queue — carries replay job payloads
+  `{ networkId, fromSeq, toSeq, batchSize }`.
+- `SorobanReplayService.runBackfill` — walks `[fromSeq, toSeq]`, fetches events
+  per ledger, ingests each trace through the `SorobanTraceIngestPort`, and
+  advances the cursor atomically per batch.
+- `ReplayCursorService` — `getCursor`, `resumeFrom`, `advanceWithBatch`
+  (transactional upsert; never regresses the cursor).
+- `StellarProvider.getLatestLedger` / `eventsForLedger` — Soroban RPC head
+  query and per-ledger event extraction.
+
+## Soroban Verification API
+
+On-demand verification of a Soroban transaction issued through the
+`blockchain-events` queue (`action: "verify"`, `networkId: "stellar"`). It
+fetches the transaction via Soroban RPC `getTransaction`, categorizes its
+confirmation state, and proves the expected event is still present with equal
+business fields. Every confirmed outcome is persisted durably by transaction
+hash, so it survives a restart and re-verification updates the same record.
+
+### Outcome taxonomy
+
+| Outcome     | Meaning                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `verified`  | Transaction confirmed (`SUCCESS`) and it contains the expected event with equal business fields. |
+| `mismatch`  | Confirmed `SUCCESS`, but the expected event is absent or has different business fields. |
+| `reverted`  | Confirmed but the call failed (`FAILED`), e.g. `resultCode=txv_bad_auth`. |
+| (retryable) | Transaction not found / not yet confirmed, or an RPC transport error. Retried through the ordinary attempts machinery; moved to the Dead Letter Queue only after attempts are exhausted. |
+
+A job whose `parameters.transactionHash` is missing or malformed is rejected as
+an unrecoverable failure (no retry, DLQ on the first attempt).
+
+### Request
+
+`action: "verify"` job against a `stellar` worker:
+
+| Field                | Required | Description                                                       |
+| -------------------- | -------- | ----------------------------------------------------------------- |
+| `parameters.transactionHash` | yes | The `0x`-prefixed Soroban transaction hash to verify. |
+| `parameters.expectedPayload` | no | Business fields the decoded event must carry to count as equal. |
+| `eventName`          | yes      | The event name the transaction is expected to have emitted.       |
+
+### Response
+
+```json
+{
+  "outcome": "verified",
+  "verified": true,
+  "transactionHash": "0x…",
+  "ledgerSeq": 42,
+  "eventName": "course_created"
+}
+```
+
+### Durable record
+
+`soroban_verifications` (migration `003-create-soroban-verifications`) — one
+row per `transactionHash`, holding the outcome, the verified flag, and the
+ledger sequence at which the fact was established. Re-running verification of
+an already-verified transaction updates the row and never duplicates it. The
+`verify` action remains fully supported on EVM networks (receipt/log matching).
+
 ## Error Handling
 
 All contracts use comprehensive error handling with specific error codes:
@@ -1032,6 +1158,112 @@ fn execute_multisig_payment(
 2. **Integration Tests**: Test contract interactions
 3. **Property Tests**: Test edge cases and invariants
 4. **Gas Tests**: Verify gas consumption limits
+
+---
+
+## Soroban Trace Store Schema
+
+Extracted Soroban traces are persisted durably in the backend `soroban_traces`
+table, deduplicated and transaction-ordered for the replay and verification
+milestones.
+
+### Identity key and deduplication
+
+Each row is uniquely identified by the source identity tuple
+`(transactionHash, ledgerSeq, eventIndex)`:
+
+```sql
+CREATE UNIQUE INDEX idx_soroban_traces_identity
+  ON soroban_traces(transactionHash, ledgerSeq, eventIndex);
+```
+
+A write whose source identity is already present is a **no-op, not an error**:
+a retried job or a concurrent worker writing the same transaction produces
+exactly one row. The unique index backs this invariant even across process
+crashes.
+
+### Columns
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `transactionHash` | text | Parent transaction hash (identity). |
+| `ledgerSeq` | integer | Ledger sequence the transaction was applied on (identity). |
+| `eventIndex` | integer | Position within the transaction's events array (identity). |
+| `eventName` | text | Decoded LMS event name (e.g. `course_created`), queryable. |
+| `eventPayload` | text (JSON) | Typed event fields, stored normalized (no XDR re-parse). |
+| `rawXdr` | text | Raw base64 `DiagnosticEvent`, retained verbatim for audit/re-verify. |
+| `successfulCall` | integer (bool) | Success classification of the enclosing contract call. |
+| `applicationOrder` | integer | Application (Soroban) order within the transaction. |
+| `createdAt` / `updatedAt` | text | Row timestamps. |
+
+### Ordering guarantee
+
+Traces from one transaction are returned strictly in `applicationOrder` (then
+`eventIndex`), indistinguishable from on-chain emission order even after the
+ingestion job is parallelized across worker coroutines.
+
+The schema is created by the `003-create-soroban-traces` migration (up/down) and
+does not depend on `synchronize: true`. It is reached through the existing
+migration runner (`npm run migration:run` / `npm run migration:dry-run` in
+`app/backend`).
+
+## Blockchain Event Task Queue
+
+The backend exposes a task queue endpoint for ingesting L1 blockchain events. On
+the Stellar (Soroban) network it supports a dedicated **Soroban trace extraction**
+action that fetches a transaction's diagnostic events and emits typed, decodable
+trace records for the rest of the M1 pipeline to persist and re-verify.
+
+### `POST /api/task-queue/blockchain-event`
+
+**Body:**
+
+```json
+{
+  "contractAddress": "string",
+  "eventName": "string",
+  "parameters": {
+    "transactionHash": "string"
+  },
+  "networkId": "stellar",
+  "priority": 0
+}
+```
+
+**Fields:**
+
+- `networkId` — must be `"stellar"` for Soroban extraction.
+- `action` — `"soroban-trace"`, the Soroban extraction action. EVM actions
+  (`listen`/`process`/`verify`/`index`) are rejected on the Stellar network
+  because Stellar speaks the Soroban protocol, not EVM JSON-RPC.
+- `parameters.transactionHash` — the Soroban transaction hash whose diagnostic
+  events should be extracted.
+
+**Behavior:**
+
+- A confirmed transaction yields one typed, serializable trace record per
+  `events[]` entry. Each record carries the typed event (type, contract id,
+  base64 topics/value, `inSuccessfulContractCall`), the raw base64 wire entry,
+  the parent `transactionHash`, the `ledger` sequence, and the Soroban
+  `applicationOrder`.
+- An unknown or not-yet-confirmed transaction is a **transient, retryable**
+  condition: the job is retried and is never moved to the Dead Letter Queue on
+  the first failure.
+- An `events[]` array or total encoded byte volume over the bounded resource
+  policy (`BLOCKCHAIN_MAX_BATCH_SIZE` / `BLOCKCHAIN_MAX_PAYLOAD_BYTES`) is a
+  **permanent** `BlockchainPayloadLimitError` and is Dead Letter Queued.
+- A malformed (invalid base64) event entry is a **permanent, non-retryable**
+  input failure and is Dead Letter Queued.
+
+**Returns:**
+
+```json
+{ "success": true, "jobId": "string", "queueName": "blockchain-events", "timestamp": "ISO-8601" }
+```
+
+The typed trace records are the ingest step every downstream M1 stage
+(persistence, replay, re-verification) consumes; the Rust `LmsEvent` remains the
+canonical typed payload for events known to the LMS contract.
 
 ---
 
