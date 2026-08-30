@@ -3,7 +3,12 @@
 // Covers the Soroban `getTransactionResult` RPC method: successful shape, transient
 // not-found semantics, and rejection of incompatible (EVM JSON-RPC) endpoints.
 
-import { StellarProvider, StellarTransport } from './stellar.provider';
+import {
+  decodeScSymbol,
+  StellarProvider,
+  StellarTransport,
+  SorobanTransactionResult,
+} from './stellar.provider';
 
 const ENDPOINT = 'https://soroban-rpc.example.test';
 
@@ -17,6 +22,20 @@ function result(overrides: { ok?: boolean; status?: number; json?: unknown } = {
     status: overrides.status ?? 500,
     json: async () => overrides.json,
   };
+}
+
+function transport(json: unknown, ok = true, status = 200) {
+  return jest.fn().mockResolvedValue({ ok, status, json: async () => json });
+}
+
+/** Encode an ASCII string as a base64 Soroban `ScVal` of type `ScSymbol`. */
+function scSymbol(text: string): string {
+  const len = Buffer.byteLength(text, 'ascii');
+  const bytes = Buffer.alloc(5 + len);
+  bytes[0] = 5; // ScSymbol discriminant
+  bytes.writeUInt32LE(len, 1);
+  bytes.write(text, 5, 'ascii');
+  return bytes.toString('base64');
 }
 
 describe('StellarProvider.getTransactionResult', () => {

@@ -276,7 +276,6 @@ export class StellarProvider {
   }
 
   /**
-  // #708 (soroban-trace):
    * Issue a Soroban JSON-RPC `getTransaction` for the given transaction hash
    * and return a shaped, categorized result (including any `events` array,
    * `ledger`, `status`, and `applicationOrder`).
@@ -399,7 +398,7 @@ export class StellarProvider {
     };
   }
 
-  // #713 (verification):
+  /**
    * Fetch and normalize a Soroban transaction (Soroban RPC `getTransaction`).
    *
    * This is the verification counterpart to evacuation: it returns a typed
@@ -490,7 +489,6 @@ export class StellarProvider {
       };
     });
   }
- (feat(task-queue): verify Soroban transactions against the chain on demand)
 }
 
 /** Injectable transport: Node 18+ global `fetch`, resolving JSON body lazily. */

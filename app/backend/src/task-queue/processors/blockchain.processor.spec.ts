@@ -13,6 +13,7 @@ import { Job, UnrecoverableError } from 'bullmq';
 import { BlockchainProcessor, BlockchainEventJobData } from './blockchain.processor';
 import { SorobanEventDecodeError } from './decode-retry.classifier';
 import { TaskQueueService } from '../services/task-queue.service';
+import { SorobanVerificationService } from '../../soroban-verification/soroban-verification.service';
 
 describe('BlockchainProcessor', () => {
   let processor: BlockchainProcessor;
