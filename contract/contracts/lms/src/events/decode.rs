@@ -208,7 +208,7 @@ pub fn decode_event_from(
 ) -> Result<LmsEvent, DecodeError> {
     let diagnostic = parse_diagnostic(input)?;
     check_source(&diagnostic, Some(expected_contract))?;
-    decode_diagnostic_event(env, &diagnostic)
+    decode_diagnostic_event(env, &diagnostic).map(|trace| trace.event)
 }
 
 /// Parse a base64-encoded `DiagnosticEvent` under the module's size and depth
@@ -1057,7 +1057,6 @@ mod tests {
     }
 
     #[test]
-    fn events_from_failed_calls_are_decoded_but_marked_reverted() {
     fn decode_event_from_accepts_a_matching_contract_id() {
         let (env, contract_id) = deploy();
         let creator = Address::generate(&env);
