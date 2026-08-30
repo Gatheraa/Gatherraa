@@ -2,6 +2,14 @@
 
 This folder contains a local development observability stack: Prometheus, Grafana, Loki (logs), Promtail (log shipping), and Jaeger (tracing). The compose file is fully functional — start it and every service comes up with its config.
 
+> **Security note — Grafana credentials are development-only.** The stack ships
+> with an `admin`/`admin` Grafana login **for local development only**. The
+> startup entrypoint (`observability/grafana/entrypoint.sh`) refuses to run with
+> a weak default password unless the deployment is explicitly marked
+> development-only (`GRAFANA_DEV_ONLY=true`). **Never expose this stack beyond
+> localhost with the defaults unchanged.** See
+> [Configuration](#grafana-configuration) below.
+
 Quick start (from repository root):
 
 ```bash
@@ -10,10 +18,37 @@ docker-compose -f observability/docker-compose.observability.yml up --build
 
 Access:
 
-- Grafana: http://localhost:3000 (user: admin, password: admin)
+- Grafana: http://localhost:3000 (user: `[GRAFANA_ADMIN_USER]`, password: `[GRAFANA_ADMIN_PASSWORD]`; dev default `admin`/`admin`)
 - Prometheus: http://localhost:9090
 - Loki: http://localhost:3100
 - Jaeger UI: http://localhost:16686
+
+### Grafana configuration
+
+Grafana credentials are configurable via environment variables (see
+`observability/.env.example`). The defaults are **development-only**:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `GRAFANA_DEV_ONLY` | `true` | Mark the stack as local-only. When not `true`, startup is rejected if `GRAFANA_ADMIN_PASSWORD` is a weak default. |
+| `GRAFANA_ADMIN_USER` | `admin` | Grafana admin user name. |
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin password. **Change this outside local development.** |
+
+To override for your shell or environment, export the variables before starting,
+or copy `observability/.env.example` to `observability/.env`:
+
+```bash
+export GRAFANA_ADMIN_USER="ops-monitor"
+export GRAFANA_ADMIN_PASSWORD="$(openssl rand -base64 24)"
+docker-compose -f observability/docker-compose.observability.yml up --build
+```
+
+**Validation.** The mounted entrypoint `observability/grafana/entrypoint.sh`
+aborts Grafana startup when `GRAFANA_ADMIN_PASSWORD` is `admin`, `admin123`,
+`password`, `grafana`, or `root` and `GRAFANA_DEV_ONLY` is not `true`. This
+prevents accidentally booting a production-like deployment with known
+credentials, while keeping the zero-config local experience.
+
 
 Prometheus configuration:
 

@@ -215,4 +215,90 @@ describe('BlockchainProcessor', () => {
       );
     });
   });
+
+  describe('process - action parameter validation (issue #693)', () => {
+    it('rejects a verify job with no transactionHash as an unrecoverable failure', async () => {
+      const job = createJob({ action: 'verify', parameters: {} });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        name: 'UnrecoverableError',
+        message: expect.stringContaining('transactionHash'),
+      });
+    });
+
+    it('rejects a verify job with a malformed transactionHash as unrecoverable', async () => {
+      const job = createJob({ action: 'verify', parameters: { transactionHash: '0x12' } });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        name: 'UnrecoverableError',
+      });
+    });
+
+    it('rejects an index job that is missing source identity as unrecoverable', async () => {
+      const job = createJob({ action: 'index', parameters: { transactionHash: 'not-a-hash' } });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        name: 'UnrecoverableError',
+      });
+    });
+
+    it('rejects a listen job with an invalid fromBlock as unrecoverable', async () => {
+      const job = createJob({ action: 'listen', parameters: { fromBlock: -5 } });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        name: 'UnrecoverableError',
+      });
+    });
+
+    it('rejects an unknown action as an unrecoverable failure', async () => {
+      const job = createJob({ action: 'hack' as any, parameters: { fromBlock: 1 } });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        name: 'UnrecoverableError',
+        message: 'Unknown action: hack',
+      });
+    });
+
+    it('routes a parameter-invalid job to the DLQ on the first attempt', async () => {
+      // A parameter error is a permanent failure: it must reach the DLQ at
+      // attempt 1 of N, never consuming retries.
+      const job = createJob(
+        { action: 'verify', parameters: {} },
+        { attemptsMade: 1, opts: { attempts: 5 } },
+      );
+
+      let thrown: Error | undefined;
+      try {
+        await processor.process(job);
+      } catch (error) {
+        thrown = error as Error;
+      }
+
+      expect(thrown).toBeDefined();
+      expect(thrown?.name).toBe('UnrecoverableError');
+
+      await processor.onJobFailed(job, thrown as Error);
+
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'blockchain-job-1' }),
+        expect.stringContaining('transactionHash'),
+      );
+    });
+
+    it('lets a well-formed job reach the provider without validation failure', async () => {
+      (processor as any).providers.set('1', {
+        getLogs: jest.fn().mockResolvedValue([]),
+      });
+
+      const job = createJob({
+        action: 'listen',
+        parameters: { fromBlock: '0x10', toBlock: 'latest' },
+      });
+
+      const result = await processor.process(job);
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('listen');
+    });
+  });
 });
