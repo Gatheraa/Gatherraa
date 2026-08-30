@@ -55,7 +55,7 @@ jobs:
         continue-on-error: true
 
   contract-test:
-    name: Contract Unit Tests
+    name: Contract Unit & Integration Tests (LMS)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,10 +77,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-tests-
 
+      # Execute the LMS contract tests (unit tests in src/ plus the
+      # integration suite in contract/contracts/lms/tests/integration.rs).
+      # A failure here fails the job: no continue-on-error, and the command
+      # runs tests rather than a compile-only `cargo check`.
+      #
+      # Scoped to the LMS package on purpose: `cargo test --workspace
+      # --all-features` does not currently build the other workspace members
+      # (escrow_contract, ticket_contract, ...) against the SDK features that
+      # --all-features enables, so running the whole workspace would fail for
+      # unrelated, out-of-scope reasons. This gate is greenable and enforces
+      # the LMS tests.
       - name: Run contract tests
         working-directory: contract
-        run: cargo check --workspace --all-features --lib
-        continue-on-error: true
+        run: cargo test --package lms --all-features
 
   # --- Backend Jobs ---
   backend-test:
