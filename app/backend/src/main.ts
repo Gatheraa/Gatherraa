@@ -1,3 +1,7 @@
+// MUST be the first import: registers OpenTelemetry instrumentation hooks
+// before NestJS boots (see instrumentation.ts).
+import './instrumentation';
+
 import { NestFactory, Reflector } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';

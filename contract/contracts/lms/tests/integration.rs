@@ -304,6 +304,215 @@ fn stored_roles_survive_ledger_advancement() {
 }
 
 #[test]
+fn staff_can_store_and_retrieve_a_course() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    d.env.ledger().with_mut(|ledger| ledger.timestamp = 1234);
+    let title = String::from_str(&d.env, "Soroban LMS");
+    let description_uri = String::from_str(&d.env, "ipfs://course-description");
+
+    d.client.create_course(
+        &d.instructor,
+        &7,
+        &d.instructor,
+        &title,
+        &description_uri,
+        &5000,
+        &12,
+    );
+
+    assert_eq!(
+        d.client.get_course(&7),
+        Some(Course {
+            course_id: 7,
+            instructor: d.instructor.clone(),
+            title,
+            description_uri,
+            price: 5000,
+            status: CourseStatus::Draft,
+            created_at: 1234,
+            updated_at: 1234,
+            total_lessons: 12,
+        })
+    );
+}
+
+#[test]
+fn course_ids_are_unique_and_duplicate_creation_preserves_original() {
+    let d = deploy_initialized();
+    let title = String::from_str(&d.env, "First");
+    let description_uri = String::from_str(&d.env, "ipfs://first");
+
+    d.client.create_course(
+        &d.admin,
+        &9,
+        &d.instructor,
+        &title,
+        &description_uri,
+        &100,
+        &2,
+    );
+
+    let replacement_title = String::from_str(&d.env, "Replacement");
+    assert_eq!(
+        d.client.try_create_course(
+            &d.admin,
+            &9,
+            &d.instructor,
+            &replacement_title,
+            &description_uri,
+            &200,
+            &5,
+        ),
+        Err(Ok(CourseError::CourseAlreadyExists))
+    );
+
+    assert_eq!(d.client.get_course(&9).unwrap().title, title);
+    assert_eq!(d.client.get_course(&9).unwrap().price, 100);
+}
+
+#[test]
+fn an_unregistered_caller_cannot_create_a_course() {
+    let d = deploy_initialized();
+    let title = String::from_str(&d.env, "Unauthorized");
+    let description_uri = String::from_str(&d.env, "ipfs://unauthorized");
+
+    assert_eq!(
+        d.client.try_create_course(
+            &d.outsider,
+            &11,
+            &d.instructor,
+            &title,
+            &description_uri,
+            &0,
+            &0,
+        ),
+        Err(Ok(CourseError::UserNotRegistered))
+    );
+    assert_eq!(d.client.get_course(&11), None);
+}
+
+#[test]
+fn a_student_cannot_create_a_course() {
+    let d = deploy_initialized();
+    d.client.register_student(&d.student);
+
+    let title = String::from_str(&d.env, "Student Course");
+    let description_uri = String::from_str(&d.env, "ipfs://student-course");
+
+    assert_eq!(
+        d.client.try_create_course(
+            &d.student,
+            &12,
+            &d.student,
+            &title,
+            &description_uri,
+            &0,
+            &1,
+        ),
+        Err(Ok(CourseError::Unauthorized))
+    );
+    assert_eq!(d.client.get_course(&12), None);
+}
+
+#[test]
+fn course_creation_rejects_an_empty_title() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    let empty_title = String::from_str(&d.env, "");
+    let description_uri = String::from_str(&d.env, "ipfs://course");
+
+    assert_eq!(
+        d.client.try_create_course(
+            &d.instructor,
+            &13,
+            &d.instructor,
+            &empty_title,
+            &description_uri,
+            &100,
+            &1,
+        ),
+        Err(Ok(CourseError::InvalidTitle))
+    );
+    assert_eq!(d.client.get_course(&13), None);
+}
+
+#[test]
+fn course_creation_rejects_an_empty_description_uri() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    let title = String::from_str(&d.env, "Title");
+    let empty_description_uri = String::from_str(&d.env, "");
+
+    assert_eq!(
+        d.client.try_create_course(
+            &d.instructor,
+            &14,
+            &d.instructor,
+            &title,
+            &empty_description_uri,
+            &100,
+            &1,
+        ),
+        Err(Ok(CourseError::InvalidDescriptionUri))
+    );
+    assert_eq!(d.client.get_course(&14), None);
+}
+
+#[test]
+fn course_creation_rejects_a_negative_price() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    let title = String::from_str(&d.env, "Title");
+    let description_uri = String::from_str(&d.env, "ipfs://course");
+
+    assert_eq!(
+        d.client.try_create_course(
+            &d.instructor,
+            &15,
+            &d.instructor,
+            &title,
+            &description_uri,
+            &-1,
+            &1,
+        ),
+        Err(Ok(CourseError::InvalidPrice))
+    );
+    assert_eq!(d.client.get_course(&15), None);
+}
+
+/// `create_course` must be reachable as a genuine contract invocation, and
+/// producing a `CourseCreated` event on success is part of its contract per
+/// issue #641 — a unit test reaching the module function directly wouldn't
+/// prove the event survives dispatch through `#[contractimpl]`.
+#[test]
+fn creating_a_course_emits_a_course_created_event() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+
+    let title = String::from_str(&d.env, "Event Course");
+    let description_uri = String::from_str(&d.env, "ipfs://event-course");
+
+    let events_before = d.env.events().all().len();
+
+    d.client.create_course(
+        &d.instructor,
+        &21,
+        &d.instructor,
+        &title,
+        &description_uri,
+        &1000,
+        &3,
+    );
+
+    assert_eq!(d.env.events().all().len(), events_before + 1);
+}
+
+#[test]
 fn a_rejected_call_writes_nothing() {
     let d = deploy_initialized();
 

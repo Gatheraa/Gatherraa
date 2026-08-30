@@ -1,8 +1,15 @@
 mod types;
 
+#[cfg(not(target_family = "wasm"))]
+pub mod decode;
+
+#[cfg(not(target_family = "wasm"))]
+pub use decode::{DecodeError, LmsEvent};
+
 pub use types::{
     AssessmentSubmitted, CertificateIssued, CourseArchived, CourseCompleted, CourseCreated,
     CoursePublished, LessonCompleted, LessonCreated, ModuleCreated, StudentEnrolled,
+    StudentUnenrolled,
 };
 
 use soroban_sdk::{Address, Env};
@@ -65,6 +72,15 @@ pub fn lesson_created(
 /// Publish the event emitted when a student enrolls in a course.
 pub fn student_enrolled(env: &Env, course_id: u32, student: &Address) {
     StudentEnrolled {
+        course_id,
+        student: student.clone(),
+    }
+    .publish(env);
+}
+
+/// Publish the event emitted when a student withdraws from a course.
+pub fn student_unenrolled(env: &Env, course_id: u32, student: &Address) {
+    StudentUnenrolled {
         course_id,
         student: student.clone(),
     }

@@ -2,6 +2,7 @@
 // Comprehensive test suite for BullMQ task queue system
 
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { TaskQueueService } from './services/task-queue.service';
 import { NotificationsGateway } from '../notifications/gateway/notifications.gateway';
 import { Job } from 'bullmq';
@@ -11,11 +12,14 @@ jest.mock('./processors/email.processor', () => ({ EmailProcessor: class {} }));
 jest.mock('./processors/image.processor', () => ({ ImageProcessor: class {} }));
 jest.mock('./processors/blockchain.processor', () => ({ BlockchainProcessor: class {} }));
 jest.mock('./processors/scheduled-task.processor', () => ({ ScheduledTaskProcessor: class {} }));
-jest.mock('./processors/waitlist-notification.processor', () => ({ WaitlistNotificationProcessor: class {} }));
+jest.mock('./processors/waitlist-notification.processor', () => ({
+  WaitlistNotificationProcessor: class {},
+}));
 
 describe('TaskQueue System (Offline Unit Suite)', () => {
   let taskQueueService: TaskQueueService;
-  
+  let blockchainDlqQueue: { add: jest.Mock };
+
   const mockSocketServer = {
     to: jest.fn().mockReturnThis(),
     emit: jest.fn(),
@@ -45,30 +49,63 @@ describe('TaskQueue System (Offline Unit Suite)', () => {
         { provide: 'BullQueue_email', useValue: createMockQueue('email') },
         { provide: 'BullQueue_email:dlq', useValue: createMockQueue('email:dlq') },
         { provide: 'BullQueue_image-processing', useValue: createMockQueue('image-processing') },
-        { provide: 'BullQueue_image-processing:dlq', useValue: createMockQueue('image-processing:dlq') },
+        {
+          provide: 'BullQueue_image-processing:dlq',
+          useValue: createMockQueue('image-processing:dlq'),
+        },
         { provide: 'BullQueue_blockchain-events', useValue: createMockQueue('blockchain-events') },
-        { provide: 'BullQueue_blockchain-events:dlq', useValue: createMockQueue('blockchain-events:dlq') },
+        {
+          provide: 'BullQueue_blockchain-events:dlq',
+          useValue: createMockQueue('blockchain-events:dlq'),
+        },
         { provide: 'BullQueue_scheduled-tasks', useValue: createMockQueue('scheduled-tasks') },
-        { provide: 'BullQueue_scheduled-tasks:dlq', useValue: createMockQueue('scheduled-tasks:dlq') },
+        {
+          provide: 'BullQueue_scheduled-tasks:dlq',
+          useValue: createMockQueue('scheduled-tasks:dlq'),
+        },
         { provide: 'BullQueue_notifications', useValue: createMockQueue('notifications') },
         { provide: 'BullQueue_notifications:dlq', useValue: createMockQueue('notifications:dlq') },
         { provide: 'BullQueue_analytics', useValue: createMockQueue('analytics') },
         { provide: 'BullQueue_analytics:dlq', useValue: createMockQueue('analytics:dlq') },
         { provide: 'BullQueue_dead-letter', useValue: createMockQueue('dead-letter') },
-        { provide: 'BullQueue_waitlist:notifications', useValue: createMockQueue('waitlist:notifications') },
-        { provide: 'BullQueue_waitlist:notifications:dlq', useValue: createMockQueue('waitlist:notifications:dlq') },
+        {
+          provide: 'BullQueue_waitlist:notifications',
+          useValue: createMockQueue('waitlist:notifications'),
+        },
+        {
+          provide: 'BullQueue_waitlist:notifications:dlq',
+          useValue: createMockQueue('waitlist:notifications:dlq'),
+        },
         { provide: 'BullQueue_waitlist:expiry', useValue: createMockQueue('waitlist:expiry') },
-        { provide: 'BullQueue_waitlist:expiry:dlq', useValue: createMockQueue('waitlist:expiry:dlq') },
+        {
+          provide: 'BullQueue_waitlist:expiry:dlq',
+          useValue: createMockQueue('waitlist:expiry:dlq'),
+        },
         { provide: 'BullQueue_waitlist:invite', useValue: createMockQueue('waitlist:invite') },
-        { provide: 'BullQueue_waitlist:invite:dlq', useValue: createMockQueue('waitlist:invite:dlq') },
+        {
+          provide: 'BullQueue_waitlist:invite:dlq',
+          useValue: createMockQueue('waitlist:invite:dlq'),
+        },
+        { provide: 'BullQueue_soroban:replay', useValue: createMockQueue('soroban:replay') },
         {
           provide: NotificationsGateway,
           useValue: { server: mockSocketServer },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string, defaultValue?: any) => defaultValue),
+          },
         },
       ],
     }).compile();
 
     taskQueueService = moduleFixture.get<TaskQueueService>(TaskQueueService);
+    blockchainDlqQueue = moduleFixture.get('BullQueue_blockchain-events:dlq');
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   describe('Queue Enqueue Operations', () => {
@@ -101,17 +138,19 @@ describe('TaskQueue System (Offline Unit Suite)', () => {
   // TARGETED ACCEPTANCE CRITERIA AUTOMATED TEST
   describe('Domain-Aware Failure Handling & Dead-Letter Queue Validation', () => {
     it('should process throws once, retry up to N times, then route to DLQ and emit event', async () => {
-      const dlqSpy = jest.spyOn(taskQueueService, 'moveToDeadLetterQueue').mockResolvedValue({} as Job);
-      
+      const dlqSpy = jest
+        .spyOn(taskQueueService, 'moveToDeadLetterQueue')
+        .mockResolvedValue({} as Job);
+
       const dummyJob = {
         id: 'mock-fail-123',
         queueName: 'waitlist:notifications',
         attemptsMade: 3,
         opts: {
           attempts: 3,
-          backoff: { type: 'exponential', delay: 10 }
+          backoff: { type: 'exponential', delay: 10 },
         },
-        data: { userId: 'user-789', message: 'Failing Notification' }
+        data: { userId: 'user-789', message: 'Failing Notification' },
       } as unknown as Job;
 
       // Execute Dead Letter Queue Routing Behavior
@@ -120,6 +159,43 @@ describe('TaskQueue System (Offline Unit Suite)', () => {
       // Assertions matching Acceptance Criteria requirements
       expect(dlqSpy).toHaveBeenCalledWith(expect.any(Object), 'Simulated failure reason');
       expect(dummyJob.attemptsMade).toBe(dummyJob.opts.attempts);
+    });
+
+    it('should preserve job identity and failure reason in the DLQ payload', async () => {
+      const dummyJob = {
+        id: 'blockchain-abc-123',
+        queueName: 'blockchain-events',
+        attemptsMade: 5,
+        opts: {
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 3000 },
+        },
+        data: {
+          contractAddress: '0x123',
+          eventName: 'Transfer',
+          parameters: { fromBlock: 1000 },
+          networkId: '1',
+        },
+        stacktrace: ['at provider.getCode (blockchain.processor.ts:92)'],
+      } as unknown as Job;
+
+      // Move the permanently failed blockchain job to its DLQ
+      await taskQueueService.moveToDeadLetterQueue(
+        dummyJob,
+        'Provider not configured for network 999',
+      );
+
+      // The DLQ job must carry the original identity, full payload and failure reason
+      expect(blockchainDlqQueue.add).toHaveBeenCalledTimes(1);
+      const [jobName, payload, options] = blockchainDlqQueue.add.mock.calls[0];
+      expect(jobName).toBe('blockchain-events:failed');
+      expect(payload.originalJobId).toBe('blockchain-abc-123');
+      expect(payload.originalQueue).toBe('blockchain-events');
+      expect(payload.failReason).toBe('Provider not configured for network 999');
+      expect(payload.payload).toEqual(dummyJob.data);
+      expect(payload.attemptsMade).toBe(5);
+      expect(payload.stacktrace).toEqual(['at provider.getCode (blockchain.processor.ts:92)']);
+      expect(options.jobId).toBe('dlq-blockchain-events-blockchain-abc-123');
     });
   });
 });

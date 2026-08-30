@@ -1,28 +1,21 @@
 use soroban_sdk::{Address, Env};
 
+use crate::course::Course;
 use crate::StorageKey;
-
-use super::types::Course;
 
 /// Returns whether a course is registered under the given identifier.
 pub fn has_course(env: &Env, course_id: u32) -> bool {
-    env.storage()
-        .persistent()
-        .has(&StorageKey::Course(course_id))
+    crate::course::storage::has_course(env, course_id)
 }
 
 /// Returns the course registered under the given identifier.
 pub fn get_course(env: &Env, course_id: u32) -> Option<Course> {
-    env.storage()
-        .persistent()
-        .get(&StorageKey::Course(course_id))
+    crate::course::storage::get_course(env, course_id)
 }
 
 /// Persist a course record.
 pub fn set_course(env: &Env, course: &Course) {
-    env.storage()
-        .persistent()
-        .set(&StorageKey::Course(course.id), course);
+    crate::course::storage::set_course(env, course)
 }
 
 /// Returns whether a student has completed one specific lesson.

@@ -56,6 +56,15 @@ pub struct StudentEnrolled {
     pub student: Address,
 }
 
+#[contractevent(topics = ["lms", "student_unenrolled"])]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct StudentUnenrolled {
+    #[topic]
+    pub course_id: u32,
+    #[topic]
+    pub student: Address,
+}
+
 #[contractevent(topics = ["lms", "lesson_completed"])]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct LessonCompleted {
