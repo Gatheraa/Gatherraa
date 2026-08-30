@@ -14,7 +14,18 @@ services:
   grafana:
     image: grafana/grafana:9.5.0
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Credentials are injected from the shell/.env. The defaults are
+      # development-only and the startup entrypoint refuses to run with a weak
+      # default password outside GRAFANA_DEV_ONLY=true (see
+      # ./grafana/entrypoint.sh and .env.example).
+      - GRAFANA_DEV_ONLY=${GRAFANA_DEV_ONLY:-true}
+      - GRAFANA_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+    entrypoint:
+      - /etc/grafana/entrypoint.sh
+      - --homepath=/usr/share/grafana
     depends_on:
       - prometheus
       - loki
@@ -22,6 +33,7 @@ services:
     ports:
       - '3000:3000'
     volumes:
+      - ./grafana/entrypoint.sh:/etc/grafana/entrypoint.sh:ro
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
 
