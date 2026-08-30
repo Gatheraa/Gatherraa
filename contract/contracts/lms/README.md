@@ -16,7 +16,9 @@ issues #638–#657, and each module lands with its own entry points.
 | Integration + testnet deployment | #657 | This work |
 | Course progress calculation | #648 | PR open |
 | Assessment module | #651, #652 | Assigned |
-| Course / module / lesson management | #640–#644 | Open |
+| Course management | #640–#642 | Open |
+| Module management | #643 | Done, exposed |
+| Lesson management | #644 | Open |
 | Enrollment and payment | #645, #646 | Open |
 | Course completion | #650 | Open |
 | Certificates | #653, #654 | Open |
@@ -42,6 +44,12 @@ table is internal and unreachable from off-chain.
 | `get_role(user: Address)` | none | `Option<Role>` |
 | `get_user(user: Address)` | none | `Option<UserRecord>` |
 | `has_role(user: Address, role: Role)` | none | `bool` |
+| `create_course(caller, course_id, instructor, title, description_uri, price, total_lessons)` | `caller`, must be staff | `Result<(), CourseError>` |
+| `get_course(course_id: u32)` | none | `Option<Course>` |
+| `create_module(caller, course_id, module_id, title, description_uri, position)` | `caller`, must be the course's instructor | `Result<(), ModuleError>` |
+| `update_module(caller, module_id, title, description_uri, position)` | `caller`, must be the owning course's instructor | `Result<(), ModuleError>` |
+| `delete_module(caller, module_id)` | `caller`, must be the owning course's instructor | `Result<(), ModuleError>` |
+| `get_module(module_id: u32)` | none | `Option<Module>` |
 
 `Role` is one of `Admin`, `Instructor`, `Student`. `UserRecord` is
 `{ address: Address, role: Role }`.
@@ -64,6 +72,25 @@ Note the distinction between `UserNotRegistered` (3) and `AdminRequired`
 (4). A caller with no role at all gets 3; a caller with the *wrong* role
 gets 4. The two are deliberately separate so a client can tell "you need to
 register" from "you need a promotion".
+
+`CourseError`, as returned by the course methods above:
+
+| Code | Variant | Meaning |
+|---|---|---|
+| 1 | `CourseAlreadyExists` | A course with that id already exists |
+| 2 | `CourseNotFound` | No course with that id |
+| 3 | `Unauthorized` | Caller lacks a staff role |
+| 4 | `UserNotRegistered` | Caller holds no role at all |
+
+`ModuleError`, as returned by the module methods above:
+
+| Code | Variant | Meaning |
+|---|---|---|
+| 1 | `ModuleAlreadyExists` | A module with that id already exists |
+| 2 | `ModuleNotFound` | No module with that id |
+| 3 | `CourseNotFound` | No course with that id — modules cannot be created for nonexistent courses |
+| 4 | `Unauthorized` | Caller is not the owning course's instructor |
+| 5 | `UserNotRegistered` | Caller holds no role at all |
 
 ## Initialization
 
@@ -94,6 +121,31 @@ carol: register_student(carol)             -> carol becomes Student
 Students self-register; staff roles are granted by an administrator. One
 address holds at most one role — granting a second fails with
 `AlreadyRegistered` (2), and the original role survives the attempt.
+
+## Modules
+
+Modules organize a course's lessons into ordered sections. A module is
+created against an existing course, and the module's `course_id` is fixed
+for its lifetime — moving a module between courses is delete-and-recreate.
+Ordering is expressed with the caller-supplied `position` field, so an
+authoring UI decides the curriculum order and `update_module` can reorder
+by writing new positions.
+
+Authorization for module operations is deliberately narrower than course
+creation. Course creation takes any staff member; module creation, update,
+and deletion additionally require the caller to be **that course's
+instructor** (per the course record), not merely any instructor or admin.
+Modules cannot be created for courses that do not exist — the course lookup
+doubles as the ownership anchor, because the course record carries the
+instructor's address.
+
+```
+initialize(admin)                                   -> admin becomes Admin
+admin: authorize_instructor(admin, alice)           -> alice becomes Instructor
+alice: create_course(alice, 1, alice, ...)          -> course 1, instructor alice
+alice: create_module(alice, 1, 101, ...)            -> module 101 under course 1
+bob (also an Instructor): create_module(bob, 1, ...) -> Unauthorized — course 1 is alice's
+```
 
 ## Build
 
@@ -230,6 +282,11 @@ contracts/lms/
 │       ├── errors.rs    AccessError
 │       ├── storage.rs   role and initialization persistence
 │       └── types.rs     Role, UserRecord
+│   ├── module/          course modules (issue #643)
+│   │   ├── mod.rs       Modules service
+│   │   ├── errors.rs    ModuleError
+│   │   ├── storage.rs   module persistence
+│   │   └── types.rs     Module
 └── tests/
     └── integration.rs   client-level tests
 ```
@@ -246,6 +303,8 @@ from off-chain, however complete its internals — and extend
 |---|---|---|
 | `Configuration` | instance | Interface version; presence marks the contract initialized |
 | `User(Address)` | persistent | That address's `Role` |
+| `Course(u32)` | persistent | A `Course` record |
+| `Module(u32)` | persistent | A `Module` record |
 
 Contract-level configuration lives in instance storage: there is one of it
 and it shares the contract's lifetime and archival. Per-user records live in

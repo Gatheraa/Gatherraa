@@ -2,6 +2,7 @@ use soroban_sdk::{contract, contractimpl, Address, Env};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
 use crate::course::{Course, CourseError, Courses};
+use crate::module::{Module, ModuleError, Modules};
 use crate::enrollment::{Enrollment, EnrollmentError, Enrollments};
 use crate::types::LmsVersion;
 
@@ -125,49 +126,53 @@ impl LmsContract {
         Courses::get_course(&env, course_id)
     }
 
-    /// Publish a draft course so students can enroll in it.
+    /// Create a module under an existing course.
     ///
-    /// Requires the caller to be staff — an administrator or an instructor.
-    ///
-    /// # Errors
-    /// * `CourseNotFound` — no course exists under the identifier
-    /// * `CourseAlreadyPublished` — the course is already published
-    pub fn publish_course(env: Env, caller: Address, course_id: u32) -> Result<(), CourseError> {
-        Courses::publish_course(&env, &caller, course_id)
+    /// Only the course's own instructor may create modules for it.
+    pub fn create_module(
+        env: Env,
+        caller: Address,
+        course_id: u32,
+        module_id: u32,
+        title: soroban_sdk::String,
+        description_uri: soroban_sdk::String,
+        position: u32,
+    ) -> Result<(), ModuleError> {
+        Modules::create_module(
+            &env,
+            &caller,
+            course_id,
+            module_id,
+            title,
+            description_uri,
+            position,
+        )
     }
 
-    /// Enroll a registered student in a published course.
+    /// Update a module's title, description, and position.
     ///
-    /// Students authorize their own enrollment.
-    ///
-    /// # Errors
-    /// * `StudentNotRegistered` — the caller holds no Student role
-    /// * `CourseNotFound` — no course exists under the identifier
-    /// * `CourseNotPublished` — the course is not yet published
-    /// * `AlreadyEnrolled` — an enrollment record already exists
-    pub fn enroll(env: Env, student: Address, course_id: u32) -> Result<(), EnrollmentError> {
-        Enrollments::enroll(&env, &student, course_id)
+    /// Only the owning course's instructor may update its modules.
+    pub fn update_module(
+        env: Env,
+        caller: Address,
+        module_id: u32,
+        title: soroban_sdk::String,
+        description_uri: soroban_sdk::String,
+        position: u32,
+    ) -> Result<(), ModuleError> {
+        Modules::update_module(&env, &caller, module_id, title, description_uri, position)
     }
 
-    /// Withdraw a student from a course they are actively enrolled in.
+    /// Delete a module.
     ///
-    /// Students authorize their own withdrawal. The enrollment record is
-    /// retained with status `Unenrolled`.
-    ///
-    /// # Errors
-    /// * `NotEnrolled` — the student has no active enrollment to withdraw
-    pub fn unenroll(env: Env, student: Address, course_id: u32) -> Result<(), EnrollmentError> {
-        Enrollments::unenroll(&env, &student, course_id)
+    /// Only the owning course's instructor may delete its modules.
+    pub fn delete_module(env: Env, caller: Address, module_id: u32) -> Result<(), ModuleError> {
+        Modules::delete_module(&env, &caller, module_id)
     }
 
-    /// Retrieve a student's enrollment record for a course, if any.
-    pub fn get_enrollment(env: Env, student: Address, course_id: u32) -> Option<Enrollment> {
-        Enrollments::get_enrollment(&env, &student, course_id)
-    }
-
-    /// Whether a student has an active enrollment in a course.
-    pub fn is_enrolled(env: Env, student: Address, course_id: u32) -> bool {
-        Enrollments::is_enrolled(&env, &student, course_id)
+    /// Retrieve a module by its unique identifier.
+    pub fn get_module(env: Env, module_id: u32) -> Option<Module> {
+        Modules::get_module(&env, module_id)
     }
 }
 

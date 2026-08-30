@@ -21,8 +21,8 @@
 //! (events). Each should extend this file rather than start a new one.
 
 use lms::{
-    AccessError, Course, CourseError, CourseStatus, Enrollment, EnrollmentError, EnrollmentStatus,
-    LmsContract, LmsContractClient, LmsVersion, Role, UserRecord,
+    AccessError, Course, CourseError, CourseStatus, LmsContract, LmsContractClient, LmsVersion,
+    Module, ModuleError, Role, UserRecord,
 };
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
 use soroban_sdk::{Address, Env, String};
@@ -564,161 +564,261 @@ fn a_complete_deployment_lifecycle() {
 }
 
 // ---------------------------------------------------------------------------
-// Course publication and enrollment (#645)
+// Module management (#643)
 // ---------------------------------------------------------------------------
 
-/// Create a draft course as the admin and return its identifier.
-fn create_draft_course(d: &Deployment, course_id: u32) {
+/// Authorize an instructor and create a course owned by them, returning the
+/// course identifier.
+fn create_course_for(d: &Deployment, instructor: &Address, course_id: u32) {
+    let title = String::from_str(&d.env, "Course");
+    let description_uri = String::from_str(&d.env, "ipfs://course");
+
     d.client.create_course(
-        &d.admin,
+        instructor,
         &course_id,
-        &d.admin,
-        &String::from_str(&d.env, "Soroban 101"),
-        &String::from_str(&d.env, "https://example.com/soroban-101"),
-        &0_i128,
-        &3,
+        instructor,
+        &title,
+        &description_uri,
+        &0,
+        &8,
     );
 }
 
-#[test]
-fn a_staff_member_can_publish_a_course() {
-    let d = deploy_initialized();
-    create_draft_course(&d, 1);
-
-    assert_eq!(d.client.get_course(&1).unwrap().status, CourseStatus::Draft);
-
-    d.client.publish_course(&d.admin, &1);
-
-    assert_eq!(
-        d.client.get_course(&1).unwrap().status,
-        CourseStatus::Published
-    );
+/// The generated client's `try_*` methods nest the contract result inside
+/// the invoke result; peel both layers and surface the contract's own
+/// `ModuleError`.
+fn create_module(
+    d: &Deployment,
+    caller: &Address,
+    course_id: u32,
+    module_id: u32,
+    position: u32,
+) -> Result<(), ModuleError> {
+    match d.client.try_create_module(
+        caller,
+        &course_id,
+        &module_id,
+        &String::from_str(&d.env, "Intro"),
+        &String::from_str(&d.env, "ipfs://intro"),
+        &position,
+    ) {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(_)) => panic!("conversion error in try_create_module"),
+        Err(Ok(error)) => Err(error),
+        Err(Err(invoke)) => panic!("invoke error: {invoke:?}"),
+    }
 }
 
 #[test]
-fn publishing_an_unknown_course_is_rejected() {
+fn an_instructor_can_create_and_retrieve_a_module() {
     let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
+
+    d.env.ledger().with_mut(|ledger| ledger.timestamp = 1234);
+
+    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
 
     assert_eq!(
-        d.client.try_publish_course(&d.admin, &42),
-        Err(Ok(CourseError::CourseNotFound))
-    );
-}
-
-#[test]
-fn publishing_a_course_twice_is_rejected() {
-    let d = deploy_initialized();
-    create_draft_course(&d, 1);
-    d.client.publish_course(&d.admin, &1);
-
-    assert_eq!(
-        d.client.try_publish_course(&d.admin, &1),
-        Err(Ok(CourseError::CourseAlreadyPublished))
-    );
-}
-
-#[test]
-fn a_student_cannot_publish_a_course() {
-    let d = deploy_initialized();
-    create_draft_course(&d, 1);
-    d.client.register_student(&d.student);
-
-    assert_eq!(
-        d.client.try_publish_course(&d.student, &1),
-        Err(Ok(CourseError::Unauthorized))
-    );
-}
-
-#[test]
-fn a_registered_student_can_enroll_in_a_published_course() {
-    let d = deploy_initialized();
-    create_draft_course(&d, 1);
-    d.client.publish_course(&d.admin, &1);
-    d.client.register_student(&d.student);
-
-    d.client.enroll(&d.student, &1);
-
-    assert!(d.client.is_enrolled(&d.student, &1));
-    assert_eq!(
-        d.client.get_enrollment(&d.student, &1),
-        Some(Enrollment {
-            student: d.student.clone(),
-            course_id: 1,
-            enrolled_at: d.env.ledger().timestamp(),
-            status: EnrollmentStatus::Active,
+        d.client.get_module(&1),
+        Some(Module {
+            module_id: 1,
+            course_id: 7,
+            title: String::from_str(&d.env, "Intro"),
+            description_uri: String::from_str(&d.env, "ipfs://intro"),
+            position: 1,
+            created_at: 1234,
+            updated_at: 1234,
         })
     );
 }
 
+/// The "modules cannot be created for nonexistent courses" invariant.
 #[test]
-fn an_unregistered_address_cannot_enroll() {
+fn a_module_cannot_be_created_for_a_nonexistent_course() {
     let d = deploy_initialized();
-    create_draft_course(&d, 1);
-
-    d.client.publish_course(&d.admin, &1);
+    d.client.authorize_instructor(&d.admin, &d.instructor);
 
     assert_eq!(
-        d.client.try_enroll(&d.outsider, &1),
-        Err(Ok(EnrollmentError::StudentNotRegistered))
+        create_module(&d, &d.instructor, 404, 1, 1),
+        Err(ModuleError::CourseNotFound)
+    );
+
+    assert_eq!(d.client.get_module(&1), None);
+}
+
+#[test]
+fn module_ids_are_unique_and_duplicate_creation_preserves_original() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
+
+    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
+
+    assert_eq!(
+        create_module(&d, &d.instructor, 7, 1, 5),
+        Err(ModuleError::ModuleAlreadyExists)
+    );
+
+    // The original module is untouched by the rejected call.
+    assert_eq!(d.client.get_module(&1).unwrap().position, 1);
+}
+
+#[test]
+fn a_student_cannot_create_a_module() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.register_student(&d.student);
+    create_course_for(&d, &d.instructor, 7);
+
+    assert_eq!(
+        create_module(&d, &d.student, 7, 1, 1),
+        Err(ModuleError::Unauthorized)
+    );
+
+    assert_eq!(d.client.get_module(&1), None);
+}
+
+#[test]
+fn an_unregistered_caller_cannot_create_a_module() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
+
+    assert_eq!(
+        create_module(&d, &d.outsider, 7, 1, 1),
+        Err(ModuleError::UserNotRegistered)
+    );
+
+    assert_eq!(d.client.get_module(&1), None);
+}
+
+/// "Only authorized course instructors can modify modules" — another
+/// instructor, however well-authorized, has no power over a course they do
+/// not teach.
+#[test]
+fn only_the_course_instructor_can_modify_its_modules() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    d.client.authorize_instructor(&d.admin, &d.outsider);
+    create_course_for(&d, &d.instructor, 7);
+    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
+
+    // The second instructor cannot create, update, or delete.
+    assert_eq!(
+        create_module(&d, &d.outsider, 7, 2, 2),
+        Err(ModuleError::Unauthorized)
+    );
+    assert_eq!(
+        d.client.try_update_module(
+            &d.outsider,
+            &1,
+            &String::from_str(&d.env, "Hijacked"),
+            &String::from_str(&d.env, "ipfs://hijacked"),
+            &9,
+        ),
+        Err(Ok(ModuleError::Unauthorized))
+    );
+    assert_eq!(
+        d.client.try_delete_module(&d.outsider, &1),
+        Err(Ok(ModuleError::Unauthorized))
+    );
+
+    // The module is untouched.
+    assert_eq!(
+        d.client.get_module(&1).unwrap().title,
+        String::from_str(&d.env, "Intro")
     );
 }
 
 #[test]
-fn enrolling_in_a_draft_course_is_rejected() {
+fn module_positions_support_ordering() {
     let d = deploy_initialized();
-    create_draft_course(&d, 1);
-    d.client.register_student(&d.student);
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
+
+    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
+    create_module(&d, &d.instructor, 7, 2, 2).unwrap();
+
+    assert_eq!(d.client.get_module(&1).unwrap().position, 1);
+    assert_eq!(d.client.get_module(&2).unwrap().position, 2);
+
+    // Reordering is expressed through a position update.
+    d.client.update_module(
+        &d.instructor,
+        &1,
+        &String::from_str(&d.env, "Intro"),
+        &String::from_str(&d.env, "ipfs://intro"),
+        &5,
+    );
+
+    assert_eq!(d.client.get_module(&1).unwrap().position, 5);
+    assert_eq!(d.client.get_module(&2).unwrap().position, 2);
+}
+
+#[test]
+fn an_instructor_can_update_a_module() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
+
+    d.env.ledger().with_mut(|ledger| ledger.timestamp = 1000);
+    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
+
+    d.env.ledger().with_mut(|ledger| ledger.timestamp = 2000);
+    d.client.update_module(
+        &d.instructor,
+        &1,
+        &String::from_str(&d.env, "Advanced"),
+        &String::from_str(&d.env, "ipfs://advanced"),
+        &4,
+    );
+
+    let module = d.client.get_module(&1).unwrap();
+
+    assert_eq!(module.title, String::from_str(&d.env, "Advanced"));
+    assert_eq!(
+        module.description_uri,
+        String::from_str(&d.env, "ipfs://advanced")
+    );
+    assert_eq!(module.position, 4);
+    assert_eq!(module.course_id, 7);
+    assert_eq!(module.created_at, 1000);
+    assert_eq!(module.updated_at, 2000);
+}
+
+#[test]
+fn updating_a_missing_module_is_rejected() {
+    let d = deploy_initialized();
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
 
     assert_eq!(
-        d.client.try_enroll(&d.student, &1),
-        Err(Ok(EnrollmentError::CourseNotPublished))
+        d.client.try_update_module(
+            &d.instructor,
+            &99,
+            &String::from_str(&d.env, "Nope"),
+            &String::from_str(&d.env, "ipfs://nope"),
+            &1,
+        ),
+        Err(Ok(ModuleError::ModuleNotFound))
     );
 }
 
 #[test]
-fn duplicate_enrollment_is_rejected() {
+fn an_instructor_can_delete_a_module() {
     let d = deploy_initialized();
-    create_draft_course(&d, 1);
+    d.client.authorize_instructor(&d.admin, &d.instructor);
+    create_course_for(&d, &d.instructor, 7);
+    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
 
-    d.client.publish_course(&d.admin, &1);
-    d.client.register_student(&d.student);
-    d.client.enroll(&d.student, &1);
+    d.client.delete_module(&d.instructor, &1);
 
+    assert_eq!(d.client.get_module(&1), None);
+
+    // Deleting it again fails cleanly.
     assert_eq!(
-        d.client.try_enroll(&d.student, &1),
-        Err(Ok(EnrollmentError::AlreadyEnrolled))
-    );
-}
-
-#[test]
-fn a_student_can_unenroll_and_the_record_is_retained() {
-    let d = deploy_initialized();
-    create_draft_course(&d, 1);
-    d.client.publish_course(&d.admin, &1);
-    d.client.register_student(&d.student);
-    d.client.enroll(&d.student, &1);
-
-    d.client.unenroll(&d.student, &1);
-
-    assert!(!d.client.is_enrolled(&d.student, &1));
-    assert_eq!(
-        d.client.get_enrollment(&d.student, &1),
-        Some(Enrollment {
-            student: d.student.clone(),
-            course_id: 1,
-            enrolled_at: d.env.ledger().timestamp(),
-            status: EnrollmentStatus::Unenrolled,
-        })
-    );
-}
-
-#[test]
-fn unenrolling_without_an_enrollment_is_rejected() {
-    let d = deploy_initialized();
-    d.client.register_student(&d.student);
-
-    assert_eq!(
-        d.client.try_unenroll(&d.student, &1),
-        Err(Ok(EnrollmentError::NotEnrolled))
+        d.client.try_delete_module(&d.instructor, &1),
+        Err(Ok(ModuleError::ModuleNotFound))
     );
 }
