@@ -17,6 +17,7 @@ import { TaskQueueService } from '../services/task-queue.service';
 describe('BlockchainProcessor', () => {
   let processor: BlockchainProcessor;
   let taskQueueService: { moveToDeadLetterQueue: jest.Mock };
+  let sorobanVerifier: { verify: jest.Mock };
 
   const mockConfigService = {
     get: jest.fn().mockReturnValue(undefined),
@@ -58,11 +59,21 @@ describe('BlockchainProcessor', () => {
       moveToDeadLetterQueue: jest.fn().mockResolvedValue({ id: 'dlq-job' }),
     };
 
+    sorobanVerifier = {
+      verify: jest.fn().mockResolvedValue({
+        transactionHash: '0x123',
+        outcome: 'verified',
+        verified: true,
+        ledgerSeq: 42,
+      }),
+    };
+
     const moduleRef: TestingModule = await Test.createTestingModule({
       providers: [
         BlockchainProcessor,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: TaskQueueService, useValue: taskQueueService },
+        { provide: SorobanVerificationService, useValue: sorobanVerifier },
       ],
     }).compile();
 
@@ -315,7 +326,7 @@ describe('BlockchainProcessor', () => {
 
     const withStellarProvider = (tx: unknown) => {
       (processor as any).stellarProvider = {
-        getTransaction: jest.fn().mockResolvedValue(tx),
+        getTransactionResult: jest.fn().mockResolvedValue(tx),
       };
     };
 
@@ -361,7 +372,7 @@ describe('BlockchainProcessor', () => {
 
     it('should retry a transient not-found transaction and never route to the DLQ on first failure', async () => {
       (processor as any).stellarProvider = {
-        getTransaction: jest.fn().mockResolvedValue({
+        getTransactionResult: jest.fn().mockResolvedValue({
           ok: false,
           status: 'notFound',
           hash: '0xtx',
@@ -566,6 +577,184 @@ describe('BlockchainProcessor', () => {
         expect.objectContaining({ id: 'blockchain-job-99', queueName: 'blockchain-events' }),
         expect.stringContaining('documented LMS representation'),
       );
+    });
+  });
+
+  describe('process - Soroban verification on Stellar (issue #713)', () => {
+    const hash = '0x' + 'c'.repeat(64);
+
+    beforeEach(() => {
+      // Give the processor a functional Stellar provider instance; the verifier
+      // itself is a mock so we can assert the dispatch and wiring.
+      (processor as any).stellarProvider = {
+        protocol: 'stellar',
+        safeEndpoint: 'https://rpc.test',
+        host: 'rpc.test',
+        getTransaction: jest.fn(),
+      };
+    });
+
+    it('routes a Stellar verify job to the verifier and reports a verified outcome', async () => {
+      sorobanVerifier.verify.mockResolvedValueOnce({
+        transactionHash: hash,
+        outcome: 'verified',
+        verified: true,
+        ledgerSeq: 42,
+        eventName: 'course_created',
+      });
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'verify',
+        eventName: 'course_created',
+        contractAddress: 'sample-contract-id',
+        parameters: {
+          transactionHash: hash,
+          expectedPayload: { courseId: 'c1', instructor: '0xabc' },
+        },
+      });
+
+      const result = await processor.process(job);
+
+      expect(sorobanVerifier.verify).toHaveBeenCalledWith({
+        provider: (processor as any).stellarProvider,
+        transactionHash: hash,
+        eventName: 'course_created',
+        contractId: 'sample-contract-id',
+        expectedPayload: { courseId: 'c1', instructor: '0xabc' },
+      });
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('verify');
+      expect(result.networkId).toBe('stellar');
+      expect(result.result).toMatchObject({
+        outcome: 'verified',
+        verified: true,
+        ledgerSeq: 42,
+        eventName: 'course_created',
+      });
+    });
+
+    it('reports a mismatch outcome when the expected event is not equal', async () => {
+      sorobanVerifier.verify.mockResolvedValueOnce({
+        transactionHash: hash,
+        outcome: 'mismatch',
+        verified: false,
+        ledgerSeq: 42,
+        detail:
+          'The confirmed transaction does not contain the expected event with equal business fields.',
+      });
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'verify',
+        eventName: 'course_created',
+        parameters: { transactionHash: hash, expectedPayload: { courseId: 'c1' } },
+      });
+
+      const result = await processor.process(job);
+
+      expect(result.result.outcome).toBe('mismatch');
+      expect(result.result.verified).toBe(false);
+    });
+
+    it('reports a reverted outcome distinctly from not-found', async () => {
+      sorobanVerifier.verify.mockResolvedValueOnce({
+        transactionHash: hash,
+        outcome: 'reverted',
+        verified: false,
+        ledgerSeq: 41,
+        detail: 'resultCode=txv_bad_auth',
+      });
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'verify',
+        eventName: 'course_created',
+        parameters: { transactionHash: hash },
+      });
+
+      const result = await processor.process(job);
+
+      expect(result.result.outcome).toBe('reverted');
+      expect(result.result.verified).toBe(false);
+      expect(result.result.detail).toContain('resultCode');
+    });
+
+    it('treats a not-yet-confirmed transaction as a transient (retryable) failure', async () => {
+      // The verifier raises a transient, retryable error when the transaction
+      // has not been found/confirmed yet. It must NOT be an UnrecoverableError,
+      // so the job is retried and never DLQ'd on the first attempt.
+      const notFound = new Error(`not found`);
+      notFound.name = 'SorobanTransactionNotFoundError';
+      sorobanVerifier.verify.mockRejectedValueOnce(notFound);
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'verify',
+        eventName: 'course_created',
+        parameters: { transactionHash: hash },
+      });
+
+      // The processor must surface this as a transient (non-permanent) failure:
+      // never an UnrecoverableError, so the job is retried and only reaches the
+      // DLQ after attempts are exhausted.
+      await expect(processor.process(job)).rejects.toMatchObject({
+        message: 'not found',
+        originalError: expect.objectContaining({ name: 'SorobanTransactionNotFoundError' }),
+      });
+    });
+
+    it('rejects a Stellar verify job with no transactionHash as unrecoverable', async () => {
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'verify',
+        parameters: {},
+      });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        name: 'UnrecoverableError',
+        message: expect.stringContaining('transactionHash'),
+      });
+      // never reaches the verifier
+      expect(sorobanVerifier.verify).not.toHaveBeenCalled();
+    });
+
+    it('still rejects non-verify EVM actions on the Stellar network', async () => {
+      const job = createJob({ networkId: 'stellar', action: 'process' });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        message: expect.stringContaining('not supported on the stellar network'),
+      });
+    });
+  });
+
+  describe('process - EVM verifyEvent remains unchanged (no regression)', () => {
+    it('verifies an EVM event via the transaction receipt when the log matches exactly', async () => {
+      const topic = '0x' + 'a'.repeat(64);
+      (processor as any).providers.set('1', {
+        getTransactionReceipt: jest.fn().mockResolvedValue({
+          transactionHash: '0x' + 'b'.repeat(64),
+          blockNumber: 10,
+          gasUsed: '21000',
+          logs: [{ address: '0x123', topics: [topic] }],
+        }),
+      });
+
+      const job = createJob({
+        action: 'verify',
+        eventName: topic,
+        contractAddress: '0x123',
+        parameters: { transactionHash: '0x' + 'd'.repeat(64) },
+      });
+
+      const result = await processor.process(job);
+
+      expect(result.result).toMatchObject({
+        verified: true,
+        transactionHash: '0x' + 'd'.repeat(64),
+      });
+      // The EVM path must not delegate to the Soroban verifier.
+      expect(sorobanVerifier.verify).not.toHaveBeenCalled();
     });
   });
 });

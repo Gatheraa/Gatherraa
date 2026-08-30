@@ -7,9 +7,9 @@
 //
 // This provider is a Stellar-only client. It never speaks EVM JSON-RPC and is
 // never backed by ethers. It exposes the operations the Stellar protocol
-// actually supports (an up-front protocol probe and, transitively, anything a
-// future Soroban/Horizon client needs), and it never exposes the endpoint to
-// loggers without redaction.
+// actually supports (an up-front protocol probe, transaction verification, and
+// head/backfill queries), and it never exposes the endpoint to loggers without
+// redaction.
 
 import { redactEndpoint } from '../config/blockchain-provider.config';
 
@@ -18,6 +18,83 @@ export interface StellarProbeResult {
   ok: boolean;
   /** Categorized reason when the probe fails (never includes the endpoint). */
   category?: string;
+}
+
+/** Confirmation state of a Soroban transaction as surfaced by `getTransaction`. */
+export type SorobanTransactionStatus = 'SUCCESS' | 'FAILED' | 'NOT_FOUND';
+
+/**
+ * A single Soroban event surfaced by `getTransaction`, normalized for
+ * verification. Raw XDR is preserved alongside a best-effort decoded name so
+ * an operator can always inspect the original input, and so equality can fall
+ * back to the raw payload when decoding is not possible.
+ */
+export interface SorobanEventRecord {
+  /** Emitting contract id (when the RPC supplied one). */
+  contractId?: string;
+  /** Best-effort human-readable event name (the last topic symbol). */
+  eventName: string | null;
+  /** Normalized payload comparison form (raw `value` XDR kept intact). */
+  payload: unknown;
+  /** Raw `topic` XDR from the RPC response (base64). */
+  rawTopicXdr: string;
+  /** Raw `value` XDR from the RPC response (base64). */
+  rawValueXdr: string;
+  /** Whether the event was emitted inside a successful contract call. */
+  successfulCall: boolean;
+  /** Order of this event within the transaction's event stream. */
+  applicationOrder: number;
+}
+
+/** Typed result of a Soroban `getTransaction` call. */
+export interface SorobanTransactionResult {
+  transactionHash: string;
+  status: SorobanTransactionStatus;
+  /** Ledger the transaction was included in (when confirmed). */
+  ledgerSeq?: number;
+  /** Human readable summary of a FAILED status, when available. */
+  resultCode?: string;
+  /** Decoded events, ordered by application order. */
+  events: SorobanEventRecord[];
+}
+
+/**
+ * A minimal, structural, XDR decoder: reads a base64-encoded Soroban `ScVal`
+ * that is an `ScSymbol` variant whose bytes are ASCII. Used to surface the
+ * event-name symbol from a DiagnosticEvent's final topic. Any variance from
+ * the expected shape returns null (decode is best-effort; raw XDR is always
+ * preserved for inspection).
+ */
+export function decodeScSymbol(base64: string): string | null {
+  let bytes: Uint8Array;
+  try {
+    bytes = Uint8Array.from(Buffer.from(base64, 'base64'));
+  } catch {
+    return null;
+  }
+  if (bytes.length < 1) {
+    return null;
+  }
+  // ScVal discriminant: ScSymbol = 5.
+  if (bytes[0] !== 5) {
+    return null;
+  }
+  if (bytes.length < 5) {
+    return null;
+  }
+  const len = bytes[1] | (bytes[2] << 8) | (bytes[3] << 16) | (bytes[4] << 24);
+  if (len <= 0 || len > 64 || bytes.length < 5 + len) {
+    return null;
+  }
+  let text = '';
+  for (let i = 0; i < len; i++) {
+    const c = bytes[5 + i];
+    if (c === 0 || c > 0x7f) {
+      return null;
+    }
+    text += String.fromCharCode(c);
+  }
+  return text;
 }
 
 /**
@@ -199,6 +276,7 @@ export class StellarProvider {
   }
 
   /**
+  // #708 (soroban-trace):
    * Issue a Soroban JSON-RPC `getTransaction` for the given transaction hash
    * and return a shaped, categorized result (including any `events` array,
    * `ledger`, `status`, and `applicationOrder`).
@@ -212,7 +290,7 @@ export class StellarProvider {
    * reported as `notFound`/`tryAgainLater`/`duplicate` (retryable conditions),
    * not thrown, so the caller can decide retry-vs-DLQ semantics.
    */
-  async getTransaction(hash: string): Promise<StellarGetTransactionResult> {
+  async getTransactionResult(hash: string): Promise<StellarGetTransactionResult> {
     const trimmed = (hash || '').trim();
 
     try {
@@ -320,6 +398,99 @@ export class StellarProvider {
       inSuccessfulContractCall: Boolean(entry?.inSuccessfulContractCall),
     };
   }
+
+  // #713 (verification):
+   * Fetch and normalize a Soroban transaction (Soroban RPC `getTransaction`).
+   *
+   * This is the verification counterpart to evacuation: it returns a typed
+   * status and the transaction's decoded events so a verifier can reconcile a
+   * decoded trace against the chain. Outcomes are categorized — success,
+   * failed/reverted, or not yet found — mirroring the EVM receipt distinction
+   * without pretending Soroban spoke EVM JSON-RPC.
+   *
+   * Throws on non-2xx transport failures and malformed responses; a valid
+   * response with no result yet is categorized `NOT_FOUND` (verification
+   * treats this as transient/retryable).
+   */
+  async getTransaction(transactionHash: string): Promise<SorobanTransactionResult> {
+    const res = await this.transport(this.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getTransaction',
+        params: [transactionHash],
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`getTransaction failed with HTTP ${res.status}.`);
+    }
+
+    let parsed: any;
+    try {
+      parsed = await res.json();
+    } catch {
+      throw new Error('getTransaction returned a non-JSON response.');
+    }
+
+    const result = parsed?.result;
+    if (!result || !result.status) {
+      return { transactionHash, status: 'NOT_FOUND', events: [] };
+    }
+
+    // Soroban status: SUCCESS / FAILED / NOT_FOUND (also surfaced by the RPC).
+    let status: SorobanTransactionStatus;
+    const rawStatus = String(result.status).toUpperCase();
+    if (rawStatus === 'SUCCESS') {
+      status = 'SUCCESS';
+    } else if (rawStatus === 'FAILED') {
+      status = 'FAILED';
+    } else {
+      status = 'NOT_FOUND';
+    }
+
+    const events = this.normalizeEvents(result, transactionHash, status);
+
+    return {
+      transactionHash,
+      status,
+      ledgerSeq: typeof result.ledger === 'number' ? result.ledger : undefined,
+      resultCode: typeof result.resultCode === 'string' ? result.resultCode : undefined,
+      events,
+    };
+  }
+
+  /**
+   * Normalize the transaction's emitted events into decodable records, ordered
+   * by application order. Both the raw topic/value XDR and a best-effort
+   * decoded name are kept so verification can compare business fields while an
+   * operator can still inspect the original input.
+   */
+  private normalizeEvents(
+    result: any,
+    transactionHash: string,
+    status: SorobanTransactionStatus,
+  ): SorobanEventRecord[] {
+    const raws = Array.isArray(result.events) ? result.events : [];
+    return raws.map((event: any, index: number) => {
+      // A DiagnosticEvent is expected to carry a topic array and a value.
+      const topics = Array.isArray(event?.topic) ? event.topic : [];
+      const rawTopicXdr = String(topics.length ? (topics[topics.length - 1] ?? '') : '');
+      const rawValueXdr = String(event?.value ?? '');
+      return {
+        contractId: typeof event?.contractId === 'string' ? event.contractId : undefined,
+        eventName: decodeScSymbol(rawTopicXdr),
+        payload: decodeScSymbol(rawValueXdr) ?? rawValueXdr,
+        rawTopicXdr,
+        rawValueXdr,
+        successfulCall: status === 'SUCCESS' ? event?.inSuccessfulContractCall !== false : false,
+        applicationOrder: typeof event?.index === 'number' ? event.index : index,
+      };
+    });
+  }
+ (feat(task-queue): verify Soroban transactions against the chain on demand)
 }
 
 /** Injectable transport: Node 18+ global `fetch`, resolving JSON body lazily. */
