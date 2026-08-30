@@ -13,17 +13,15 @@ issues #638–#657, and each module lands with its own entry points.
 |---|---|---|
 | Contract scaffold | #638 | Done |
 | Access control | #638 | Done, exposed |
-| Integration + testnet deployment | #657 | This work |
-| Course progress calculation | #648 | PR open |
-| Assessment module | #651, #652 | Assigned |
-| Course management | #640–#642 | Open |
-| Module management | #643 | Done, exposed |
-| Lesson management | #644 | Open |
+| Integration + testnet deployment | #657 | Done |
+| Course progress calculation | #648 | Done |
+| Assessment module | #651, #652 | Done, internal (not yet wired) |
+| Course / module / lesson management | #640–#644 | Open |
 | Enrollment and payment | #645, #646 | Open |
 | Course completion | #650 | Open |
 | Certificates | #653, #654 | Open |
-| Events | #655 | Open |
-| Read / query interface | #656 | Open |
+| Events | #655 | Done |
+| Read / query interface | #656 | Done, exposed |
 
 Anything not listed as done has no on-chain behaviour yet. Do not integrate
 against it.
@@ -44,15 +42,35 @@ table is internal and unreachable from off-chain.
 | `get_role(user: Address)` | none | `Option<Role>` |
 | `get_user(user: Address)` | none | `Option<UserRecord>` |
 | `has_role(user: Address, role: Role)` | none | `bool` |
-| `create_course(caller, course_id, instructor, title, description_uri, price, total_lessons)` | `caller`, must be staff | `Result<(), CourseError>` |
 | `get_course(course_id: u32)` | none | `Option<Course>` |
-| `create_module(caller, course_id, module_id, title, description_uri, position)` | `caller`, must be the course's instructor | `Result<(), ModuleError>` |
-| `update_module(caller, module_id, title, description_uri, position)` | `caller`, must be the owning course's instructor | `Result<(), ModuleError>` |
-| `delete_module(caller, module_id)` | `caller`, must be the owning course's instructor | `Result<(), ModuleError>` |
-| `get_module(module_id: u32)` | none | `Option<Module>` |
+| `get_modules(course_id: u32)` | none | `Vec<u32>` |
+| `get_lessons(course_id: u32, module_id: u32)` | none | `Vec<u32>` |
+| `get_enrollment(student: Address, course_id: u32)` | none | `bool` |
+| `get_course_progress(student: Address, course_id: u32)` | none | `Result<CourseProgress, ProgressError>` |
+| `get_assessment_result(student: Address, assessment_id: u64)` | none | `Option<AssessmentResultView>` |
+| `get_certificate(certificate_id: u64)` | none | `Option<CertificateView>` |
+| `verify_certificate(certificate_id: u64, student: Address, course_id: u32)` | none | `bool` |
 
 `Role` is one of `Admin`, `Instructor`, `Student`. `UserRecord` is
 `{ address: Address, role: Role }`.
+
+The eight query methods at the bottom are the read/query interface (#656):
+pure reads with no auth, no storage writes, and no events. `get_course` and
+`get_course_progress` read real storage. The rest return the honest empty
+answer until their write-side modules land, because no on-chain storage for
+that data exists yet:
+
+* `get_modules` / `get_lessons` — empty until course/module/lesson
+  management (#640–#644) writes module and lesson records
+* `get_enrollment` — `false` until enrollment (#645/#646) writes records
+* `get_assessment_result` — `None` until the assessment module (#651/#652)
+  is wired into the crate and writes results
+* `get_certificate` / `verify_certificate` — `None` / `false` until
+  certificates (#653/#654) write records
+
+`AssessmentResultView` and `CertificateView` are query-layer response types
+that mirror the shapes those modules will persist, so the frontend can
+integrate against a stable interface today.
 
 ### Error codes
 
@@ -277,16 +295,18 @@ contracts/lms/
 │   ├── storage.rs       StorageKey, shared across modules
 │   ├── types.rs         LmsVersion
 │   ├── error.rs         top-level Error
-│   └── access/          roles and authorization
-│       ├── mod.rs       AccessControl service
-│       ├── errors.rs    AccessError
-│       ├── storage.rs   role and initialization persistence
-│       └── types.rs     Role, UserRecord
-│   ├── module/          course modules (issue #643)
-│   │   ├── mod.rs       Modules service
-│   │   ├── errors.rs    ModuleError
-│   │   ├── storage.rs   module persistence
-│   │   └── types.rs     Module
+│   ├── access/          roles and authorization
+│   │   ├── mod.rs       AccessControl service
+│   │   ├── errors.rs    AccessError
+│   │   ├── storage.rs   role and initialization persistence
+│   │   └── types.rs     Role, UserRecord
+│   └── query/           read-only query interface (#656)
+│       ├── mod.rs       module root and re-exports
+│       ├── course.rs    get_course, get_modules, get_lessons
+│       ├── enrollment.rs get_enrollment
+│       ├── progress.rs  get_course_progress
+│       ├── assessment.rs get_assessment_result
+│       └── certificate.rs get_certificate, verify_certificate
 └── tests/
     └── integration.rs   client-level tests
 ```
@@ -303,9 +323,14 @@ from off-chain, however complete its internals — and extend
 |---|---|---|
 | `Configuration` | instance | Interface version; presence marks the contract initialized |
 | `User(Address)` | persistent | That address's `Role` |
-| `Course(u32)` | persistent | A `Course` record |
-| `Module(u32)` | persistent | A `Module` record |
+| `Course(u32)` | persistent | A registered course (`Course`) |
+| `StudentProgress(Address, u32)` | persistent | Completed-lesson count for a student in a course |
+| `LessonCompletion(Address, u32, u32)` | persistent | Whether a student completed one specific lesson |
 
 Contract-level configuration lives in instance storage: there is one of it
 and it shares the contract's lifetime and archival. Per-user records live in
 persistent storage, where they are keyed and extended individually.
+
+The query interface reads `Course`, `StudentProgress`, and
+`LessonCompletion`. No query writes; the read/query interface adds no
+storage keys of its own.

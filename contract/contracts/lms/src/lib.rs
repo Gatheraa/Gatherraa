@@ -8,6 +8,7 @@ mod error;
 pub mod events;
 pub mod module;
 mod progress;
+mod query;
 mod storage;
 mod types;
 
@@ -16,7 +17,7 @@ pub use contract::{LmsContract, LmsContractClient};
 pub use course::{Course, CourseError, CourseStatus, Courses};
 pub use enrollment::{Enrollment, EnrollmentError, EnrollmentStatus, Enrollments};
 pub use error::Error;
-pub use module::{Module, ModuleError, Modules};
-pub use progress::{CourseProgress, Progress, ProgressError, COMPLETE_BASIS_POINTS};
+pub use progress::{Course, CourseProgress, Progress, ProgressError, COMPLETE_BASIS_POINTS};
+pub use query::{AssessmentResultView, CertificateView};
 pub use storage::StorageKey;
 pub use types::LmsVersion;

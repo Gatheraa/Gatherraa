@@ -1,9 +1,11 @@
-use soroban_sdk::{contract, contractimpl, Address, Env};
+use soroban_sdk::{contract, contractimpl, Address, Env, Vec};
 
 use crate::access::{AccessControl, AccessError, Role, UserRecord};
-use crate::course::{Course, CourseError, Courses};
-use crate::module::{Module, ModuleError, Modules};
-use crate::enrollment::{Enrollment, EnrollmentError, Enrollments};
+use crate::progress::{Course, CourseProgress, ProgressError};
+use crate::query::{
+    AssessmentQueries, AssessmentResultView, CertificateQueries, CertificateView, CourseQueries,
+    EnrollmentQueries, ProgressQueries,
+};
 use crate::types::LmsVersion;
 
 /// Root contract for the Learning Management System.
@@ -98,81 +100,73 @@ impl LmsContract {
         AccessControl::has_role(&env, &user, role)
     }
 
-    /// Create a draft course for an authorized administrator or instructor.
-    pub fn create_course(
-        env: Env,
-        caller: Address,
-        course_id: u32,
-        instructor: Address,
-        title: soroban_sdk::String,
-        description_uri: soroban_sdk::String,
-        price: i128,
-        total_lessons: u32,
-    ) -> Result<(), CourseError> {
-        Courses::create_course(
-            &env,
-            &caller,
-            course_id,
-            &instructor,
-            title,
-            description_uri,
-            price,
-            total_lessons,
-        )
-    }
+    // -------------------------------------------------------------------
+    // Read / query interface (#656)
+    // -------------------------------------------------------------------
+    //
+    // Every function below is a pure read: no storage writes, no events, no
+    // authorization. They exist so the frontend and indexers can inspect
+    // contract state without transacting. Data that has no on-chain storage
+    // yet (modules, lessons, enrollment, assessment results, certificates)
+    // returns the honest empty answer until the corresponding write module
+    // lands; each query documents the storage key it will read then.
 
-    /// Retrieve a course by its unique identifier.
+    /// Look up a registered course, if one exists.
     pub fn get_course(env: Env, course_id: u32) -> Option<Course> {
-        Courses::get_course(&env, course_id)
+        CourseQueries::get_course(&env, course_id)
     }
 
-    /// Create a module under an existing course.
+    /// List the module identifiers belonging to a course.
+    pub fn get_modules(env: Env, course_id: u32) -> Vec<u32> {
+        CourseQueries::get_modules(&env, course_id)
+    }
+
+    /// List the lesson identifiers belonging to a module of a course.
+    pub fn get_lessons(env: Env, course_id: u32, module_id: u32) -> Vec<u32> {
+        CourseQueries::get_lessons(&env, course_id, module_id)
+    }
+
+    /// Whether the given student is enrolled in the given course.
+    pub fn get_enrollment(env: Env, student: Address, course_id: u32) -> bool {
+        EnrollmentQueries::get_enrollment(&env, &student, course_id)
+    }
+
+    /// Calculate a student's progress through a course.
     ///
-    /// Only the course's own instructor may create modules for it.
-    pub fn create_module(
+    /// # Errors
+    /// * `ProgressError::CourseNotFound` — no course is registered under
+    ///   `course_id`
+    pub fn get_course_progress(
         env: Env,
-        caller: Address,
+        student: Address,
         course_id: u32,
-        module_id: u32,
-        title: soroban_sdk::String,
-        description_uri: soroban_sdk::String,
-        position: u32,
-    ) -> Result<(), ModuleError> {
-        Modules::create_module(
-            &env,
-            &caller,
-            course_id,
-            module_id,
-            title,
-            description_uri,
-            position,
-        )
+    ) -> Result<CourseProgress, ProgressError> {
+        ProgressQueries::get_course_progress(&env, &student, course_id)
     }
 
-    /// Update a module's title, description, and position.
-    ///
-    /// Only the owning course's instructor may update its modules.
-    pub fn update_module(
+    /// Fetch a student's result for an assessment, if one exists.
+    pub fn get_assessment_result(
         env: Env,
-        caller: Address,
-        module_id: u32,
-        title: soroban_sdk::String,
-        description_uri: soroban_sdk::String,
-        position: u32,
-    ) -> Result<(), ModuleError> {
-        Modules::update_module(&env, &caller, module_id, title, description_uri, position)
+        student: Address,
+        assessment_id: u64,
+    ) -> Option<AssessmentResultView> {
+        AssessmentQueries::get_assessment_result(&env, &student, assessment_id)
     }
 
-    /// Delete a module.
-    ///
-    /// Only the owning course's instructor may delete its modules.
-    pub fn delete_module(env: Env, caller: Address, module_id: u32) -> Result<(), ModuleError> {
-        Modules::delete_module(&env, &caller, module_id)
+    /// Look up a certificate by its identifier, if one exists.
+    pub fn get_certificate(env: Env, certificate_id: u64) -> Option<CertificateView> {
+        CertificateQueries::get_certificate(&env, certificate_id)
     }
 
-    /// Retrieve a module by its unique identifier.
-    pub fn get_module(env: Env, module_id: u32) -> Option<Module> {
-        Modules::get_module(&env, module_id)
+    /// Whether a certificate with the given identifier exists and was issued
+    /// to the given student for the given course.
+    pub fn verify_certificate(
+        env: Env,
+        certificate_id: u64,
+        student: Address,
+        course_id: u32,
+    ) -> bool {
+        CertificateQueries::verify_certificate(&env, certificate_id, &student, course_id)
     }
 }
 

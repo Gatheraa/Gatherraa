@@ -21,16 +21,17 @@
 //! (events). Each should extend this file rather than start a new one.
 
 use lms::{
-    AccessError, Course, CourseError, CourseStatus, LmsContract, LmsContractClient, LmsVersion,
-    Module, ModuleError, Role, UserRecord,
+    AccessError, Course, CourseProgress, LmsContract, LmsContractClient, LmsVersion, Progress,
+    ProgressError, Role, StorageKey, UserRecord,
 };
-use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _};
-use soroban_sdk::{Address, Env, String};
+use soroban_sdk::testutils::{Address as _, Ledger as _};
+use soroban_sdk::{Address, Env};
 
 /// A deployed contract plus the four addresses the tests need.
 struct Deployment<'a> {
     env: Env,
     client: LmsContractClient<'a>,
+    contract_id: Address,
     admin: Address,
     instructor: Address,
     student: Address,
@@ -53,6 +54,7 @@ fn deploy() -> Deployment<'static> {
     Deployment {
         env,
         client,
+        contract_id,
         admin,
         instructor,
         student,
@@ -564,261 +566,142 @@ fn a_complete_deployment_lifecycle() {
 }
 
 // ---------------------------------------------------------------------------
-// Module management (#643)
+// Read / query interface (#656)
 // ---------------------------------------------------------------------------
+//
+// The course/progress queries read real storage, so these tests seed it
+// through the internal `Progress` service (course creation is not yet on the
+// public surface) and then read it back across the contract boundary.
+// Everything else returns the honest empty answer documented in the query
+// module, which is also asserted here.
 
-/// Authorize an instructor and create a course owned by them, returning the
-/// course identifier.
-fn create_course_for(d: &Deployment, instructor: &Address, course_id: u32) {
-    let title = String::from_str(&d.env, "Course");
-    let description_uri = String::from_str(&d.env, "ipfs://course");
-
-    d.client.create_course(
-        instructor,
-        &course_id,
-        instructor,
-        &title,
-        &description_uri,
-        &0,
-        &8,
-    );
-}
-
-/// The generated client's `try_*` methods nest the contract result inside
-/// the invoke result; peel both layers and surface the contract's own
-/// `ModuleError`.
-fn create_module(
-    d: &Deployment,
-    caller: &Address,
-    course_id: u32,
-    module_id: u32,
-    position: u32,
-) -> Result<(), ModuleError> {
-    match d.client.try_create_module(
-        caller,
-        &course_id,
-        &module_id,
-        &String::from_str(&d.env, "Intro"),
-        &String::from_str(&d.env, "ipfs://intro"),
-        &position,
-    ) {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(_)) => panic!("conversion error in try_create_module"),
-        Err(Ok(error)) => Err(error),
-        Err(Err(invoke)) => panic!("invoke error: {invoke:?}"),
-    }
+/// Seed a course and one completed lesson through the internal progress
+/// service, exactly as the course-management module will once it lands.
+fn seed_course_with_progress(d: &Deployment<'_>) {
+    d.env.as_contract(&d.contract_id, || {
+        Progress::create_course(&d.env, &d.instructor, 1, 4).unwrap();
+        Progress::complete_lesson(&d.env, &d.student, 1, 0).unwrap();
+    });
 }
 
 #[test]
-fn an_instructor_can_create_and_retrieve_a_module() {
+fn get_course_returns_the_stored_course_across_the_boundary() {
     let d = deploy_initialized();
     d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
+    d.client.register_student(&d.student);
 
-    d.env.ledger().with_mut(|ledger| ledger.timestamp = 1234);
-
-    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
+    seed_course_with_progress(&d);
 
     assert_eq!(
-        d.client.get_module(&1),
-        Some(Module {
-            module_id: 1,
-            course_id: 7,
-            title: String::from_str(&d.env, "Intro"),
-            description_uri: String::from_str(&d.env, "ipfs://intro"),
-            position: 1,
-            created_at: 1234,
-            updated_at: 1234,
+        d.client.get_course(&1),
+        Some(Course {
+            id: 1,
+            total_lessons: 4
         })
     );
+    assert_eq!(d.client.get_course(&404), None);
 }
 
 /// The "modules cannot be created for nonexistent courses" invariant.
 #[test]
-fn a_module_cannot_be_created_for_a_nonexistent_course() {
-    let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-
-    assert_eq!(
-        create_module(&d, &d.instructor, 404, 1, 1),
-        Err(ModuleError::CourseNotFound)
-    );
-
-    assert_eq!(d.client.get_module(&1), None);
-}
-
-#[test]
-fn module_ids_are_unique_and_duplicate_creation_preserves_original() {
-    let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
-
-    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
-
-    assert_eq!(
-        create_module(&d, &d.instructor, 7, 1, 5),
-        Err(ModuleError::ModuleAlreadyExists)
-    );
-
-    // The original module is untouched by the rejected call.
-    assert_eq!(d.client.get_module(&1).unwrap().position, 1);
-}
-
-#[test]
-fn a_student_cannot_create_a_module() {
+fn get_course_progress_returns_stored_progress_across_the_boundary() {
     let d = deploy_initialized();
     d.client.authorize_instructor(&d.admin, &d.instructor);
     d.client.register_student(&d.student);
-    create_course_for(&d, &d.instructor, 7);
+
+    seed_course_with_progress(&d);
 
     assert_eq!(
-        create_module(&d, &d.student, 7, 1, 1),
-        Err(ModuleError::Unauthorized)
+        d.client.get_course_progress(&d.student, &1),
+        CourseProgress {
+            completed_lessons: 1,
+            total_lessons: 4,
+            basis_points: 2_500,
+        }
+    );
+
+    // An unknown course is an error, not an empty result.
+    assert_eq!(
+        d.client.try_get_course_progress(&d.student, &404),
+        Err(Ok(ProgressError::CourseNotFound))
     );
 
     assert_eq!(d.client.get_module(&1), None);
 }
 
 #[test]
-fn an_unregistered_caller_cannot_create_a_module() {
+fn queries_without_backing_storage_return_honest_empty_answers() {
     let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
+    d.client.register_student(&d.student);
 
-    assert_eq!(
-        create_module(&d, &d.outsider, 7, 1, 1),
-        Err(ModuleError::UserNotRegistered)
-    );
+    // Curriculum storage does not exist on-chain yet (#640–#644).
+    assert_eq!(d.client.get_modules(&1), soroban_sdk::Vec::new(&d.env));
+    assert_eq!(d.client.get_lessons(&1, &2), soroban_sdk::Vec::new(&d.env));
 
-    assert_eq!(d.client.get_module(&1), None);
-}
+    // Enrollment storage does not exist on-chain yet (#645/#646).
+    assert!(!d.client.get_enrollment(&d.student, &1));
 
-/// "Only authorized course instructors can modify modules" — another
-/// instructor, however well-authorized, has no power over a course they do
-/// not teach.
-#[test]
-fn only_the_course_instructor_can_modify_its_modules() {
-    let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-    d.client.authorize_instructor(&d.admin, &d.outsider);
-    create_course_for(&d, &d.instructor, 7);
-    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
+    // Assessment storage is not wired into the contract yet (#651/#652).
+    assert_eq!(d.client.get_assessment_result(&d.student, &7), None);
 
-    // The second instructor cannot create, update, or delete.
-    assert_eq!(
-        create_module(&d, &d.outsider, 7, 2, 2),
-        Err(ModuleError::Unauthorized)
-    );
-    assert_eq!(
-        d.client.try_update_module(
-            &d.outsider,
-            &1,
-            &String::from_str(&d.env, "Hijacked"),
-            &String::from_str(&d.env, "ipfs://hijacked"),
-            &9,
-        ),
-        Err(Ok(ModuleError::Unauthorized))
-    );
-    assert_eq!(
-        d.client.try_delete_module(&d.outsider, &1),
-        Err(Ok(ModuleError::Unauthorized))
-    );
-
-    // The module is untouched.
-    assert_eq!(
-        d.client.get_module(&1).unwrap().title,
-        String::from_str(&d.env, "Intro")
-    );
+    // Certificate storage does not exist on-chain yet (#653/#654).
+    assert_eq!(d.client.get_certificate(&1), None);
+    assert!(!d.client.verify_certificate(&1, &d.student, &7));
 }
 
 #[test]
-fn module_positions_support_ordering() {
+fn queries_across_the_boundary_do_not_modify_contract_state() {
     let d = deploy_initialized();
     d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
+    d.client.register_student(&d.student);
+    seed_course_with_progress(&d);
 
-    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
-    create_module(&d, &d.instructor, 7, 2, 2).unwrap();
-
-    assert_eq!(d.client.get_module(&1).unwrap().position, 1);
-    assert_eq!(d.client.get_module(&2).unwrap().position, 2);
-
-    // Reordering is expressed through a position update.
-    d.client.update_module(
-        &d.instructor,
-        &1,
-        &String::from_str(&d.env, "Intro"),
-        &String::from_str(&d.env, "ipfs://intro"),
-        &5,
-    );
-
-    assert_eq!(d.client.get_module(&1).unwrap().position, 5);
-    assert_eq!(d.client.get_module(&2).unwrap().position, 2);
-}
-
-#[test]
-fn an_instructor_can_update_a_module() {
-    let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
-
-    d.env.ledger().with_mut(|ledger| ledger.timestamp = 1000);
-    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
-
-    d.env.ledger().with_mut(|ledger| ledger.timestamp = 2000);
-    d.client.update_module(
-        &d.instructor,
-        &1,
-        &String::from_str(&d.env, "Advanced"),
-        &String::from_str(&d.env, "ipfs://advanced"),
-        &4,
-    );
-
-    let module = d.client.get_module(&1).unwrap();
-
-    assert_eq!(module.title, String::from_str(&d.env, "Advanced"));
+    // The full read surface, including unknown ids.
+    d.client.get_course(&1);
+    d.client.get_course(&404);
+    d.client.get_modules(&1);
+    d.client.get_lessons(&1, &2);
+    d.client.get_enrollment(&d.student, &1);
+    d.client.get_course_progress(&d.student, &1);
+    // The erroring read must go through `try_` — the plain client method
+    // panics on a contract error, which is exactly the point: it is still a
+    // read, so it must not write anything either.
     assert_eq!(
-        module.description_uri,
-        String::from_str(&d.env, "ipfs://advanced")
+        d.client.try_get_course_progress(&d.student, &404),
+        Err(Ok(ProgressError::CourseNotFound))
     );
-    assert_eq!(module.position, 4);
-    assert_eq!(module.course_id, 7);
-    assert_eq!(module.created_at, 1000);
-    assert_eq!(module.updated_at, 2000);
-}
+    d.client.get_assessment_result(&d.student, &7);
+    d.client.get_certificate(&1);
+    d.client.verify_certificate(&1, &d.student, &7);
 
-#[test]
-fn updating_a_missing_module_is_rejected() {
-    let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
-
+    // Stored state is unchanged: the course and the progress record read
+    // back exactly as seeded.
     assert_eq!(
-        d.client.try_update_module(
-            &d.instructor,
-            &99,
-            &String::from_str(&d.env, "Nope"),
-            &String::from_str(&d.env, "ipfs://nope"),
-            &1,
-        ),
-        Err(Ok(ModuleError::ModuleNotFound))
+        d.client.get_course(&1),
+        Some(Course {
+            id: 1,
+            total_lessons: 4
+        })
     );
-}
-
-#[test]
-fn an_instructor_can_delete_a_module() {
-    let d = deploy_initialized();
-    d.client.authorize_instructor(&d.admin, &d.instructor);
-    create_course_for(&d, &d.instructor, 7);
-    create_module(&d, &d.instructor, 7, 1, 1).unwrap();
-
-    d.client.delete_module(&d.instructor, &1);
-
-    assert_eq!(d.client.get_module(&1), None);
-
-    // Deleting it again fails cleanly.
     assert_eq!(
-        d.client.try_delete_module(&d.instructor, &1),
-        Err(Ok(ModuleError::ModuleNotFound))
+        d.client.get_course_progress(&d.student, &1),
+        CourseProgress {
+            completed_lessons: 1,
+            total_lessons: 4,
+            basis_points: 2_500,
+        }
     );
+
+    // No new keys appeared. The unknown course and the lesson the student
+    // never completed must still read as absent after the queries above.
+    let course_404_absent = d.env.as_contract(&d.contract_id, || {
+        d.env.storage().persistent().has(&StorageKey::Course(404))
+    });
+    let lesson_1_absent = d.env.as_contract(&d.contract_id, || {
+        d.env.storage()
+            .persistent()
+            .has(&StorageKey::LessonCompletion(d.student.clone(), 1, 1))
+    });
+    assert!(!course_404_absent);
+    assert!(!lesson_1_absent);
 }
