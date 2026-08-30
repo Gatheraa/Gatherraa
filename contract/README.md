@@ -156,9 +156,27 @@ cargo build --workspace --release
 ```
 
 ### Running Tests
+
+Run the LMS contract tests — the suite executed by the `contract-test` CI job
+(`.github/workflows/ci.yml`). This runs the unit tests in
+`contracts/lms/src/` **and** the integration suite in
+`contracts/lms/tests/integration.rs`, and a failure is a failure of the gate:
+
 ```bash
-cargo test --workspace
+# from the contract/ directory
+cargo test --package lms --all-features
 ```
+
+To run only the LMS event decoder unit tests:
+
+```bash
+cargo test --package lms --lib events::decode
+```
+
+> Note: `cargo test --workspace --all-features` does not currently build every
+> workspace member (several contracts target an older Soroban SDK that fails
+> under the features `--all-features` enables). The CI gate is intentionally
+> scoped to the greenable LMS package for that reason.
 
 ### Running Gas Benchmarks
 ```bash

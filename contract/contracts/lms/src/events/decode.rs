@@ -23,9 +23,13 @@
 //!
 //! `input` must be a base64-encoded (standard alphabet, with padding) XDR
 //! `DiagnosticEvent` as returned by Stellar RPC. Events are identified by
-//! their topic prefix (`["lms", "<event_name>", ...]`); the emitting
-//! contract's `contract_id` is not validated, because the decoder has no
-//! knowledge of any particular deployment address.
+//! their topic prefix (`["lms", "<event_name>", ...]`). The emitter is gated
+//! by contract: [`decode_event`] accepts events with no source constraint,
+//! while [`decode_event_from`] requires the emitting `contract_id` to match an
+//! expected deployment id. An LMS event must name its emitter; a
+//! `contract_id` that is absent is rejected, and one that names a different
+//! contract is rejected with [`DecodeError::UnexpectedContractId`], so an
+//! unrelated or malicious contract cannot spoof an LMS event.
 //!
 //! Events from failed contract calls are decoded like any other event. The
 //! [`DiagnosticEvent::in_successful_contract_call`] flag is surfaced on
@@ -49,8 +53,8 @@ use core::fmt;
 
 use base64::Engine;
 use soroban_sdk::xdr::{
-    ContractEventBody, ContractEventType, DiagnosticEvent, Error as XdrError, Limits, ReadXdr,
-    ScMapEntry, ScSymbol, ScVal,
+    ContractEventBody, ContractEventType, ContractId, DiagnosticEvent, Error as XdrError, Limits,
+    ReadXdr, ScMapEntry, ScSymbol, ScVal,
 };
 use soroban_sdk::{Address, Env, TryFromVal};
 
@@ -125,6 +129,10 @@ pub enum DecodeError {
     /// The input is a valid Soroban event, but not an LMS contract event
     /// (wrong topic prefix, unknown event name, or a non-contract event type).
     UnsupportedEvent,
+    /// The event is an LMS event, but the emitting `contract_id` does not
+    /// match the expected deployment id supplied to [`decode_event_from`].
+    /// Categorized only: the offending id is never carried.
+    UnexpectedContractId,
     /// The event is an LMS event, but its fields do not match the documented
     /// representation (missing, extra, or mistyped topics or data fields).
     InvalidPayload,
@@ -137,6 +145,9 @@ impl fmt::Display for DecodeError {
             Self::TruncatedXdr => "XDR is truncated: input ends before the event is complete",
             Self::MalformedXdr => "XDR is malformed: input is not a valid Soroban DiagnosticEvent",
             Self::UnsupportedEvent => "unsupported event: valid XDR, but not an LMS contract event",
+            Self::UnexpectedContractId => {
+                "unexpected contract id: event emitter does not match the expected deployment"
+            }
             Self::InvalidPayload => {
                 "invalid payload: event fields do not match the documented LMS representation"
             }
@@ -151,6 +162,10 @@ impl fmt::Display for DecodeError {
 /// classification for callers that explicitly do not need it. Prefer
 /// [`decode_trace`] when the caller must distinguish reverted-call events from
 /// committed ones (see [`DecodedTrace`]).
+/// Convenience entry point with **no source constraint**: the emitting
+/// contract's `contract_id` is not checked, and an unnamed emitter is
+/// accepted. Use [`decode_event_from`] when the extraction pipeline must gate
+/// on a known deployment id.
 ///
 /// See the [module documentation](self) for the input format, guarantees, and
 /// limits. This function never panics.
@@ -169,6 +184,36 @@ pub fn decode_event(env: &Env, input: &str) -> Result<LmsEvent, DecodeError> {
 /// See the [module documentation](self) for the input format, guarantees, and
 /// limits. This function never panics.
 pub fn decode_trace(env: &Env, input: &str) -> Result<DecodedTrace, DecodeError> {
+    let diagnostic = parse_diagnostic(input)?;
+    check_source(&diagnostic, None)?;
+    decode_diagnostic_event(env, &diagnostic)
+}
+
+/// Decode a base64-encoded Soroban `DiagnosticEvent` into a typed LMS event,
+/// requiring the emitting contract id to match `expected_contract`.
+///
+/// A `DiagnosticEvent` whose `contract_id` is `Some(expected)` (byte-identical
+/// bytes) decodes successfully; a `Some(other)` emitter is rejected with
+/// [`DecodeError::UnexpectedContractId`]; an absent emitter is rejected with
+/// [`DecodeError::UnsupportedEvent`] (an LMS event must name its emitter). The
+/// expected `[u8; 32]` is the raw contract id hash of the LMS deployment being
+/// consumed.
+///
+/// See the [module documentation](self) for the input format, guarantees, and
+/// limits. This function never panics.
+pub fn decode_event_from(
+    env: &Env,
+    input: &str,
+    expected_contract: &[u8; 32],
+) -> Result<LmsEvent, DecodeError> {
+    let diagnostic = parse_diagnostic(input)?;
+    check_source(&diagnostic, Some(expected_contract))?;
+    decode_diagnostic_event(env, &diagnostic)
+}
+
+/// Parse a base64-encoded `DiagnosticEvent` under the module's size and depth
+/// limits, mapping parse failures onto the public error contract.
+fn parse_diagnostic(input: &str) -> Result<DiagnosticEvent, DecodeError> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(input)
         .map_err(|_| DecodeError::InvalidBase64)?;
@@ -176,8 +221,30 @@ pub fn decode_trace(env: &Env, input: &str) -> Result<DecodedTrace, DecodeError>
         depth: MAX_XDR_DEPTH,
         len: MAX_EVENT_BYTES,
     };
-    let diagnostic = DiagnosticEvent::from_xdr(&bytes, limits).map_err(classify_xdr_error)?;
-    decode_diagnostic_event(env, &diagnostic)
+    DiagnosticEvent::from_xdr(&bytes, limits).map_err(classify_xdr_error)
+}
+
+/// Enforce the emitter source constraint.
+///
+/// `None` means unconstrained: any or absent emitter is accepted (the
+/// [`decode_event`] convenience). `Some(expected)` requires the emitter to be
+/// present and byte-identical to `expected`.
+fn check_source(
+    diagnostic: &DiagnosticEvent,
+    expected_contract: Option<&[u8; 32]>,
+) -> Result<(), DecodeError> {
+    let Some(expected) = expected_contract else {
+        return Ok(());
+    };
+    match &diagnostic.event.contract_id {
+        // `contract_id` is `ContractId(pub Hash(pub [u8;32]))` in stellar-xdr 23.
+        Some(ContractId(hash)) if hash.0 == *expected => Ok(()),
+        // A well-formed LMS event naming a different contract is spoofed or
+        // foreign; reject it without leaking the id.
+        Some(_) => Err(DecodeError::UnexpectedContractId),
+        // An LMS event must name its emitter.
+        None => Err(DecodeError::UnsupportedEvent),
+    }
 }
 
 /// Map an XDR parse failure onto the public error contract.
@@ -991,6 +1058,129 @@ mod tests {
 
     #[test]
     fn events_from_failed_calls_are_decoded_but_marked_reverted() {
+    fn decode_event_from_accepts_a_matching_contract_id() {
+        let (env, contract_id) = deploy();
+        let creator = Address::generate(&env);
+        env.as_contract(&contract_id, || {
+            crate::events::course_created(&env, 1, &creator, 3)
+        });
+        let input = encoded_latest(&env);
+
+        // A real, registered contract id (as `env.events().all()` reports it)
+        // must decode when supplied as the expected emitter.
+        let expected = match ScVal::from(&contract_id) {
+            ScVal::Address(ScAddress::Contract(ContractId(hash))) => hash.0,
+            _ => panic!("expected a contract address"),
+        };
+
+        assert_eq!(
+            decode_event_from(&env, &input, &expected),
+            Ok(LmsEvent::CourseCreated(CourseCreated {
+                course_id: 1,
+                creator,
+                total_lessons: 3,
+            }))
+        );
+    }
+
+    #[test]
+    fn decode_event_from_rejects_a_mismatching_contract_id() {
+        let (env, contract_id) = deploy();
+        let creator = Address::generate(&env);
+        env.as_contract(&contract_id, || {
+            crate::events::course_created(&env, 1, &creator, 3)
+        });
+        let input = encoded_latest(&env);
+
+        let expected = match ScVal::from(&contract_id) {
+            ScVal::Address(ScAddress::Contract(ContractId(hash))) => hash.0,
+            _ => panic!("expected a contract address"),
+        };
+        // Flip a byte so the expected id differs from the real emitter.
+        let mut other = expected;
+        other[0] ^= 0xff;
+
+        assert_eq!(
+            decode_event_from(&env, &input, &other),
+            Err(DecodeError::UnexpectedContractId)
+        );
+    }
+
+    #[test]
+    fn decode_event_from_rejects_an_absent_contract_id() {
+        let env = Env::default();
+        let creator = Address::generate(&env);
+
+        // No contract id means the emitter is unnamed; an LMS event must name
+        // its emitter, so this is rejected (and not silently accepted).
+        let input =
+            encode_contract_event(course_created_topics(1), course_created_data(&creator, 2));
+        let expected = [0u8; 32];
+
+        assert_eq!(
+            decode_event_from(&env, &input, &expected),
+            Err(DecodeError::UnsupportedEvent)
+        );
+    }
+
+    #[test]
+    fn decode_event_from_rejects_a_lms_event_from_a_foreign_contract() {
+        let (env, contract_id) = deploy();
+        let creator = Address::generate(&env);
+        // The event names a real but *different* contract than the one under
+        // test, so it is a well-formed LMS event from a foreign emitter.
+        let other_contract = Address::generate(&env);
+
+        let input = encode_diagnostic(
+            true,
+            Some(match ScVal::from(&other_contract) {
+                ScVal::Address(ScAddress::Contract(cid)) => cid,
+                _ => panic!("expected a contract address"),
+            }),
+            ContractEventType::Contract,
+            course_created_topics(1),
+            course_created_data(&creator, 2),
+        );
+        let expected = match ScVal::from(&contract_id) {
+            ScVal::Address(ScAddress::Contract(ContractId(hash))) => hash.0,
+            _ => panic!("expected a contract address"),
+        };
+
+        assert_eq!(
+            decode_event_from(&env, &input, &expected),
+            Err(DecodeError::UnexpectedContractId)
+        );
+    }
+
+    #[test]
+    fn decode_event_is_unconstrained_about_the_emitter() {
+        let env = Env::default();
+        let creator = Address::generate(&env);
+
+        // `decode_event` (no source constraint) accepts both an unnamed
+        // emitter and one with any contract id.
+        let unnamed =
+            encode_contract_event(course_created_topics(1), course_created_data(&creator, 2));
+        assert!(decode_event(&env, &unnamed).is_ok());
+
+        let foreign = encode_diagnostic(
+            true,
+            Some({
+                let other = Address::generate(&env);
+                match ScVal::from(&other) {
+                    ScVal::Address(ScAddress::Contract(cid)) => cid,
+                    _ => panic!("expected a contract address"),
+                }
+            }),
+            ContractEventType::Contract,
+            course_created_topics(1),
+            course_created_data(&creator, 2),
+        );
+        assert!(decode_event(&env, &foreign).is_ok());
+    }
+
+    #[test]
+    fn events_from_failed_calls_are_decoded_like_any_other() {
         let env = Env::default();
         let creator = Address::generate(&env);
 
