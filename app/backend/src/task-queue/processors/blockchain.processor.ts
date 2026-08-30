@@ -14,6 +14,11 @@ import {
   getBlockchainResourceLimits,
 } from './blockchain.validation';
 import {
+  BlockchainAction,
+  BlockchainParameterError,
+  validateBlockchainEventParameters,
+} from './blockchain.parameters';
+import {
   resolveStellarProviderConfig,
   StellarConfigError,
   STELLAR_NETWORK_ID,
@@ -178,6 +183,14 @@ export class BlockchainProcessor extends WorkerHost {
       // work. These are permanent input failures and are never retried.
       assertBlockchainEventPayloadWithinLimits(job.data, this.limits);
 
+      // Typed, action-specific parameter validation. An arbitrary `parameters`
+      // payload cannot reach the provider layer: missing, mistyped, or
+      // structurally invalid fields (and unknown actions) are rejected here as
+      // permanent failures, before any provider call. The catch block maps
+      // these to an unrecoverable failure, so the job is never retried and
+      // routes to the DLQ on the first attempt.
+      validateBlockchainEventParameters(action as BlockchainAction, parameters);
+
       this.logger.log(
         `Processing blockchain event job ${jobId}: ${eventName} on network ${networkId}`,
       );
@@ -267,6 +280,13 @@ export class BlockchainProcessor extends WorkerHost {
       if (error instanceof BlockchainPayloadLimitError) {
         // Permanent input failure: fail the job immediately without retries.
         // onJobFailed routes it to the Dead Letter Queue.
+        throw new UnrecoverableError(error.message);
+      }
+
+      if (error instanceof BlockchainParameterError) {
+        // Permanent input failure: the payload can never become a valid job
+        // for this action, so retrying cannot help. onJobFailed routes it to
+        // the Dead Letter Queue on the first attempt.
         throw new UnrecoverableError(error.message);
       }
 
