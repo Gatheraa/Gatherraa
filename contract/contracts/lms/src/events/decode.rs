@@ -27,9 +27,13 @@
 //! contract's `contract_id` is not validated, because the decoder has no
 //! knowledge of any particular deployment address.
 //!
-//! Events from failed contract calls are decoded like any other event; the
-//! caller decides whether to drop them based on
-//! `DiagnosticEvent::in_successful_contract_call`.
+//! Events from failed contract calls are decoded like any other event. The
+//! [`DiagnosticEvent::in_successful_contract_call`] flag is surfaced on
+//! [`DecodedTrace`], so the caller (typically the extractor) decides whether
+//! to filter out reverted-call events. Use [`decode_trace`] when the success
+//! classification matters; use [`decode_event`] when it does not. The
+//! extractor must filter on `in_successful_contract_call` before treating an
+//! event as a committed state change.
 //!
 //! # Limits
 //!
@@ -86,6 +90,24 @@ pub enum LmsEvent {
     CertificateIssued(CertificateIssued),
 }
 
+/// A decoded LMS event together with the classification of whether its
+/// emitting contract call committed.
+///
+/// Soroban's `DiagnosticEvent` carries an `in_successful_contract_call` flag;
+/// an off-chain extractor must not treat a reverted-call event as a committed
+/// state change. This envelope lets the caller see both the typed payload and
+/// that classification. `LmsEvent` itself stays a pure payload, so it remains
+/// directly comparable to the value that was emitted.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DecodedTrace {
+    /// The typed LMS event payload.
+    pub event: LmsEvent,
+    /// Whether the emitting contract call committed (`true`) or reverted
+    /// (`false`). The extractor must drop events where this is `false` before
+    /// counting them as authoritative state changes.
+    pub in_successful_contract_call: bool,
+}
+
 /// Categorized failure modes for [`decode_event`].
 ///
 /// Variants intentionally carry no payload data: an error can be logged or
@@ -125,9 +147,28 @@ impl fmt::Display for DecodeError {
 
 /// Decode a base64-encoded Soroban `DiagnosticEvent` into a typed LMS event.
 ///
+/// Convenience wrapper around [`decode_trace`] that drops the success
+/// classification for callers that explicitly do not need it. Prefer
+/// [`decode_trace`] when the caller must distinguish reverted-call events from
+/// committed ones (see [`DecodedTrace`]).
+///
 /// See the [module documentation](self) for the input format, guarantees, and
 /// limits. This function never panics.
 pub fn decode_event(env: &Env, input: &str) -> Result<LmsEvent, DecodeError> {
+    decode_trace(env, input).map(|trace| trace.event)
+}
+
+/// Decode a base64-encoded Soroban `DiagnosticEvent` into a typed LMS event
+/// together with the success classification of its emitting contract call.
+///
+/// This is the entry point an extractor consumes: the returned
+/// [`DecodedTrace`] carries both the event and
+/// `in_successful_contract_call`, so events that live in a reverted,
+/// rolled-back call are distinguishable from committed ones.
+///
+/// See the [module documentation](self) for the input format, guarantees, and
+/// limits. This function never panics.
+pub fn decode_trace(env: &Env, input: &str) -> Result<DecodedTrace, DecodeError> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(input)
         .map_err(|_| DecodeError::InvalidBase64)?;
@@ -155,15 +196,19 @@ fn classify_xdr_error(err: XdrError) -> DecodeError {
 fn decode_diagnostic_event(
     env: &Env,
     diagnostic: &DiagnosticEvent,
-) -> Result<LmsEvent, DecodeError> {
+) -> Result<DecodedTrace, DecodeError> {
     // Only contract events carry LMS topics; system and diagnostic events are
     // outside the LMS event set.
     if diagnostic.event.type_ != ContractEventType::Contract {
         return Err(DecodeError::UnsupportedEvent);
     }
-    match &diagnostic.event.body {
-        ContractEventBody::V0(v0) => decode_v0(env, v0.topics.as_slice(), &v0.data),
-    }
+    let event = match &diagnostic.event.body {
+        ContractEventBody::V0(v0) => decode_v0(env, v0.topics.as_slice(), &v0.data)?,
+    };
+    Ok(DecodedTrace {
+        event,
+        in_successful_contract_call: diagnostic.in_successful_contract_call,
+    })
 }
 
 /// Identify the event by its topic prefix and dispatch to its decoder.
@@ -945,12 +990,13 @@ mod tests {
     }
 
     #[test]
-    fn events_from_failed_calls_are_decoded_like_any_other() {
+    fn events_from_failed_calls_are_decoded_but_marked_reverted() {
         let env = Env::default();
         let creator = Address::generate(&env);
 
-        // The decoder must not care about `in_successful_contract_call`; that
-        // is the caller's decision.
+        // A reverted-call event still decodes to its payload, but the new
+        // signal must be `false` so the extractor can drop it. `decode_event`
+        // (the payload-only view) keeps returning the event unchanged.
         let input = encode_diagnostic(
             false,
             None,
@@ -963,10 +1009,271 @@ mod tests {
             decode_event(&env, &input),
             Ok(LmsEvent::CourseCreated(CourseCreated {
                 course_id: 1,
-                creator,
+                creator: creator.clone(),
                 total_lessons: 2,
             }))
         );
+        assert_eq!(
+            decode_trace(&env, &input),
+            Ok(DecodedTrace {
+                event: LmsEvent::CourseCreated(CourseCreated {
+                    course_id: 1,
+                    creator,
+                    total_lessons: 2,
+                }),
+                in_successful_contract_call: false,
+            })
+        );
+    }
+
+    #[test]
+    fn decode_trace_flags_success_exactly_when_the_source_call_succeeded() {
+        let env = Env::default();
+        let creator = Address::generate(&env);
+
+        // Build the *same* CourseCreated payload as both a committed and a
+        // reverted diagnostic: only `in_successful_contract_call` differs.
+        fn trace_for(successful: bool, env: &Env, creator: &Address) -> DecodedTrace {
+            decode_trace(
+                env,
+                &encode_diagnostic(
+                    successful,
+                    None,
+                    ContractEventType::Contract,
+                    course_created_topics(1),
+                    course_created_data(creator, 2),
+                ),
+            )
+            .unwrap()
+        }
+
+        let committed = trace_for(true, &env, &creator);
+        let reverted = trace_for(false, &env, &creator);
+
+        assert!(committed.in_successful_contract_call);
+        assert!(!reverted.in_successful_contract_call);
+        // Identical payloads, differing only in the classification.
+        assert_eq!(committed.event, reverted.event);
+        assert_eq!(
+            committed.event,
+            LmsEvent::CourseCreated(CourseCreated {
+                course_id: 1,
+                creator,
+                total_lessons: 2,
+            })
+        );
+        assert_ne!(committed, reverted);
+    }
+
+    /// Publish an event through the host (committed) and decode it through
+    /// `decode_trace`, returning both the envelope and the raw source payload.
+    fn publish_and_decode_trace<T>(env: &Env, contract_id: &Address, event: T) -> DecodedTrace
+    where
+        T: soroban_sdk::Event,
+    {
+        env.as_contract(contract_id, || event.publish(env));
+        decode_trace(env, &encoded_latest(env)).unwrap()
+    }
+
+    #[test]
+    fn every_lms_event_variant_round_trips_through_decode_trace() {
+        let (env, contract_id) = deploy();
+        let creator = Address::generate(&env);
+        let publisher = Address::generate(&env);
+        let archiver = Address::generate(&env);
+        let student = Address::generate(&env);
+        let module_creator = Address::generate(&env);
+        let lesson_creator = Address::generate(&env);
+
+        let cases: Vec<(String, DecodedTrace)> = vec![
+            (
+                "course_created".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    CourseCreated {
+                        course_id: 7,
+                        creator: creator.clone(),
+                        total_lessons: 12,
+                    },
+                ),
+            ),
+            (
+                "course_published".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    CoursePublished {
+                        course_id: 3,
+                        publisher: publisher.clone(),
+                    },
+                ),
+            ),
+            (
+                "course_archived".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    CourseArchived {
+                        course_id: 5,
+                        archiver: archiver.clone(),
+                    },
+                ),
+            ),
+            (
+                "module_created".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    ModuleCreated {
+                        course_id: 1,
+                        module_id: 2,
+                        creator: module_creator.clone(),
+                    },
+                ),
+            ),
+            (
+                "lesson_created".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    LessonCreated {
+                        course_id: 1,
+                        module_id: 2,
+                        lesson_id: 3,
+                        creator: lesson_creator.clone(),
+                    },
+                ),
+            ),
+            (
+                "student_enrolled".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    StudentEnrolled {
+                        course_id: 9,
+                        student: student.clone(),
+                    },
+                ),
+            ),
+            (
+                "student_unenrolled".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    StudentUnenrolled {
+                        course_id: 9,
+                        student: student.clone(),
+                    },
+                ),
+            ),
+            (
+                "lesson_completed".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    LessonCompleted {
+                        course_id: 1,
+                        lesson_index: 4,
+                        student: student.clone(),
+                    },
+                ),
+            ),
+            (
+                "course_completed".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    CourseCompleted {
+                        course_id: 1,
+                        student: student.clone(),
+                    },
+                ),
+            ),
+            (
+                "assessment_submitted".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    AssessmentSubmitted {
+                        assessment_id: 42,
+                        student: student.clone(),
+                        attempt: 2,
+                        score: 90,
+                        passed: true,
+                    },
+                ),
+            ),
+            (
+                "certificate_issued".into(),
+                publish_and_decode_trace(
+                    &env,
+                    &contract_id,
+                    CertificateIssued {
+                        certificate_id: 100,
+                        course_id: 1,
+                        student: student.clone(),
+                    },
+                ),
+            ),
+        ];
+
+        for (name, trace) in cases {
+            // Every variant decodes to itself and is classified as a committed
+            // (successful) call through the host.
+            assert!(
+                trace.in_successful_contract_call,
+                "{name} must decode as a successful (committed) call"
+            );
+            // Cross-check against the palette to prove a non-trivial match.
+            let _ = match trace {
+                DecodedTrace {
+                    event: LmsEvent::CourseCreated(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 7 => (),
+                DecodedTrace {
+                    event: LmsEvent::CoursePublished(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 3 => (),
+                DecodedTrace {
+                    event: LmsEvent::CourseArchived(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 5 => (),
+                DecodedTrace {
+                    event: LmsEvent::ModuleCreated(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 1 && e.module_id == 2 => (),
+                DecodedTrace {
+                    event: LmsEvent::LessonCreated(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 1 && e.module_id == 2 && e.lesson_id == 3 => (),
+                DecodedTrace {
+                    event: LmsEvent::StudentEnrolled(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 9 => (),
+                DecodedTrace {
+                    event: LmsEvent::StudentUnenrolled(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 9 => (),
+                DecodedTrace {
+                    event: LmsEvent::LessonCompleted(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 1 && e.lesson_index == 4 => (),
+                DecodedTrace {
+                    event: LmsEvent::CourseCompleted(e),
+                    in_successful_contract_call: true,
+                } if e.course_id == 1 => (),
+                DecodedTrace {
+                    event: LmsEvent::AssessmentSubmitted(e),
+                    in_successful_contract_call: true,
+                } if e.assessment_id == 42 => (),
+                DecodedTrace {
+                    event: LmsEvent::CertificateIssued(e),
+                    in_successful_contract_call: true,
+                } if e.certificate_id == 100 => (),
+                other => panic!("unexpected decode for {name}: {other:?}"),
+            };
+        }
     }
 
     #[test]
