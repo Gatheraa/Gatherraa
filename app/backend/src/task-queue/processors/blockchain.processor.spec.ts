@@ -11,6 +11,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { Job, UnrecoverableError } from 'bullmq';
 import { BlockchainProcessor, BlockchainEventJobData } from './blockchain.processor';
+import { SorobanEventDecodeError } from './decode-retry.classifier';
 import { TaskQueueService } from '../services/task-queue.service';
 
 describe('BlockchainProcessor', () => {
@@ -436,6 +437,135 @@ describe('BlockchainProcessor', () => {
 
       await processor.onJobFailed(job, new UnrecoverableError('not valid base64'));
       expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('process - decode error retry classification (issue #714)', () => {
+    const decodeProvider = (impl: jest.Mock) => {
+      (processor as any).providers.set('1', { getCode: impl } as any);
+    };
+
+    it('routes a permanent decode failure to the DLQ on the FIRST attempt', async () => {
+      decodeProvider(jest.fn().mockRejectedValue(new SorobanEventDecodeError('MalformedXdr')));
+
+      const job = createJob({ action: 'process' }, { attemptsMade: 1, opts: { attempts: 5 } });
+
+      // A permanent decode outcome must surface as unrecoverable (no retries).
+      let thrown: Error | undefined;
+      try {
+        await processor.process(job);
+      } catch (error) {
+        thrown = error as Error;
+      }
+      expect(thrown).toBeDefined();
+      expect(thrown?.name).toBe('UnrecoverableError');
+      expect(String(thrown?.message)).toMatch(/Decode failed/);
+
+      // onJobFailed routes it exactly once, on the first attempt.
+      await processor.onJobFailed(job, thrown as Error);
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'blockchain-job-1' }),
+        expect.stringContaining('Decode failed'),
+      );
+    });
+
+    it('a poisoned event does not delay a subsequent valid event in the same queue', async () => {
+      // The provider fails ONCE with a permanent decode failure, then succeeds.
+      const getCode = jest
+        .fn()
+        .mockRejectedValueOnce(new SorobanEventDecodeError('InvalidBase64'))
+        .mockResolvedValueOnce('0x123456');
+
+      decodeProvider(getCode);
+
+      const poisoned = createJob({ action: 'process' });
+      let thrown: Error | undefined;
+      try {
+        await processor.process(poisoned);
+      } catch (error) {
+        thrown = error as Error;
+      }
+      expect(thrown?.name).toBe('UnrecoverableError');
+
+      // The poisoned job routes to the DLQ immediately — it never occupies a
+      // concurrency slot across retries.
+      await processor.onJobFailed(poisoned, thrown as Error);
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+
+      // The next, valid job completes normally in the same queue.
+      const valid = createJob({ action: 'process' });
+      const result = await processor.process(valid);
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('process');
+    });
+
+    it('every permanent decode code routes to the DLQ on the first attempt', async () => {
+      for (const code of [
+        'InvalidBase64',
+        'TruncatedXdr',
+        'MalformedXdr',
+        'UnsupportedEvent',
+        'UnexpectedContractId',
+        'InvalidPayload',
+      ] as const) {
+        jest.clearAllMocks();
+        decodeProvider(jest.fn().mockRejectedValue(new SorobanEventDecodeError(code)));
+
+        const job = createJob({ action: 'process' }, { attemptsMade: 1, opts: { attempts: 3 } });
+        await expect(processor.process(job)).rejects.toMatchObject({ name: 'UnrecoverableError' });
+      }
+      // None of the six permanent codes consumed a retry or was treated as transient.
+    });
+
+    it('treats a transient failure as retryable and DLQs it only when attempts are exhausted', async () => {
+      decodeProvider(jest.fn().mockRejectedValue(new Error('temporary provider timeout')));
+
+      const job = createJob({ action: 'process' }, { attemptsMade: 1, opts: { attempts: 3 } });
+
+      // Transient: a plain (non-unrecoverable) failure.
+      await expect(processor.process(job)).rejects.toMatchObject({
+        message: 'temporary provider timeout',
+      });
+
+      // Intermediate failure: never moved to the DLQ.
+      await processor.onJobFailed(job, new Error('temporary provider timeout'));
+      expect(taskQueueService.moveToDeadLetterQueue).not.toHaveBeenCalled();
+
+      // Final exhausted attempt: moved exactly once.
+      const exhausted = createJob(
+        { action: 'process' },
+        { attemptsMade: 3, opts: { attempts: 3 } },
+      );
+      await processor.onJobFailed(exhausted, new Error('temporary provider timeout'));
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'blockchain-job-1' }),
+        'temporary provider timeout',
+      );
+    });
+
+    it('preserves the existing DLQ identity/error contract for permanent decode failures', async () => {
+      decodeProvider(jest.fn().mockRejectedValue(new SorobanEventDecodeError('InvalidPayload')));
+
+      const job = createJob(
+        { action: 'process' },
+        { id: 'blockchain-job-99', attemptsMade: 1, opts: { attempts: 5 } },
+      );
+      let thrown: Error | undefined;
+      try {
+        await processor.process(job);
+      } catch (error) {
+        thrown = error as Error;
+      }
+
+      await processor.onJobFailed(job, thrown as Error);
+
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'blockchain-job-99', queueName: 'blockchain-events' }),
+        expect.stringContaining('documented LMS representation'),
+      );
     });
   });
 });
