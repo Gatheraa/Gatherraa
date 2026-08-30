@@ -12,6 +12,7 @@ This document provides comprehensive API documentation for all Gathera smart con
 6. [Error Handling](#error-handling)
 7. [Gas Cost Analysis](#gas-cost-analysis)
 8. [Usage Examples](#usage-examples)
+9. [Soroban Trace Store Schema](#soroban-trace-store-schema)
 
 ## Overview
 
@@ -1032,6 +1033,54 @@ fn execute_multisig_payment(
 2. **Integration Tests**: Test contract interactions
 3. **Property Tests**: Test edge cases and invariants
 4. **Gas Tests**: Verify gas consumption limits
+
+---
+
+## Soroban Trace Store Schema
+
+Extracted Soroban traces are persisted durably in the backend `soroban_traces`
+table, deduplicated and transaction-ordered for the replay and verification
+milestones.
+
+### Identity key and deduplication
+
+Each row is uniquely identified by the source identity tuple
+`(transactionHash, ledgerSeq, eventIndex)`:
+
+```sql
+CREATE UNIQUE INDEX idx_soroban_traces_identity
+  ON soroban_traces(transactionHash, ledgerSeq, eventIndex);
+```
+
+A write whose source identity is already present is a **no-op, not an error**:
+a retried job or a concurrent worker writing the same transaction produces
+exactly one row. The unique index backs this invariant even across process
+crashes.
+
+### Columns
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `transactionHash` | text | Parent transaction hash (identity). |
+| `ledgerSeq` | integer | Ledger sequence the transaction was applied on (identity). |
+| `eventIndex` | integer | Position within the transaction's events array (identity). |
+| `eventName` | text | Decoded LMS event name (e.g. `course_created`), queryable. |
+| `eventPayload` | text (JSON) | Typed event fields, stored normalized (no XDR re-parse). |
+| `rawXdr` | text | Raw base64 `DiagnosticEvent`, retained verbatim for audit/re-verify. |
+| `successfulCall` | integer (bool) | Success classification of the enclosing contract call. |
+| `applicationOrder` | integer | Application (Soroban) order within the transaction. |
+| `createdAt` / `updatedAt` | text | Row timestamps. |
+
+### Ordering guarantee
+
+Traces from one transaction are returned strictly in `applicationOrder` (then
+`eventIndex`), indistinguishable from on-chain emission order even after the
+ingestion job is parallelized across worker coroutines.
+
+The schema is created by the `003-create-soroban-traces` migration (up/down) and
+does not depend on `synchronize: true`. It is reached through the existing
+migration runner (`npm run migration:run` / `npm run migration:dry-run` in
+`app/backend`).
 
 ---
 
