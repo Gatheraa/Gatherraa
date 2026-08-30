@@ -91,6 +91,25 @@ Note the distinction between `UserNotRegistered` (3) and `AdminRequired`
 gets 4. The two are deliberately separate so a client can tell "you need to
 register" from "you need a promotion".
 
+`CourseError`, as returned by the course methods above:
+
+| Code | Variant | Meaning |
+|---|---|---|
+| 1 | `CourseAlreadyExists` | A course with that id already exists |
+| 2 | `CourseNotFound` | No course with that id |
+| 3 | `Unauthorized` | Caller lacks a staff role |
+| 4 | `UserNotRegistered` | Caller holds no role at all |
+
+`ModuleError`, as returned by the module methods above:
+
+| Code | Variant | Meaning |
+|---|---|---|
+| 1 | `ModuleAlreadyExists` | A module with that id already exists |
+| 2 | `ModuleNotFound` | No module with that id |
+| 3 | `CourseNotFound` | No course with that id — modules cannot be created for nonexistent courses |
+| 4 | `Unauthorized` | Caller is not the owning course's instructor |
+| 5 | `UserNotRegistered` | Caller holds no role at all |
+
 ## Initialization
 
 `initialize` registers the contract's first administrator, and it is the
@@ -120,6 +139,31 @@ carol: register_student(carol)             -> carol becomes Student
 Students self-register; staff roles are granted by an administrator. One
 address holds at most one role — granting a second fails with
 `AlreadyRegistered` (2), and the original role survives the attempt.
+
+## Modules
+
+Modules organize a course's lessons into ordered sections. A module is
+created against an existing course, and the module's `course_id` is fixed
+for its lifetime — moving a module between courses is delete-and-recreate.
+Ordering is expressed with the caller-supplied `position` field, so an
+authoring UI decides the curriculum order and `update_module` can reorder
+by writing new positions.
+
+Authorization for module operations is deliberately narrower than course
+creation. Course creation takes any staff member; module creation, update,
+and deletion additionally require the caller to be **that course's
+instructor** (per the course record), not merely any instructor or admin.
+Modules cannot be created for courses that do not exist — the course lookup
+doubles as the ownership anchor, because the course record carries the
+instructor's address.
+
+```
+initialize(admin)                                   -> admin becomes Admin
+admin: authorize_instructor(admin, alice)           -> alice becomes Instructor
+alice: create_course(alice, 1, alice, ...)          -> course 1, instructor alice
+alice: create_module(alice, 1, 101, ...)            -> module 101 under course 1
+bob (also an Instructor): create_module(bob, 1, ...) -> Unauthorized — course 1 is alice's
+```
 
 ## Build
 

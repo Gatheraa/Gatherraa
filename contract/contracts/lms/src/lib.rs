@@ -6,6 +6,7 @@ pub mod course;
 pub mod enrollment;
 mod error;
 pub mod events;
+pub mod module;
 mod progress;
 mod query;
 mod storage;

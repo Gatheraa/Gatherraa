@@ -29,6 +29,11 @@ import {
   StellarProvider,
   StellarGetTransactionStatus,
 } from '../providers/stellar.provider';
+import {
+  SorobanTransactionNotFoundError,
+  SorobanVerificationService,
+} from '../../soroban-verification/soroban-verification.service';
+import { SorobanVerificationOutcome } from '../../soroban-verification/entities/soroban-verification.entity';
 
 export interface BlockchainEventJobData {
   contractAddress: string;
@@ -174,6 +179,7 @@ export class BlockchainProcessor extends WorkerHost {
   constructor(
     private configService: ConfigService,
     private readonly taskQueueService: TaskQueueService,
+    private readonly sorobanVerifier: SorobanVerificationService,
   ) {
     super();
     this.limits = getBlockchainResourceLimits(configService);
@@ -269,11 +275,30 @@ export class BlockchainProcessor extends WorkerHost {
         throw new Error(`Provider not configured for network ${networkId}`);
       }
 
+      let result: any;
+
       if (networkId === STELLAR_NETWORK_ID) {
-        // Stellar uses the Soroban protocol; the EVM action handlers do not
-        // apply. Only the dedicated Soroban extraction action is valid here;
-        // anything else fails clearly instead of silently executing EVM
-        // JSON-RPC against a Stellar endpoint.
+        // Stellar uses the Soroban protocol. The EVM action handlers do not
+        // apply; instead there are two Soroban-first handlers: verification
+        // (fetch the transaction, categorize its confirmation state, and prove
+        // the expected event is still present with equal business fields) and
+        // raw trace extraction. Everything else fails clearly instead of
+        // silently executing EVM JSON-RPC against a Stellar endpoint.
+        if (action === 'verify') {
+          result = await this.verifySorobanTransaction(contractAddress, eventName, parameters, job);
+          await job.updateProgress(100);
+          this.logger.log(`Blockchain event job ${jobId} completed successfully`);
+          return {
+            success: true,
+            action,
+            eventName,
+            networkId,
+            contractAddress,
+            result,
+            timestamp: new Date(),
+          };
+        }
+
         if (action !== 'soroban-trace') {
           throw new Error(
             `Action '${action}' is not supported on the ${STELLAR_NETWORK_ID} network. ` +
@@ -302,7 +327,6 @@ export class BlockchainProcessor extends WorkerHost {
       await job.updateProgress(25);
 
       // Route to appropriate action
-      let result;
       switch (action) {
         case 'listen':
           result = await this.listenToEvent(
@@ -521,6 +545,48 @@ if (error instanceof SorobanTraceDecodeError) {
   }
 
   /**
+   * Verify a Soroban transaction (Stellar/Soroban protocol).
+   *
+   * Reconciles an expected Soroban event against the on-chain transaction:
+   * fetch via `getTransaction`, categorize confirmation state, and prove the
+   * expected event is present with equal business fields. A not-yet-confirmed
+   * transaction is transient (retried, never DLQ'd on the first attempt); a
+   * confirmed transaction is recorded durably as verified / reverted / mismatch.
+   */
+  private async verifySorobanTransaction(
+    contractAddress: string,
+    eventName: string,
+    parameters: any,
+    job: Job,
+  ): Promise<any> {
+    this.logger.log(`Verifying Soroban transaction ${parameters.transactionHash}`);
+
+    await job.updateProgress(50);
+
+    const txHash = parameters.transactionHash;
+    // `validateBlockchainEventParameters` already asserted `transactionHash`
+    // is well-formed for the verify action.
+    const result = await this.sorobanVerifier.verify({
+      provider: this.stellarProvider,
+      transactionHash: txHash,
+      eventName,
+      contractId: contractAddress,
+      expectedPayload: parameters.expectedPayload,
+    });
+
+    await job.updateProgress(100);
+
+    return {
+      outcome: result.outcome,
+      verified: result.verified,
+      transactionHash: txHash,
+      ledgerSeq: result.ledgerSeq,
+      eventName: result.eventName,
+      detail: result.detail,
+    };
+  }
+
+  /**
    * Index blockchain event for search/query
    */
   private async indexEvent(
@@ -590,7 +656,7 @@ if (error instanceof SorobanTraceDecodeError) {
 
     await job.updateProgress(30);
 
-    const tx = await stellarProvider.getTransaction(transactionHash);
+    const tx = await stellarProvider.getTransactionResult(transactionHash);
 
     // Not-yet-confirmed or unknown transactions (and duplicate/try-again
     // conditions) are transient: retry instead of the DLQ.

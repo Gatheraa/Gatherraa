@@ -11,11 +11,12 @@ This document provides comprehensive API documentation for all Gathera smart con
 5. [Integration Layer API](#integration-layer-api)
 6. [Decode Error Taxonomy and Retry Mapping](#decode-error-taxonomy-and-retry-mapping)
 7. [Soroban Trace Replay API](#soroban-trace-replay-api)
-8. [Error Handling](#error-handling)
-9. [Gas Cost Analysis](#gas-cost-analysis)
-10. [Usage Examples](#usage-examples)
-11. [Soroban Trace Store Schema](#soroban-trace-store-schema)
-12. [Blockchain Event Task Queue](#blockchain-event-task-queue)
+8. [Soroban Verification API](#soroban-verification-api)
+9. [Error Handling](#error-handling)
+10. [Gas Cost Analysis](#gas-cost-analysis)
+11. [Usage Examples](#usage-examples)
+12. [Soroban Trace Store Schema](#soroban-trace-store-schema)
+13. [Blockchain Event Task Queue](#blockchain-event-task-queue)
 
 ## Overview
 
@@ -899,6 +900,57 @@ Triggers a bounded backfill over a ledger range.
   (transactional upsert; never regresses the cursor).
 - `StellarProvider.getLatestLedger` / `eventsForLedger` — Soroban RPC head
   query and per-ledger event extraction.
+
+## Soroban Verification API
+
+On-demand verification of a Soroban transaction issued through the
+`blockchain-events` queue (`action: "verify"`, `networkId: "stellar"`). It
+fetches the transaction via Soroban RPC `getTransaction`, categorizes its
+confirmation state, and proves the expected event is still present with equal
+business fields. Every confirmed outcome is persisted durably by transaction
+hash, so it survives a restart and re-verification updates the same record.
+
+### Outcome taxonomy
+
+| Outcome     | Meaning                                                                 |
+| ----------- | ----------------------------------------------------------------------- |
+| `verified`  | Transaction confirmed (`SUCCESS`) and it contains the expected event with equal business fields. |
+| `mismatch`  | Confirmed `SUCCESS`, but the expected event is absent or has different business fields. |
+| `reverted`  | Confirmed but the call failed (`FAILED`), e.g. `resultCode=txv_bad_auth`. |
+| (retryable) | Transaction not found / not yet confirmed, or an RPC transport error. Retried through the ordinary attempts machinery; moved to the Dead Letter Queue only after attempts are exhausted. |
+
+A job whose `parameters.transactionHash` is missing or malformed is rejected as
+an unrecoverable failure (no retry, DLQ on the first attempt).
+
+### Request
+
+`action: "verify"` job against a `stellar` worker:
+
+| Field                | Required | Description                                                       |
+| -------------------- | -------- | ----------------------------------------------------------------- |
+| `parameters.transactionHash` | yes | The `0x`-prefixed Soroban transaction hash to verify. |
+| `parameters.expectedPayload` | no | Business fields the decoded event must carry to count as equal. |
+| `eventName`          | yes      | The event name the transaction is expected to have emitted.       |
+
+### Response
+
+```json
+{
+  "outcome": "verified",
+  "verified": true,
+  "transactionHash": "0x…",
+  "ledgerSeq": 42,
+  "eventName": "course_created"
+}
+```
+
+### Durable record
+
+`soroban_verifications` (migration `003-create-soroban-verifications`) — one
+row per `transactionHash`, holding the outcome, the verified flag, and the
+ledger sequence at which the fact was established. Re-running verification of
+an already-verified transaction updates the row and never duplicates it. The
+`verify` action remains fully supported on EVM networks (receipt/log matching).
 
 ## Error Handling
 

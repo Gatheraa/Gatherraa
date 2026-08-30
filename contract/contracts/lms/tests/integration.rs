@@ -602,6 +602,7 @@ fn get_course_returns_the_stored_course_across_the_boundary() {
     assert_eq!(d.client.get_course(&404), None);
 }
 
+/// The "modules cannot be created for nonexistent courses" invariant.
 #[test]
 fn get_course_progress_returns_stored_progress_across_the_boundary() {
     let d = deploy_initialized();
@@ -624,6 +625,8 @@ fn get_course_progress_returns_stored_progress_across_the_boundary() {
         d.client.try_get_course_progress(&d.student, &404),
         Err(Ok(ProgressError::CourseNotFound))
     );
+
+    assert_eq!(d.client.get_module(&1), None);
 }
 
 #[test]
