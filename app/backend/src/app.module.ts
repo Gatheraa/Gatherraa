@@ -13,6 +13,8 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { IdentityVerification } from './identity-verification/entities/identity-verification.entity';
 import { VerificationHistory } from './identity-verification/entities/verification-history.entity';
 import { DashboardLayoutBuilderModule } from './dashboard-layout-builder/dashboard-layout-builder.module';
+import { SorobanVerificationModule } from './soroban-verification/soroban-verification.module';
+import { SorobanVerificationRecord } from './soroban-verification/entities/soroban-verification.entity';
 
 @Module({
   imports: [
@@ -24,7 +26,7 @@ import { DashboardLayoutBuilderModule } from './dashboard-layout-builder/dashboa
       useFactory: (config: ConfigService) => ({
         type: 'sqlite',
         database: config.get<string>('DATABASE_PATH', ':memory:'),
-        entities: [IdentityVerification, VerificationHistory],
+        entities: [IdentityVerification, VerificationHistory, SorobanVerificationRecord],
         synchronize: true,
         retryAttempts: 0,
         // Pool sizing – defaults are conservative but tunable via env
@@ -42,6 +44,7 @@ import { DashboardLayoutBuilderModule } from './dashboard-layout-builder/dashboa
     HealthModule,
     RateLimitModule,
     DashboardLayoutBuilderModule,
+    SorobanVerificationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
