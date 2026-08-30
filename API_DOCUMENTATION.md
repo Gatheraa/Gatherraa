@@ -9,7 +9,8 @@ This document provides comprehensive API documentation for all Gathera smart con
 3. [Escrow Contract API](#escrow-contract-api)
 4. [Multi-Signature Wallet Contract API](#multi-signature-wallet-contract-api)
 5. [Integration Layer API](#integration-layer-api)
-6. [Error Handling](#error-handling)
+6. [Soroban Trace Replay API](#soroban-trace-replay-api)
+7. [Error Handling](#error-handling)
 7. [Gas Cost Analysis](#gas-cost-analysis)
 8. [Usage Examples](#usage-examples)
 
@@ -825,6 +826,48 @@ pub fn get_addresses(&self) -> (Address, Address, Address)
 - `(Address, Address, Address)`: Tuple of (ticket, escrow, multisig) addresses
 
 **Gas Cost:** ~3,000 gas units
+
+## Soroban Trace Replay API
+
+Operational surface for replaying/backfilling Soroban event traces into the
+durable trace store without deploying new code. It is idempotent and
+crash-safe: a durable per-network cursor records the last fully-ingested
+ledger, and any interrupted range is simply replayed on the next run.
+
+### `POST /api/task-queue/blockchain-event/replay`
+
+Triggers a bounded backfill over a ledger range.
+
+**Request body** (all optional):
+
+| Field       | Type   | Description                                                       |
+| ----------- | ------ | ----------------------------------------------------------------- |
+| `networkId` | string | Network key, defaults to `stellar`.                               |
+| `fromSeq`   | number | First ledger to walk. Omitted → resume from the durable cursor.   |
+| `toSeq`     | number | Upper bound (defaults to the network head at enqueue time).       |
+| `batchSize` | number | Ledgers per cursor commit; smaller values make aborts cheaper.    |
+
+**Response** (`HTTP 202 Accepted`): `{ success, jobId, queueName: "soroban:replay", fromSeq, toSeq, timestamp }`.
+
+**Guarantees:**
+- **Idempotent** — re-running a covered range inserts no duplicate traces.
+- **Crash-safe** — a hang/crash mid-range leaves the cursor at the last fully
+  ingested ledger; the next run resumes from `cursor + 1` with no gaps or
+  duplicates.
+- **Overlap-safe** — concurrent live extraction and backfill absorb one
+  another; the union is stored exactly once.
+
+### Internal components
+
+- `soroban:replay` BullMQ queue — carries replay job payloads
+  `{ networkId, fromSeq, toSeq, batchSize }`.
+- `SorobanReplayService.runBackfill` — walks `[fromSeq, toSeq]`, fetches events
+  per ledger, ingests each trace through the `SorobanTraceIngestPort`, and
+  advances the cursor atomically per batch.
+- `ReplayCursorService` — `getCursor`, `resumeFrom`, `advanceWithBatch`
+  (transactional upsert; never regresses the cursor).
+- `StellarProvider.getLatestLedger` / `eventsForLedger` — Soroban RPC head
+  query and per-ledger event extraction.
 
 ## Error Handling
 
