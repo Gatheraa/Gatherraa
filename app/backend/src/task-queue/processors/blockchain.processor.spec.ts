@@ -9,7 +9,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { BlockchainProcessor, BlockchainEventJobData } from './blockchain.processor';
 import { TaskQueueService } from '../services/task-queue.service';
 
@@ -299,6 +299,143 @@ describe('BlockchainProcessor', () => {
       const result = await processor.process(job);
       expect(result.success).toBe(true);
       expect(result.action).toBe('listen');
+    });
+  });
+
+  describe('soroban-trace extraction (issue #708)', () => {
+    const makeTx = (events: unknown[]) => ({
+      ok: true,
+      status: 'success',
+      hash: '0xtx',
+      ledger: 900,
+      applicationOrder: 3,
+      events,
+    });
+
+    const withStellarProvider = (tx: unknown) => {
+      (processor as any).stellarProvider = {
+        getTransaction: jest.fn().mockResolvedValue(tx),
+      };
+    };
+
+    it('should extract one typed trace record per events[] entry for a confirmed transaction', async () => {
+      withStellarProvider(
+        makeTx([
+          {
+            type: 'diagnostic',
+            contractId: 'aa',
+            topic: ['dG9waWM='],
+            value: 'dmFsdWU=',
+            inSuccessfulContractCall: true,
+          },
+          {
+            type: 'diagnostic',
+            contractId: 'bb',
+            topic: ['dG9waWMtMg=='],
+            value: 'dmFsdWUtMg==',
+            inSuccessfulContractCall: true,
+          },
+        ]),
+      );
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'soroban-trace' as any,
+        parameters: { transactionHash: '0xtx' },
+      });
+
+      const result = await processor.process(job);
+
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('soroban-trace');
+      expect(result.result.traces).toHaveLength(2);
+      expect(result.result.traces[0]).toMatchObject({
+        transactionHash: '0xtx',
+        ledger: 900,
+        applicationOrder: 3,
+        event: { contractId: 'aa', inSuccessfulContractCall: true },
+      });
+      expect(result.result.traces[1].event.contractId).toBe('bb');
+    });
+
+    it('should retry a transient not-found transaction and never route to the DLQ on first failure', async () => {
+      (processor as any).stellarProvider = {
+        getTransaction: jest.fn().mockResolvedValue({
+          ok: false,
+          status: 'notFound',
+          hash: '0xtx',
+          events: [],
+          error: 'transaction_not_found',
+        }),
+      };
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'soroban-trace' as any,
+        parameters: { transactionHash: '0xtx' },
+      });
+
+      await expect(processor.process(job)).rejects.toMatchObject({
+        message: expect.stringContaining('not available yet'),
+      });
+
+      // Intermediate failure: nothing should be moved to the DLQ.
+      await processor.onJobFailed(
+        job,
+        new Error('Soroban transaction 0xtx is not available yet (notFound).'),
+      );
+      expect(taskQueueService.moveToDeadLetterQueue).not.toHaveBeenCalled();
+    });
+
+    it('should DLQ an oversized events array as a permanent BlockchainPayloadLimitError', async () => {
+      const events = Array.from({ length: 101 }, (_, i) => ({
+        type: 'diagnostic',
+        contractId: 'aa',
+        topic: ['dG9waWM='],
+        value: 'dmFsdWU=',
+        inSuccessfulContractCall: true,
+      }));
+      withStellarProvider(makeTx(events));
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'soroban-trace' as any,
+        parameters: { transactionHash: '0xtx' },
+      });
+
+      await expect(processor.process(job)).rejects.toThrow(
+        expect.objectContaining({ name: 'UnrecoverableError' }),
+      );
+
+      await processor.onJobFailed(job, new UnrecoverableError('exceeds the limit'));
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
+    });
+
+    it('should DLQ a malformed base64 entry as permanent and non-retryable', async () => {
+      withStellarProvider(
+        makeTx([
+          {
+            type: 'diagnostic',
+            contractId: 'aa',
+            topic: ['@@@not-base64@@@'],
+            value: 'dmFsdWU=',
+            inSuccessfulContractCall: true,
+          },
+        ]),
+      );
+
+      const job = createJob({
+        networkId: 'stellar',
+        action: 'soroban-trace' as any,
+        parameters: { transactionHash: '0xtx' },
+      });
+
+      await expect(processor.process(job)).rejects.toThrow(
+        expect.objectContaining({ name: 'UnrecoverableError' }),
+      );
+
+      await processor.onJobFailed(job, new UnrecoverableError('not valid base64'));
+      expect(taskQueueService.moveToDeadLetterQueue).toHaveBeenCalledTimes(1);
     });
   });
 });
