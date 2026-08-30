@@ -14,6 +14,7 @@ This document provides comprehensive API documentation for all Gathera smart con
 7. [Gas Cost Analysis](#gas-cost-analysis)
 8. [Usage Examples](#usage-examples)
 9. [Soroban Trace Store Schema](#soroban-trace-store-schema)
+10. [Blockchain Event Task Queue](#blockchain-event-task-queue)
 
 ## Overview
 
@@ -1124,6 +1125,64 @@ The schema is created by the `003-create-soroban-traces` migration (up/down) and
 does not depend on `synchronize: true`. It is reached through the existing
 migration runner (`npm run migration:run` / `npm run migration:dry-run` in
 `app/backend`).
+
+## Blockchain Event Task Queue
+
+The backend exposes a task queue endpoint for ingesting L1 blockchain events. On
+the Stellar (Soroban) network it supports a dedicated **Soroban trace extraction**
+action that fetches a transaction's diagnostic events and emits typed, decodable
+trace records for the rest of the M1 pipeline to persist and re-verify.
+
+### `POST /api/task-queue/blockchain-event`
+
+**Body:**
+
+```json
+{
+  "contractAddress": "string",
+  "eventName": "string",
+  "parameters": {
+    "transactionHash": "string"
+  },
+  "networkId": "stellar",
+  "priority": 0
+}
+```
+
+**Fields:**
+
+- `networkId` — must be `"stellar"` for Soroban extraction.
+- `action` — `"soroban-trace"`, the Soroban extraction action. EVM actions
+  (`listen`/`process`/`verify`/`index`) are rejected on the Stellar network
+  because Stellar speaks the Soroban protocol, not EVM JSON-RPC.
+- `parameters.transactionHash` — the Soroban transaction hash whose diagnostic
+  events should be extracted.
+
+**Behavior:**
+
+- A confirmed transaction yields one typed, serializable trace record per
+  `events[]` entry. Each record carries the typed event (type, contract id,
+  base64 topics/value, `inSuccessfulContractCall`), the raw base64 wire entry,
+  the parent `transactionHash`, the `ledger` sequence, and the Soroban
+  `applicationOrder`.
+- An unknown or not-yet-confirmed transaction is a **transient, retryable**
+  condition: the job is retried and is never moved to the Dead Letter Queue on
+  the first failure.
+- An `events[]` array or total encoded byte volume over the bounded resource
+  policy (`BLOCKCHAIN_MAX_BATCH_SIZE` / `BLOCKCHAIN_MAX_PAYLOAD_BYTES`) is a
+  **permanent** `BlockchainPayloadLimitError` and is Dead Letter Queued.
+- A malformed (invalid base64) event entry is a **permanent, non-retryable**
+  input failure and is Dead Letter Queued.
+
+**Returns:**
+
+```json
+{ "success": true, "jobId": "string", "queueName": "blockchain-events", "timestamp": "ISO-8601" }
+```
+
+The typed trace records are the ingest step every downstream M1 stage
+(persistence, replay, re-verification) consumes; the Rust `LmsEvent` remains the
+canonical typed payload for events known to the LMS contract.
 
 ---
 

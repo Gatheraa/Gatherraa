@@ -23,7 +23,11 @@ import {
   StellarConfigError,
   STELLAR_NETWORK_ID,
 } from '../config/blockchain-provider.config';
-import { StellarProvider } from '../providers/stellar.provider';
+import {
+  SorobanTransactionEvent,
+  StellarProvider,
+  StellarGetTransactionStatus,
+} from '../providers/stellar.provider';
 
 export interface BlockchainEventJobData {
   contractAddress: string;
@@ -31,7 +35,43 @@ export interface BlockchainEventJobData {
   parameters: any;
   networkId?: string;
   rpcUrl?: string;
-  action?: 'listen' | 'process' | 'verify' | 'index';
+  action?: 'listen' | 'process' | 'verify' | 'index' | 'soroban-trace';
+}
+
+/**
+ * A single decoded Soroban trace record produced by the soroban-trace action.
+ *
+ * This is the typed, serializable envelope the rest of M1 (persistence,
+ * replay, re-verification) consumes. It carries the typed event representation
+ * plus the raw wire entry, the parent transaction hash, and the ledger sequence
+ * so downstream stages never re-derive the envelope. The Rust `LmsEvent`
+ * remains the canonical typed payload for events known to the LMS contract.
+ */
+export interface SorobanTraceRecord {
+  /** Typed representation of the Soroban event. */
+  event: SorobanTransactionEvent;
+  /** Raw base64 event entry from the RPC (stringified), never lossy. */
+  rawXdr: string;
+  /** Parent transaction hash. */
+  transactionHash: string;
+  /** Ledger sequence the transaction was applied on. */
+  ledger: number;
+  /** Application (Soroban) order of the transaction. */
+  applicationOrder?: number;
+}
+
+/**
+ * Raised when a Soroban event entry cannot be trusted for ingestion: an
+ * invalid base64 payload or a structurally unusable entry. Treat this as a
+ * permanent input failure — the raw wire data cannot be repaired by retrying.
+ */
+export class SorobanTraceDecodeError extends Error {
+  readonly code = 'SOROBAN_TRACE_DECODE_INVALID';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'SorobanTraceDecodeError';
+  }
 }
 
 // --- Canonical event identity ----------------------------------------------
@@ -41,6 +81,25 @@ export interface BlockchainEventJobData {
 // or valid events be rejected.
 
 const HEX_TOPIC_PATTERN = /^0[xX][0-9a-fA-F]{64}$/;
+
+/**
+ * Strict base64 validation (standard alphabet, optional padding): the payload
+ * must re-encode to exactly the original string. This rejects truncated or
+ * garbage payloads that `Buffer.from` would otherwise silently accept.
+ */
+const BASE64_PATTERN = /^[A-Za-z0-9+/]*={0,2}$/;
+
+export function isValidBase64(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length === 0 || !BASE64_PATTERN.test(value)) {
+    return false;
+  }
+  try {
+    const decoded = Buffer.from(value, 'base64').toString('base64');
+    return decoded === value;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Resolve a job's eventName to its canonical (lowercase) event identity topic.
@@ -189,7 +248,13 @@ export class BlockchainProcessor extends WorkerHost {
       // permanent failures, before any provider call. The catch block maps
       // these to an unrecoverable failure, so the job is never retried and
       // routes to the DLQ on the first attempt.
-      validateBlockchainEventParameters(action as BlockchainAction, parameters);
+      //
+      // `soroban-trace` is exempt: it is a Stellar-only action whose guard and
+      // failure classification live in the Stellar branch below (permanent
+      // payload-limit/decode failures vs transient not-yet-confirmed states).
+      if (action !== 'soroban-trace') {
+        validateBlockchainEventParameters(action as BlockchainAction, parameters);
+      }
 
       this.logger.log(
         `Processing blockchain event job ${jobId}: ${eventName} on network ${networkId}`,
@@ -205,12 +270,32 @@ export class BlockchainProcessor extends WorkerHost {
 
       if (networkId === STELLAR_NETWORK_ID) {
         // Stellar uses the Soroban protocol; the EVM action handlers do not
-        // apply. Fail clearly instead of silently executing EVM JSON-RPC
-        // against a Stellar endpoint.
-        throw new Error(
-          `Action '${action}' is not supported on the ${STELLAR_NETWORK_ID} network. ` +
-            `Stellar uses the Soroban protocol, not EVM JSON-RPC.`,
+        // apply. Only the dedicated Soroban extraction action is valid here;
+        // anything else fails clearly instead of silently executing EVM
+        // JSON-RPC against a Stellar endpoint.
+        if (action !== 'soroban-trace') {
+          throw new Error(
+            `Action '${action}' is not supported on the ${STELLAR_NETWORK_ID} network. ` +
+              `Stellar uses the Soroban protocol, not EVM JSON-RPC.`,
+          );
+        }
+        const stellarResult = await this.extractSorobanTrace(
+          this.stellarProvider,
+          contractAddress,
+          parameters,
+          job,
         );
+        await job.updateProgress(100);
+        this.logger.log(`Blockchain event job ${jobId} completed successfully`);
+        return {
+          success: true,
+          action,
+          eventName,
+          networkId,
+          contractAddress,
+          result: stellarResult,
+          timestamp: new Date(),
+        };
       }
 
       await job.updateProgress(25);
@@ -283,10 +368,16 @@ export class BlockchainProcessor extends WorkerHost {
         throw new UnrecoverableError(error.message);
       }
 
-      if (error instanceof BlockchainParameterError) {
+if (error instanceof BlockchainParameterError) {
         // Permanent input failure: the payload can never become a valid job
         // for this action, so retrying cannot help. onJobFailed routes it to
         // the Dead Letter Queue on the first attempt.
+        throw new UnrecoverableError(error.message);
+      }
+
+      if (error instanceof SorobanTraceDecodeError) {
+        // A malformed Soroban event entry is a permanent input failure: the
+        // raw wire data cannot be trusted and retrying will not repair it.
         throw new UnrecoverableError(error.message);
       }
 
@@ -452,6 +543,134 @@ export class BlockchainProcessor extends WorkerHost {
       indexed: true,
       indexData,
     };
+  }
+
+  /**
+   * Extract Soroban traces from a Stellar (Soroban) transaction.
+   *
+   * This is the M1 ingest step: fetch the transaction for
+   * `parameters.transactionHash`, apply the bounded resource policy to the raw
+   * `events[]` array, and emit one typed trace record per event.
+   *
+   * A transaction that is not yet confirmed or unknown (`notFound`,
+   * `tryAgainLater`, `duplicate`) is a transient, retryable condition and is
+   * reported as a normal error — `onJobFailed` only routes it to the DLQ after
+   * attempts are exhausted, never on the first failure. A request that exceeds
+   * the configured events/byte budget or carries a malformed base64 entry is a
+   * permanent input failure routed to the DLQ.
+   */
+  private async extractSorobanTrace(
+    stellarProvider: StellarProvider | null,
+    contractAddress: string,
+    parameters: any,
+    job: Job,
+  ): Promise<{ traces: SorobanTraceRecord[] }> {
+    const transactionHash = parameters?.transactionHash;
+    if (typeof transactionHash !== 'string' || transactionHash.trim().length === 0) {
+      throw new SorobanTraceDecodeError(
+        'Soroban trace extraction requires a parameters.transactionHash string.',
+      );
+    }
+
+    if (!stellarProvider) {
+      throw new Error(`Stellar provider is not configured for the ${STELLAR_NETWORK_ID} network.`);
+    }
+
+    await job.updateProgress(30);
+
+    const tx = await stellarProvider.getTransaction(transactionHash);
+
+    // Not-yet-confirmed or unknown transactions (and duplicate/try-again
+    // conditions) are transient: retry instead of the DLQ.
+    const retryable: StellarGetTransactionStatus[] = ['notFound', 'tryAgainLater', 'duplicate'];
+    if (!tx.ok) {
+      if (retryable.includes(tx.status)) {
+        throw new Error(
+          `Soroban transaction ${transactionHash} is not available yet (${tx.status}).`,
+        );
+      }
+      throw new Error(`Soroban getTransaction failed (${tx.status}) for ${transactionHash}.`);
+    }
+
+    await job.updateProgress(55);
+
+    // A failed transaction still carries diagnostic events; the trace records
+    // preserve the `inSuccessfulContractCall` signal so downstream stages can
+    // filter or retain them as they see fit.
+    const events = tx.events;
+
+    // Soroban-appropriate budget re-check on the raw events[] array: bound the
+    // batch size and the total encoded byte volume before decoding the batch.
+    this.assertSorobanTraceBudget(events);
+
+    await job.updateProgress(75);
+
+    const traces: SorobanTraceRecord[] = events.map((event) => {
+      this.assertValidBase64(event, transactionHash);
+      return {
+        event,
+        rawXdr: JSON.stringify(event),
+        transactionHash,
+        ledger: tx.ledger ?? 0,
+        applicationOrder: tx.applicationOrder,
+      };
+    });
+
+    await job.updateProgress(100);
+
+    return { traces };
+  }
+
+  /**
+   * Apply a Soroban-appropriate resource budget to the raw events[] array: the
+   * batch must not exceed the configured item limit, and the total encoded
+   * byte volume must not exceed the configured payload budget. Over-budget
+   * requests are a permanent `BlockchainPayloadLimitError` → DLQ.
+   */
+  private assertSorobanTraceBudget(events: SorobanTransactionEvent[]): void {
+    if (events.length > this.limits.maxBatchSize) {
+      throw new BlockchainPayloadLimitError(
+        `Soroban transaction carries ${events.length} events, exceeding the limit ` +
+          `of ${this.limits.maxBatchSize} events`,
+      );
+    }
+
+    let totalBytes = 0;
+    for (const event of events) {
+      totalBytes += Buffer.byteLength(JSON.stringify(event), 'utf8');
+    }
+    if (totalBytes > this.limits.maxPayloadBytes) {
+      throw new BlockchainPayloadLimitError(
+        `Soroban transaction events total ${totalBytes} bytes, exceeding the limit ` +
+          `of ${this.limits.maxPayloadBytes} bytes`,
+      );
+    }
+  }
+
+  /**
+   * Validate that a Soroban event entry's base64 payloads are well-formed.
+   * A structurally unusable entry (missing topics/value or invalid base64) is a
+   * permanent, non-retryable input failure — the raw wire data cannot be
+   * trusted and retrying will not repair it.
+   */
+  private assertValidBase64(event: SorobanTransactionEvent, transactionHash: string): void {
+    if (!Array.isArray(event.topic) || typeof event.value !== 'string') {
+      throw new SorobanTraceDecodeError(
+        `Soroban event in transaction ${transactionHash} is not a usable event entry.`,
+      );
+    }
+    for (const item of event.topic) {
+      if (!isValidBase64(item)) {
+        throw new SorobanTraceDecodeError(
+          `Soroban event topic in transaction ${transactionHash} is not valid base64.`,
+        );
+      }
+    }
+    if (!isValidBase64(event.value)) {
+      throw new SorobanTraceDecodeError(
+        `Soroban event value in transaction ${transactionHash} is not valid base64.`,
+      );
+    }
   }
 
   /**
