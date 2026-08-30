@@ -9,12 +9,13 @@ This document provides comprehensive API documentation for all Gathera smart con
 3. [Escrow Contract API](#escrow-contract-api)
 4. [Multi-Signature Wallet Contract API](#multi-signature-wallet-contract-api)
 5. [Integration Layer API](#integration-layer-api)
-6. [Soroban Trace Replay API](#soroban-trace-replay-api)
-7. [Error Handling](#error-handling)
-7. [Gas Cost Analysis](#gas-cost-analysis)
-8. [Usage Examples](#usage-examples)
-9. [Soroban Trace Store Schema](#soroban-trace-store-schema)
-10. [Blockchain Event Task Queue](#blockchain-event-task-queue)
+6. [Decode Error Taxonomy and Retry Mapping](#decode-error-taxonomy-and-retry-mapping)
+7. [Soroban Trace Replay API](#soroban-trace-replay-api)
+8. [Error Handling](#error-handling)
+9. [Gas Cost Analysis](#gas-cost-analysis)
+10. [Usage Examples](#usage-examples)
+11. [Soroban Trace Store Schema](#soroban-trace-store-schema)
+12. [Blockchain Event Task Queue](#blockchain-event-task-queue)
 
 ## Overview
 
@@ -828,6 +829,34 @@ pub fn get_addresses(&self) -> (Address, Address, Address)
 - `(Address, Address, Address)`: Tuple of (ticket, escrow, multisig) addresses
 
 **Gas Cost:** ~3,000 gas units
+
+## Decode Error Taxonomy and Retry Mapping
+
+Operators reading the Dead Letter Queue for the `blockchain-events` worker see
+two distinct failure classes for Soroban event decode:
+
+| Outcome code       | Permanent (DLQ on first failure) | Meaning                                             |
+| ------------------ | -------------------------------- | --------------------------------------------------- |
+| `InvalidBase64`    | ✅                               | The input is not valid base64.                      |
+| `TruncatedXdr`     | ✅                               | The XDR ends before the event is complete.          |
+| `MalformedXdr`     | ✅                               | The XDR is not a structurally valid `DiagnosticEvent`. |
+| `UnsupportedEvent` | ✅                               | Valid XDR, but not an LMS contract event.           |
+| `UnexpectedContractId` | ✅                         | The emitter does not match the expected deployment. |
+| `InvalidPayload`   | ✅                               | Event fields do not match the documented LMS representation. |
+
+A **permanent** decode failure is routed to the Dead Letter Queue on the first
+attempt (thrown as `UnrecoverableError`) — it never retries, so a single
+poisoned event cannot occupy a bounded worker concurrency slot across pointless
+retries or stall unrelated jobs behind it.
+
+**Transient** failures (for example a not-yet-confirmed transaction, an RPC
+hiccup, or any plain `Error`) are retried through the ordinary attempts
+machinery and are moved to the DLQ only after `opts.attempts` are exhausted.
+The existing DLQ contract — intermediate failures are never moved, exhausted
+jobs move exactly once, and job identity and error message are preserved —
+applies unchanged on both axes.
+
+Decode error messages never embed the offending input.
 
 ## Soroban Trace Replay API
 

@@ -18,6 +18,7 @@ import {
   BlockchainParameterError,
   validateBlockchainEventParameters,
 } from './blockchain.parameters';
+import { isPermanentDecodeError } from './decode-retry.classifier';
 import {
   resolveStellarProviderConfig,
   StellarConfigError,
@@ -375,9 +376,20 @@ if (error instanceof BlockchainParameterError) {
         throw new UnrecoverableError(error.message);
       }
 
-      if (error instanceof SorobanTraceDecodeError) {
+if (error instanceof SorobanTraceDecodeError) {
         // A malformed Soroban event entry is a permanent input failure: the
         // raw wire data cannot be trusted and retrying will not repair it.
+        throw new UnrecoverableError(error.message);
+      }
+
+      if (isPermanentDecodeError(error)) {
+        // Permanent input failure: the identical decode input always produces
+        // the identical failure, so retrying cannot help and would only occupy
+        // a bounded worker concurrency slot (a poisoned event stalling
+        // unrelated jobs behind it). Route it to the Dead Letter Queue on the
+        // FIRST attempt. Transient decode outcomes (plain Errors, e.g. a
+        // not-yet-confirmed transaction) fall through to the retryable throw
+        // below, preserving the existing attempts/DLQ-exhaustion semantics.
         throw new UnrecoverableError(error.message);
       }
 
