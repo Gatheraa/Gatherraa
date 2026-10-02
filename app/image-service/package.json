@@ -1,11 +1,11 @@
 {
   "name": "gatheraa-image-service",
   "version": "0.1.0",
-  "description": "Image processing service for Gatheraa — resizing, optimization, watermarking, CDN integration",
+  "description": "Image processing service for Gatheraa \u2014 resizing, optimization, watermarking, CDN integration",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node init && node index.js",
+    "dev": "node init && nodemon index.js",
     "lint": "eslint . --ext .js,.mjs",
     "format": "prettier --write \"**/*.{js,json,md}\""
   },
