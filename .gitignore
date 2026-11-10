@@ -73,7 +73,6 @@ typechain-types/
 # ============================================================================
 # IDE AND EDITOR FILES
 # ============================================================================
-.vscode/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
@@ -129,13 +128,8 @@ lerna-debug.log*
 # ============================================================================
 # ENVIRONMENT FILES (SECRETS - NEVER COMMIT)
 # ============================================================================
-.env
-.env.local
-.env.development
 .env.development.local
-.env.test
 .env.test.local
-.env.production
 .env.production.local
 .env.*.local
 .env.vault
@@ -198,3 +192,4 @@ next-env.d.ts
 .docker/
 docker.env
 
+config.bat
